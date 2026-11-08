@@ -1,0 +1,68 @@
+{
+  "packageName": "com.westone.sunstone",
+  "appDescription": "Runs ready-made car routines that bundle forgotten built-in features, such as car wash preparation, child lock for kids, and switching seat positions between drivers, and restores everything afterwards.",
+  "version": "0.1.0",
+  "invokeWord": "선스톤",
+  "actionCalls": [
+    {
+      "type": "function",
+      "function": {
+        "component": "activity",
+        "name": "RUN_ROUTINE",
+        "description": "Runs a ready-made car routine: prepares the car for a car wash, sets up the rear seats for a child, or moves the driver seat to a saved person's position.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "routine": {
+              "type": "string",
+              "description": "Which routine to run.",
+              "enum": ["WASH", "CHILD_LOCK", "SEAT_MEMORY"]
+            },
+            "profile": {
+              "type": "string",
+              "description": "For SEAT_MEMORY only: whose saved seat position to use, for example mom or dad."
+            }
+          },
+          "required": ["routine"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "component": "activity",
+        "name": "UNDO_ROUTINE",
+        "description": "Restores the car settings that a routine changed back to how they were before.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "routine": {
+              "type": "string",
+              "description": "Which routine to undo.",
+              "enum": ["WASH", "CHILD_LOCK", "SEAT_MEMORY"]
+            }
+          },
+          "required": ["routine"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "component": "activity",
+        "name": "SAVE_SEAT_PROFILE",
+        "description": "Saves the current driver seat position under a person's name so it can be restored later.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The person's name for this seat position."
+            }
+          },
+          "required": ["name"]
+        }
+      }
+    }
+  ]
+}
