@@ -12,7 +12,7 @@ Virtual Console은 브라우저 세션이 열려 있을 때만 차량 쪽과 연
 | 루틴 | API | 우리 코드 호출 방식 | 결과 | 메모 |
 |---|---|---|---|---|
 | 세차 | getCurrentWindowPosition / setWindowPosition (ROW_1_LEFT…ROW_2_RIGHT) | 직접 | 반영 | 2026-11-09 probe 측정. 4개 모두 0→5→0, 앱 다시 읽기 5/0, 콘솔 50/0(%, 앱 값 ×10). 바꾸기·되돌리기 각 1.5초(확인 대기 포함). 다른 팀 사례(0으로 되돌리기 실패)는 재현 안 됨 |
-| 세차 | setWindowPosition ROOF_TOP_1/2 (선루프) | 직접 | 실패 | 2026-11-09 probe 측정. 읽기·쓰기 모두 `area ID: 0x10000/0x20000 not supported for property ID: WINDOW_POS`. 에뮬레이터에 선루프 없음. 콘솔에도 항목 없음 |
+| 세차 | setWindowPosition ROOF_TOP_1/2 (선루프) | 직접 | 실패 | 2026-11-09 probe 측정. 읽기·쓰기 모두 `area ID: 0x10000/0x20000 not supported for property ID: WINDOW_POS`. 에뮬레이터에 선루프 없음. 콘솔에도 항목 없음. 2026-11-09 car/seat-timing: `checkWindowPositionCapabilities`를 먼저 보고 Unsupported로 안내, 실행 기록에 "이 차에서는 지원하지 않아요" |
 | 세차 | getCurrentWiperSwitch / setWiperSwitch (OFF·AUTO) | 직접 | 반영 | 2026-11-09 probe 측정. OFF→AUTO→OFF, 앱 AUTO/OFF, 콘솔 Auto/Off. 0.4초. 리플렉션 `setWiperSwitch` 존재 확인 |
 | 세차 | getHvacRecirculationState / setHvacRecirculation | 직접 | 반영 | 2026-11-09 수정 후 probe. 다섯 좌석 합친 area(117)로 부르니 false→true→false, 앱·콘솔(`hvac.recirc_on`) 일치, 0.4초. 처음엔 ROW_1_LEFT(0x1)로 불러 `not supported` 실패 |
 | 세차·차일드락 | getDoorLockState / setDoorLock (네 문 합친 area 85) | 직접 | 반영 | 2026-11-09 수정 후 probe. 문 전체 잠금 하나로 다룬다. true→false→true, 앱·콘솔(`body.door_locks.all`) 일치, 0.4초. 처음엔 문마다 불러 `area ID: 0x1 not supported for property ID: DOOR_LOCK` 실패 |
@@ -63,4 +63,21 @@ SDK `check…Capabilities`가 돌려준 값. 괄호 안 번호는 Pleos 서비�
 - 네 축 모두 끝에서 끝까지 약 2.05초, 방향 차이 없음. 1단위(콘솔 %)에 약 20밀리초. 읽기 간격 때문에 ±0.1초 오차가 있다.
 - 쿠션 길이·머리받이는 콘솔에 칸이 없어 재지 못했다.
 - 에뮬레이터 값이라 실제 차 속도와 다를 수 있다(미확인). 아직 코드에 넣지 않았다.
+
+## 시트 시간 맞추기 (2026-11-09, car/seat-timing, 데모 `seatfit`)
+
+`PleosCarPort.moveSeatTo()`: BACKWARD 2.5초 → STOP(추정 0) → FORWARD (목표 × 축별 0→100 시간 / 100) → STOP. 추정 위치를 앱이 기억하고 시트 위치 읽기는 이 값을 돌려준다. 결과는 Sent.
+운전석, 목표 30·70을 축마다 3번씩, 움직인 뒤 콘솔 `seat.positions.<축>.driver`와 비교. 원본: `relay/files/20261109-2006-시트시간맞추기.csv`.
+
+| 축 | 목표 30 (콘솔, 3번) | 목표 70 (콘솔, 3번) | 오차 |
+|---|---|---|---|
+| 앞뒤 (slide) | 30, 30, 30 | 70, 70, 70 | 0 |
+| 높이 (height) | 30, 30, 30 | 70, 70, 70 | 0 |
+| 등받이 (recline) | 30, 30, 30 | 70, 70, 70 | 0 |
+| 쿠션 각도 (tilt) | 30, 30, 30 | 70, 70, 70 | 0 |
+
+- 24번 모두 콘솔 정수 단위로 오차 0. 콘솔이 정수(1단위 약 20밀리초)로만 보여서 그보다 작은 오차는 보이지 않는다.
+- 기어 변경 중단: 앞뒤를 콘솔 100에 두고 이동 시작 뒤 기어를 D로 바꿈. 앱이 기어 D를 받은 지 32밀리초 뒤 STOP(logcat 03:04:58.723 → 58.755), 그때 콘솔 40. 결과 Failed("기어가 바뀌어서 시트를 멈췄어요"), 이어진 요청은 "기어가 P가 아니라서 시트를 움직이지 않았어요"로 움직이지 않음.
+- 한계: 사람이 시트를 손으로(또는 콘솔로) 움직이거나 앱을 다시 켜면 추정 위치가 실제와 달라진다. 다음 이동은 늘 맨 뒤로 기준점을 다시 잡아서 이동 자체는 맞지만, 되돌리기용 "원래 값"은 틀릴 수 있다.
+- 실차 속도는 미확인. 실차에서 축별 0→100 시간을 다시 재야 한다.
 
