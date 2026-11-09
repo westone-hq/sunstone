@@ -64,7 +64,8 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
     init {
         subscribeGear()
         Door.entries.forEach(::subscribeDoor)
-        Seat.entries.forEach(::subscribeSeat)
+        Seat.entries.filter { it != Seat.REAR_CENTER }.forEach(::subscribeOccupancy)
+        Seat.entries.forEach(::subscribeBelt)
     }
 
     /** 장소 검색 결과(또는 데모 입력). */
@@ -106,31 +107,35 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         unsubscribe += { api.unregisterDoorPosition(area, listener) }
     }
 
-    private fun subscribeSeat(seat: Seat) = guard("seat $seat") {
+    private fun subscribeOccupancy(seat: Seat) = guard("occupancy $seat") {
         val api = vehicle.getSeat()
         val area = seat.area()
         val occupied: (Boolean?) -> Unit = { v ->
-            sensed.update { it.copy(seatOccupied = it.seatOccupied + (seat to (v == true))) }
+            val sitting = v != null && v != INVERT_OCCUPANCY
+            sensed.update { it.copy(seatOccupied = it.seatOccupied + (seat to sitting)) }
         }
-        val buckled: (Boolean?) -> Unit = { v ->
-            sensed.update { it.copy(beltBuckled = it.beltBuckled + (seat to (v == true))) }
-        }
-        val occListener = object : SeatOccupancyListener {
+        val listener = object : SeatOccupancyListener {
             override fun onSeatOccupancyUpdated(value: Boolean?) = occupied(value)
             override fun onFailed(e: Exception) = warn("occupancy $seat", e)
         }
-        val beltListener = object : SeatBeltBuckledStateListener {
+        api.getCurrentSeatOccupancy(area, occupied, { warn("occupancy read $seat", it) })
+        api.registerSeatOccupancy(area, listener)
+        unsubscribe += { api.unregisterSeatOccupancy(area, listener) }
+    }
+
+    private fun subscribeBelt(seat: Seat) = guard("belt $seat") {
+        val api = vehicle.getSeat()
+        val area = seat.area()
+        val buckled: (Boolean?) -> Unit = { v ->
+            sensed.update { it.copy(beltBuckled = it.beltBuckled + (seat to (v == true))) }
+        }
+        val listener = object : SeatBeltBuckledStateListener {
             override fun onSeatBeltBuckledStateUpdated(value: Boolean?) = buckled(value)
             override fun onFailed(e: Exception) = warn("belt $seat", e)
         }
-        api.getCurrentSeatOccupancy(area, occupied, { warn("occupancy read $seat", it) })
         api.getCurrentSeatBeltBuckledState(area, buckled, { warn("belt read $seat", it) })
-        api.registerSeatOccupancy(area, occListener)
-        api.registerSeatBeltBuckledState(area, beltListener)
-        unsubscribe += {
-            api.unregisterSeatOccupancy(area, occListener)
-            api.unregisterSeatBeltBuckledState(area, beltListener)
-        }
+        api.registerSeatBeltBuckledState(area, listener)
+        unsubscribe += { api.unregisterSeatBeltBuckledState(area, listener) }
     }
 
     // ------------------------------------------------------------------ 읽기
@@ -363,6 +368,8 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
     private companion object {
         const val TAG = "SunstoneCar"
         const val SEAT_TOLERANCE = 1
+        // 측정(docs/api-spike.md 탑승 행): SDK가 에뮬레이터 탑승 값을 반대로 읽는다. 실제 차는 미확인.
+        const val INVERT_OCCUPANCY = true
         const val SEAT_POLL_MS = 250L
         const val SEAT_TIMEOUT_MS = 10_000L
         val FRONT_WIPER = WindowArea(WindowValue.FRONT_WINDSHIELD)
