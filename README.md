@@ -20,7 +20,7 @@ Pleos Connect 앱 · Android (Kotlin, Jetpack Compose) · 2026 현대자동차�
 | 항목 | 내용 |
 |---|---|
 | APK | `apk/` (예정) |
-| 테스트 환경 | Android Studio, JDK 17, Pleos Connect v2.1.0 에뮬레이터(API 34) |
+| 테스트 환경 | Android Studio, JDK 17~21, Pleos Connect v2.1.0 에뮬레이터(API 34) |
 | Android | minSdk 28, target/compileSdk 35 |
 | Pleos SDK | Vehicle 2.3.2 (예정: NaviHelper 3.0.5) |
 | 필요한 설정 | 바깥 API 키는 `local.properties`에 둡니다. 키가 없으면 고정 응답으로 동작합니다 |

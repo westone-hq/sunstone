@@ -17,6 +17,6 @@
 | 시트 | getCurrentSeat{ForeAft,Height,BackrestAngle,Tilt,Depth,HeadrestHeight}Position | 리플렉션 | | 함수 이름 확인 필요 |
 | 시트 | moveSeat{…}(area, FORWARD/BACKWARD/STOP) | 리플렉션 | | 높이·각도에서 FORWARD가 어느 쪽인지 |
 | 시트 | selectSeatMemory(area, n) | 직접 | | 성공 콜백 없음 |
-| 공통 | getGear().registerGearSelection | 직접 | | Virtual Console Motion → Gear |
+| 공통 | getGear().registerGearSelection | 직접 | | Virtual Console Motion → Gear. deprecated, GEAR_SELECTION 속성 권장 – 실측 때 비교 |
 | 공통 | getCurrentDoorPosition / registerDoorPosition | 직접 | | |
 | 공통 | PERF_VEHICLE_SPEED (AAOS) | 직접 | | 에뮬레이터에서 못 넣으면 데모 `speed` |

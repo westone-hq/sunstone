@@ -29,7 +29,7 @@
 
 ## 명령 (Windows PowerShell)
 ```powershell
-$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+# JAVA_HOME: JDK 17~21. Android Studio 기본 jbr이 25면 Gradle 8.10.2가 시작하지 못한다
 $sdk = "$env:LOCALAPPDATA\Android\Sdk"; $adb = "$sdk\platform-tools\adb.exe"
 
 .\gradlew :routines:test
