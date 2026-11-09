@@ -237,6 +237,21 @@ class DemoReceiver : BroadcastReceiver() {
                 }
             }
             /**
+             * 작성: 2026-11-09 20:40:00 · 박건준
+             * 함수: seatcheck
+             * 목적: SDK 시트 위치 읽기를 지원 목록·지원 area·리스너로 다시
+             *       확인한다(`SeatReadCheck`). 따로 만든 `Vehicle`은 끝나면 놓는다.
+             */
+            "seatcheck" -> g.scope.launch {
+                val vehicle = Vehicle(context.applicationContext).also { it.initialize() } // 실측용 차 연결
+                delay(AREAS_CONNECT_MS)
+                try {
+                    SeatReadCheck(vehicle).run() // → 로직 이동: SeatReadCheck.run()
+                } finally {
+                    vehicle.release()
+                }
+            }
+            /**
              * 작성: 2026-11-09 19:14:00 · 박건준
              * 함수: seatfit
              * 목적: 시간 기반 시트 이동이 목표 30·70에 얼마나 가깝게 가는지
