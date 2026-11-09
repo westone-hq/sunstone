@@ -173,7 +173,8 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
             }
             is Target.WindowLock ->
                 if (target.window !in LOCKABLE_WINDOWS) unsupported("setWindowLock ${target.window}")
-                else if (awaitSet(vehicle.getWindow(), listOf("setWindowLock"), target.window.area(), value as Boolean)) verify(target, value)
+                // 측정(docs/api-spike.md 창문 잠금 행): 다시 읽은 값만 바뀌고 콘솔은 그대로라 확인 못 한다.
+                else if (awaitSet(vehicle.getWindow(), listOf("setWindowLock"), target.window.area(), value as Boolean)) ControlResult.Sent
                 else unsupported("setWindowLock")
             Target.Wiper ->
                 if (awaitSet(vehicle.getWiper(), listOf("setWiperSwitch"), FRONT_WIPER, (value as WiperMode).toSwitch())) verify(target, value)
