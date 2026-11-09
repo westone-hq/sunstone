@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application>
+    <!-- 제어 API 실측(probe)이 에뮬레이터 안 Virtual Console(127.0.0.1:8088, http)을 읽는다. 출시 빌드에는 없다. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application android:usesCleartextTraffic="true">
         <!-- 디버그 빌드에만 있는 데모 입력. 출시 빌드에는 들어가지 않는다. -->
         <receiver
             android:name=".demo.DemoReceiver"

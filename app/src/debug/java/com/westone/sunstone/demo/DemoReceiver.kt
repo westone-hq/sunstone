@@ -11,6 +11,8 @@ import com.westone.sunstone.routines.model.Door
 import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.routines.model.Seat
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * 시연용 장면 주입. 에뮬레이터가 못 만드는 상황(장소, 속도, 마이크 입력)을 adb 한 줄로 넣는다.
@@ -28,6 +30,8 @@ import com.westone.sunstone.routines.model.Seat
  * rear_seat on|off              뒷좌석 왼쪽 탑승
  * rear_belt on|off              뒷좌석 왼쪽 벨트
  * driver_seat on|off            운전석 탑승
+ * --- Pleos 차일 때만 ---
+ * probe                         제어 API 실측, 결과는 logcat SunstoneCar `probe,` 줄
  */
 class DemoReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -57,7 +61,28 @@ class DemoReceiver : BroadcastReceiver() {
             "rear_seat" -> g.editFakeCar { it.copy(seatOccupied = it.seatOccupied + (Seat.REAR_LEFT to (arg == "on"))) }
             "rear_belt" -> g.editFakeCar { it.copy(beltBuckled = it.beltBuckled + (Seat.REAR_LEFT to (arg == "on"))) }
             "driver_seat" -> g.editFakeCar { it.copy(seatOccupied = it.seatOccupied + (Seat.DRIVER to (arg == "on"))) }
+            /**
+             * 작성: 2026-11-09 16:52:02 · 박건준
+             * 함수: probe
+             * 목적: 제어 API 실측(`CarProbe`)을 앱 범위에서 돌린다. 몇 분 걸려서
+             *       수신기 안에서 기다리지 않는다. 이미 돌고 있거나 Pleos 차가
+             *       아니면(가짜 차) 시작하지 않는다.
+             */
+            "probe" -> {
+                val pleos = g.pleos // 실측할 차, 가짜 차를 쓰는 중이면 null
+                when {
+                    pleos == null -> Log.w("SunstoneDemo", "probe: Pleos 차가 아니라서 실측하지 않음")
+                    probeJob?.isActive == true -> Log.w("SunstoneDemo", "probe: 이미 실측 중")
+                    // → 로직 이동: CarProbe.run()
+                    else -> probeJob = g.scope.launch { CarProbe(pleos).run() }
+                }
+            }
             else -> Log.w("SunstoneDemo", "모르는 명령: $cmd")
         }
+    }
+
+    private companion object {
+        /** 돌고 있는 실측 작업. 수신기는 방송마다 새로 만들어져서 여기에 둔다. 처음엔 null */
+        var probeJob: Job? = null
     }
 }
