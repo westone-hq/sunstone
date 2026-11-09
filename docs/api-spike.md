@@ -22,8 +22,9 @@ Virtual Console은 브라우저 세션이 열려 있을 때만 차량 쪽과 연
 | 차일드락 | getCurrentSeatOccupancy / registerSeatOccupancy | 직접 | 실패 | 2026-11-09 측정. 값은 오지만 반대로 읽힌다. 에뮬레이터는 AAOS 기준 1=빈자리, 2=탑승(`SEAT_OCCUPANCY` area 1/4/16/64)을 보내는데 SDK 2.3.2는 `값 == 1`을 탑승(true)으로 바꾼다. 운전석·조수석·뒷좌석 좌우 4곳 모두 콘솔 탑승→앱 빈자리, 콘솔 빈자리→앱 탑승. 뒷좌석 가운데는 콘솔에 없고 앱은 늘 탑승. 2026-11-09 `PleosCarPort.INVERT_OCCUPANCY`로 뒤집고 가운데는 읽지 않게 바꾼 뒤, 콘솔 4자리 탑승/빈자리가 앱 상태 줄과 일치 |
 | 차일드락 | getCurrentSeatBeltBuckledState / registerSeatBeltBuckledState (ROW_2_*) | 직접 | | 2026-11-09 확인 못 함. Virtual Console 카탈로그에 좌석별 벨트 항목이 없다 |
 | 시트 | getCurrentSeat{ForeAft,Height,BackrestAngle,Tilt,Depth,HeadrestHeight}Position | 직접 | 실패 | 2026-11-09 probe 측정. **불일치**: 앞뒤·높이·등받이·쿠션 각도·쿠션 길이는 함수가 있으나 늘 0을 돌려준다(콘솔 100일 때도 0). 머리받이 읽기 함수는 SDK 이름이 `getCurrentSeatHeadrestHeightAftPosition`이라 리플렉션이 못 찾았다. 직접 호출로 바꾼 뒤에도 늘 0 |
+| 시트 | CarPropertyManager SEAT_FORE_AFT_POS·SEAT_HEIGHT_POS·SEAT_BACKREST_ANGLE_1_POS·SEAT_TILT_POS·SEAT_DEPTH_POS·SEAT_LUMBAR_FORE_AFT_POS·SEAT_LUMBAR_SIDE_SUPPORT_POS·SEAT_HEADREST_HEIGHT_POS_V2 (운전석) | 직접(데모 `seatread`) | 실패 | 2026-11-09 측정. 콘솔 0일 때와 100일 때 모두 `SecurityException: requires android.car.permission.CONTROL_CAR_SEATS`. 이 권한은 `signature\|privileged`라 debug 매니페스트에 선언해도 `granted=false`. SEAT_BACKREST_ANGLE_2_POS·SEAT_CUSHION_SIDE_SUPPORT_POS는 에뮬레이터에 속성이 없다. `cmd car_service get-property-value`도 user 빌드라 막힌다 |
 | 시트 | moveSeat{…}(area, FORWARD/BACKWARD/STOP) | 직접 | 반영 | 2026-11-09 probe 측정. 앞뒤·높이·등받이·쿠션 각도 모두 FORWARD로 콘솔 값이 0→100 증가. 읽기가 0에 고정돼 목표에서 못 멈추고 10초 제한 후 STOP. 되돌리기도 "이미 0"으로 판단해 움직이지 않아 콘솔 API로 0에 복구했다. 쿠션 길이는 콘솔에 항목 없음 |
-| 시트 | selectSeatMemory(area, n) | 직접 | | 2026-11-09 probe 측정. 1번 호출, 실패 콜백 없이 1초 후 Sent. 콘솔 앞뒤 위치 변화 없음(100→100). 메모리에 저장된 값이 없어서인지 판단 못 함 |
+| 시트 | selectSeatMemory(area, n) | 직접 | | 2026-11-09 probe 측정. 1번 호출, 실패 콜백 없이 1초 후 Sent. 콘솔 앞뒤 위치 변화 없음(100→100). 지원은 운전석 1~2번, 쓰기만(`checkSeatMemoryCapabilities`). SDK 2.3.2에 메모리 저장 API(save·set·store 계열)가 없고 콘솔 카탈로그에도 메모리 항목이 없어 "저장 → 움직임 → 불러오기" 확인은 못 했다 |
 | 공통 | getGear().registerGearSelection | 직접 | 반영 | 2026-11-09 측정. P→D→R→P 모두 전달(`VENDOR_GEAR_SELECTION` 4/8/2/4), 앱 상태 PARK/DRIVE/PARK 확인. R에서는 후방 카메라가 앱을 가려 화면 확인은 못 함. deprecated, GEAR_SELECTION 속성 권장 – 실측 때 비교 |
 | 공통 | getCurrentDoorPosition / registerDoorPosition | 직접 | 반영 | 2026-11-09 측정. ROW_2_LEFT/RIGHT 열기·닫기 모두 전달(`DOOR_POS` area 16/64, 1/0), 앱 상태 줄 일치 |
 | 공통 | PERF_VEHICLE_SPEED (AAOS) | 직접 | | 에뮬레이터에서 못 넣으면 데모 `speed` |
@@ -46,4 +47,20 @@ SDK `check…Capabilities`가 돌려준 값. 괄호 안 번호는 Pleos 서비�
 | SeatForeAftPosition | READ_WRITE | ROW_1/2 LEFT/RIGHT, 0~100 | 읽으면 늘 0 |
 | MoveSeatForeAft | READ_WRITE | ROW_1/2 LEFT/RIGHT | |
 | SeatMemory | WRITE | 운전석(1), 1~2번 | 읽기 없음 |
+
+## 시트 축 이동 시간 (2026-11-09, 데모 `seattime`)
+
+시트 위치를 앱이 읽을 수 없어서(SDK는 늘 0, AAOS 속성은 권한 없음) 움직인 시간으로 위치를 맞출 수 있는지 잰다.
+운전석, SDK `moveSeat…`로 FORWARD/BACKWARD를 보내고 콘솔 `seat.positions.<축>.driver`가 100(또는 0)에 닿을 때까지 0.1초마다 읽었다. 축·방향마다 5번. 원본: `relay/files/20261109-1855-시트이동시간.csv`.
+
+| 축 (콘솔 이름) | 0→100 평균 (최소~최대) | 100→0 평균 (최소~최대) |
+|---|---|---|
+| 앞뒤 (slide) | 2.08초 (2.06~2.09) | 2.09초 (2.06~2.13) |
+| 높이 (height) | 2.05초 (2.04~2.06) | 2.04초 (2.04~2.05) |
+| 등받이 (recline) | 2.05초 (2.04~2.05) | 2.05초 (2.04~2.07) |
+| 쿠션 각도 (tilt) | 2.05초 (2.03~2.13) | 2.06초 (2.04~2.14) |
+
+- 네 축 모두 끝에서 끝까지 약 2.05초, 방향 차이 없음. 1단위(콘솔 %)에 약 20밀리초. 읽기 간격 때문에 ±0.1초 오차가 있다.
+- 쿠션 길이·머리받이는 콘솔에 칸이 없어 재지 못했다.
+- 에뮬레이터 값이라 실제 차 속도와 다를 수 있다(미확인). 아직 코드에 넣지 않았다.
 
