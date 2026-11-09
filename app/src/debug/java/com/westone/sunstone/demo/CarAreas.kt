@@ -12,7 +12,7 @@ import android.util.Log
 import com.westone.sunstone.car.awaitCallback
 
 /**
- * 작성: 2026-11-09 18:40:00 · 박건준
+ * 작성: 2026-11-09 18:34:38 · 박건준
  * 클래스: CarAreas
  * 목적: 차가 실제로 받는 area(좌석·문·창문 위치 묶음) 목록을 SDK의
  *       `check…Capabilities`로 읽어 logcat에 한 줄씩 남긴다. probe에서
@@ -23,7 +23,7 @@ import com.westone.sunstone.car.awaitCallback
 internal class CarAreas(private val vehicle: Vehicle) {
 
     /**
-     * 작성: 2026-11-09 18:40:00 · 박건준
+     * 작성: 2026-11-09 18:34:38 · 박건준
      * 함수: run
      * 목적: 대상 API마다 지원 area와 읽기·쓰기 권한을
      *       `areas,API,권한,area목록` 형식으로 logcat(`SunstoneCar`)에 남긴다.
@@ -42,7 +42,7 @@ internal class CarAreas(private val vehicle: Vehicle) {
     }
 
     /**
-     * 작성: 2026-11-09 18:40:00 · 박건준
+     * 작성: 2026-11-09 18:34:38 · 박건준
      * 함수: checks
      * 목적: 확인할 API 목록. probe에서 실패한 쓰기(내기 순환, 문 잠금,
      *       좌석 공조 전원, 뒷유리 블라인드, 앞좌석 창문 잠금)를 먼저 두고,
@@ -75,7 +75,7 @@ internal class CarAreas(private val vehicle: Vehicle) {
     }
 
     /**
-     * 작성: 2026-11-09 18:40:00 · 박건준
+     * 작성: 2026-11-09 18:34:38 · 박건준
      * 함수: list
      * 목적: area 목록을 주는 콜백을 한 줄 문자열 콜백으로 바꾼다.
      * 인자: ok — 완성된 한 줄을 받을 콜백
@@ -85,7 +85,7 @@ internal class CarAreas(private val vehicle: Vehicle) {
         { config, areas -> ok("${config.accessType},${areas.joinToString(" ; ") { text(it) }}") }
 
     /**
-     * 작성: 2026-11-09 18:40:00 · 박건준
+     * 작성: 2026-11-09 18:34:38 · 박건준
      * 함수: map
      * 목적: area별 값(범위나 지원 값 목록)을 주는 콜백을 한 줄 문자열 콜백으로
      *       바꾼다.
@@ -98,7 +98,7 @@ internal class CarAreas(private val vehicle: Vehicle) {
         }
 
     /**
-     * 작성: 2026-11-09 18:40:00 · 박건준
+     * 작성: 2026-11-09 18:34:38 · 박건준
      * 함수: text
      * 목적: area를 `ROW_1_LEFT+ROW_1_RIGHT(5)`처럼 이름과 합친 번호로 쓴다.
      *       Pleos 서비스 로그의 `areaIds`와 같은 번호라 로그와 맞춰 볼 수 있다.
@@ -116,7 +116,7 @@ internal class CarAreas(private val vehicle: Vehicle) {
     }
 
     /**
-     * 작성: 2026-11-09 18:40:00 · 박건준
+     * 작성: 2026-11-09 18:34:38 · 박건준
      * 함수: bounds
      * 목적: area별 값이 범위(`AreaBounds`)면 `최소~최대`로, 아니면 그대로 쓴다.
      * 인자: value — 범위 또는 지원 값 목록
@@ -130,7 +130,7 @@ internal class CarAreas(private val vehicle: Vehicle) {
 
     private companion object {
         /**
-         * 작성: 2026-11-09 18:40:00 · 박건준
+         * 작성: 2026-11-09 18:34:38 · 박건준
          * 변수: TAG
          * 목적: 결과 줄의 logcat 태그. 차 관련 로그와 같은 태그를 쓴다.
          * 근거: 표준 — 주석·코드 규칙 10-2 로그 태그 넷
@@ -140,7 +140,7 @@ internal class CarAreas(private val vehicle: Vehicle) {
 }
 
 /**
- * 작성: 2026-11-09 18:40:00 · 박건준
+ * 작성: 2026-11-09 18:34:38 · 박건준
  * 클래스: Call
  * 목적: SDK 확인 함수 하나를 부르는 방법. 성공하면 한 줄 문자열을, 실패하면
  *       예외를 콜백으로 준다. `awaitCallback()`에 그대로 넘긴다.

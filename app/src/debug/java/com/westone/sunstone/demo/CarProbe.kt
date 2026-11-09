@@ -108,7 +108,7 @@ internal class CarProbe(private val car: CarPort) {
 
     /**
      * 작성: 2026-11-09 16:52:02 · 박건준
-     * 수정: 2026-11-09 19:05:00 · 박건준
+     * 수정: 2026-11-09 18:37:39 · 박건준
      * 함수: items
      * 목적: 실측할 대상 목록을 만든다. API 이름과 호출 방식은 차 연결
      *       (PleosCarPort.kt)의 `read()`·`apply()`에 적힌 그대로 옮긴다.
@@ -304,7 +304,7 @@ internal class CarProbe(private val car: CarPort) {
 
     /**
      * 작성: 2026-11-09 16:52:02 · 박건준
-     * 수정: 2026-11-09 19:05:00 · 박건준
+     * 수정: 2026-11-09 18:37:39 · 박건준
      * 함수: api
      * 목적: 시트 축을 CSV API 칸에 적을 읽기 / 이동 SDK 함수 이름으로 바꾼다.
      *       차 연결(PleosCarPort.kt)의 `readSeat()`·`moveSeat()`가 부르는 함수다.
@@ -433,7 +433,7 @@ internal class CarProbe(private val car: CarPort) {
 
         /**
          * 작성: 2026-11-09 16:52:02 · 박건준
-         * 수정: 2026-11-09 19:05:00 · 박건준
+         * 수정: 2026-11-09 18:37:39 · 박건준
          * 변수: DIRECT
          * 목적: CSV 호출 방식 칸에 적는 이름. 차 연결(PleosCarPort.kt)이 SDK를
          *       모두 직접 부른다. 이전 실측 CSV와 칸을 맞추려고 칸은 남긴다.
