@@ -383,7 +383,8 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      * 작성: 2026-11-08 18:03:56 · 박건준
      * 수정: 2026-11-09 20:50:30 · 박건준
      * 함수: apply
-     * 목적: 제어 하나를 실행하고 결과를 돌려준다.
+     * 목적: 제어 하나를 실행하고 결과를 돌려준다. 결과 이름은 logcat에
+     *       남긴다(화면은 `Done`·`Sent` 모두 "완료"로 보인다).
      *       - 창문 위치·창문 잠금·와이퍼·내기 순환·문 잠금·공조 전원 — 실행 뒤
      *         다시 읽어 확인한다
      *       - 블라인드·시트 메모리 — 보내기만 하고 `Sent`
@@ -467,7 +468,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         // selectSeatMemory는 성공 콜백이 없어서, 실패 콜백 없이 시간이 지나면 보낸 것으로 본다
         if (command.target is Target.SeatMemory && e is TimeoutCancellationException) ControlResult.Sent
         else failure("apply ${command.target}", e)
-    }
+    }.also { Log.i(TAG, "결과,${command.target},${it.javaClass.simpleName}") }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준

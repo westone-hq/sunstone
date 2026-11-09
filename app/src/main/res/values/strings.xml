@@ -42,9 +42,6 @@
     <string name="step_line_with_note">%1$s %2$s  (%3$s)</string>
     <string name="step_done">완료</string>
     <string name="step_guided">안내</string>
-    <string name="step_running">진행</string>
-    <string name="step_skipped">건너뜀</string>
-    <string name="step_waiting">대기</string>
 
     <!-- 저장한 자세 줄 -->
     <string name="profiles_label">자세:</string>
