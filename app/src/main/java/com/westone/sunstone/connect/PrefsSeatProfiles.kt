@@ -8,7 +8,7 @@ import org.json.JSONObject
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:50:00 · 박건준
+ * 수정: 2026-11-09 18:49:00 · 박건준
  * 클래스: PrefsSeatProfiles
  * 목적: 사람별 시트 자세를 앱 설정 저장소(SharedPreferences)에 JSON으로
  *       저장한다. 사람 이름이 키다.
@@ -21,7 +21,7 @@ class PrefsSeatProfiles(context: Context) : SeatProfiles {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: get
      * 목적: 이름으로 저장한 자세를 꺼낸다.
      * 인자: name — 사람 이름
@@ -31,7 +31,7 @@ class PrefsSeatProfiles(context: Context) : SeatProfiles {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: save
      * 목적: 자세를 저장한다. 같은 이름이 있으면 덮어쓴다.
      * 인자: profile — 저장할 자세
@@ -42,7 +42,7 @@ class PrefsSeatProfiles(context: Context) : SeatProfiles {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: names
      * 목적: 저장한 사람 이름을 가나다순으로 돌려준다.
      * 반환: 이름 목록
@@ -51,7 +51,7 @@ class PrefsSeatProfiles(context: Context) : SeatProfiles {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: encode
      * 목적: 자세를 `{"positions":{축:위치}, "memorySlot":번호}` JSON으로 쓴다.
      * 인자: p — 저장할 자세
@@ -64,7 +64,7 @@ class PrefsSeatProfiles(context: Context) : SeatProfiles {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: decode
      * 목적: `encode()`가 쓴 JSON을 자세로 읽는다. 모르는 축은 버린다.
      * 인자: name — 사람 이름

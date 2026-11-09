@@ -9,7 +9,7 @@ import android.util.Log
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:50:00 · 박건준
+ * 수정: 2026-11-09 18:49:00 · 박건준
  * 클래스: AaosSpeedSource
  * 목적: 차 속도를 AAOS Car API(`PERF_VEHICLE_SPEED`)로 읽어 km/h로 넘긴다.
  *       Pleos Vehicle SDK에 속도 API가 없어서 따로 둔다. 권한이 없거나 차가
@@ -23,7 +23,7 @@ class AaosSpeedSource(context: Context, private val onSpeedKmh: (Float) -> Unit)
 
     private companion object {
         /**
-         * 작성: 2026-11-09 18:50:00 · 박건준
+         * 작성: 2026-11-09 18:49:00 · 박건준
          * 변수: MPS_TO_KMH
          * 목적: m/s를 km/h로 바꾸는 배수.
          * 근거: 표준 — `PERF_VEHICLE_SPEED` 단위는 m/s
@@ -48,7 +48,7 @@ class AaosSpeedSource(context: Context, private val onSpeedKmh: (Float) -> Unit)
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: start
      * 목적: 속도 구독을 시작한다. 권한을 받은 뒤 부른다. 실패하면 logcat에만
      *       남기고 속도 없이 진행한다(데모 `speed`로 넣을 수 있다).
@@ -65,7 +65,7 @@ class AaosSpeedSource(context: Context, private val onSpeedKmh: (Float) -> Unit)
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: close
      * 목적: 속도 구독을 끊고 Car 서비스 연결을 놓는다.
      */

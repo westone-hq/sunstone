@@ -41,7 +41,7 @@ import kotlin.math.abs
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:50:00 · 박건준
+ * 수정: 2026-11-09 18:49:00 · 박건준
  * 클래스: PleosCarPort
  * 목적: Pleos Vehicle SDK로 만든 `CarPort`(기능 구현이 차에 요청하는 창구).
  *       - 차에서 오는 값(기어·문·탑승·벨트)은 리스너로 받아 `sensed`에 모은다
@@ -58,7 +58,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
     private companion object {
         /**
          * 작성: 2026-11-08 18:03:56 · 박건준
-         * 수정: 2026-11-09 18:50:00 · 박건준
+         * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: TAG
          * 목적: 차 관련 logcat 태그.
          * 근거: 표준 — 주석·코드 규칙 10-2 로그 태그 넷
@@ -67,7 +67,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
         /**
          * 작성: 2026-11-08 18:03:56 · 박건준
-         * 수정: 2026-11-09 18:50:00 · 박건준
+         * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: SEAT_TOLERANCE
          * 목적: 시트가 목표 위치에 닿았다고 보는 차이(차가 주는 위치 단위).
          * 근거: 미정 — 위치 단위를 확인하기 전 임시 값
@@ -76,7 +76,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
         /**
          * 작성: 2026-11-09 18:36:19 · 박건준
-         * 수정: 2026-11-09 18:50:00 · 박건준
+         * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: INVERT_OCCUPANCY
          * 목적: 탑승 값 반전. true면 SDK가 준 탑승 값을 뒤집어 쓴다.
          * 근거: 측정 — Pleos 에뮬레이터 v2.1.0에서 운전석·조수석·뒷좌석 좌우
@@ -90,7 +90,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
         /**
          * 작성: 2026-11-08 18:03:56 · 박건준
-         * 수정: 2026-11-09 18:50:00 · 박건준
+         * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: SEAT_POLL_MS
          * 목적: 시트를 움직이는 동안 위치를 다시 읽는 간격(밀리초).
          * 근거: 미정 — 시트 이동 속도를 재기 전 임시 값
@@ -99,7 +99,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
         /**
          * 작성: 2026-11-08 18:03:56 · 박건준
-         * 수정: 2026-11-09 18:50:00 · 박건준
+         * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: SEAT_TIMEOUT_MS
          * 목적: 시트 축 하나를 움직이는 제한 시간(밀리초). 넘으면 STOP하고
          *       실패로 돌려준다.
@@ -109,7 +109,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         const val SEAT_TIMEOUT_MS = 10_000L
 
         /**
-         * 작성: 2026-11-09 18:50:00 · 박건준
+         * 작성: 2026-11-09 18:49:00 · 박건준
          * 변수: VERIFY_SETTLE_MS
          * 목적: 실행 뒤 다시 읽기 전에 기다리는 기본 시간(밀리초).
          * 근거: 측정 — 와이퍼·내기 순환·문 잠금·공조 전원은 0.4초 기다려 읽은
@@ -118,7 +118,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         const val VERIFY_SETTLE_MS = 400L
 
         /**
-         * 작성: 2026-11-09 18:50:00 · 박건준
+         * 작성: 2026-11-09 18:49:00 · 박건준
          * 변수: WINDOW_SETTLE_MS
          * 목적: 창문 위치를 바꾼 뒤 다시 읽기 전에 기다리는 시간(밀리초).
          *       창문은 움직이는 데 시간이 걸려 따로 둔다.
@@ -128,7 +128,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         const val WINDOW_SETTLE_MS = 1_500L
 
         /**
-         * 작성: 2026-11-09 18:50:00 · 박건준
+         * 작성: 2026-11-09 18:49:00 · 박건준
          * 변수: MEMORY_WAIT_MS
          * 목적: 시트 메모리를 보낸 뒤 실패 콜백을 기다리는 시간(밀리초). 이
          *       시간 안에 실패가 오지 않으면 보낸 것으로 본다.
@@ -139,7 +139,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
         /**
          * 작성: 2026-11-08 18:03:56 · 박건준
-         * 수정: 2026-11-09 18:50:00 · 박건준
+         * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: FRONT_WIPER, REAR_GLASS
          * 목적: 앞 와이퍼와 뒷유리 블라인드를 부를 창문 area.
          */
@@ -148,7 +148,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
         /**
          * 작성: 2026-11-09 18:35:16 · 박건준
-         * 수정: 2026-11-09 18:50:00 · 박건준
+         * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: ALL_SEATS
          * 목적: 공조 전원·내기 순환을 부를 area. 다섯 좌석을 합친 하나다.
          * 근거: 측정 — `checkHvacPowerCapabilities`·
@@ -162,7 +162,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
         /**
          * 작성: 2026-11-09 18:35:16 · 박건준
-         * 수정: 2026-11-09 18:50:00 · 박건준
+         * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: ALL_DOORS
          * 목적: 문 잠금을 부를 area. 네 문을 합친 하나라서 문 잠금은 "문 전체
          *       잠금" 하나로 다룬다.
@@ -175,7 +175,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
         /**
          * 작성: 2026-11-09 18:35:16 · 박건준
-         * 수정: 2026-11-09 18:50:00 · 박건준
+         * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: LOCKABLE_WINDOWS
          * 목적: 창문 잠금을 따로 부를 수 있는 창문.
          * 근거: 측정 — `checkWindowLockCapabilities`가 뒷좌석 좌우와 네 창문
@@ -199,7 +199,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 클래스: Manual
      * 목적: 차가 모르는 값 묶음.
      * 인자: place — 지금 장소. 장소 검색 결과나 데모 입력
@@ -226,7 +226,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: setPlace
      * 목적: 지금 장소를 넣는다. 장소 검색 결과나 데모 입력이 부른다.
      * 인자: place — 지금 장소
@@ -235,7 +235,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: onSensorSpeed
      * 목적: AAOS 속도 센서 값을 넣는다.
      * 인자: kmh — 속도(km/h)
@@ -244,7 +244,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: overrideSpeed
      * 목적: 데모용 속도 덮어쓰기. 에뮬레이터에서 속도를 넣을 수 없어서 쓴다.
      * 인자: kmh — 덮어쓸 속도(km/h). null이면 센서 값으로 돌아간다
@@ -253,7 +253,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: read
      * 목적: 제어 대상의 지금 값을 읽는다. 원래 값 저장과 실행 뒤 확인에 쓴다.
      * 인자: target — 읽을 대상
@@ -295,7 +295,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: apply
      * 목적: 제어 하나를 실행하고 결과를 돌려준다.
      *       - 창문 위치·와이퍼·내기 순환·문 잠금·공조 전원 — 실행 뒤 다시 읽어
@@ -379,7 +379,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: close
      * 목적: 구독을 모두 끊고 차 연결을 놓는다.
      */
@@ -390,7 +390,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: subscribeGear
      * 목적: 기어를 한 번 읽고, 바뀔 때마다 `sensed`에 넣는다.
      * 근거: 측정 — `registerGearSelection`은 deprecated지만 에뮬레이터에서
@@ -414,7 +414,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: subscribeDoor
      * 목적: 문 하나의 열림을 한 번 읽고, 바뀔 때마다 `sensed`에 넣는다.
      *       위치가 0보다 크면 열림으로 본다.
@@ -439,7 +439,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-09 18:36:19 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: subscribeOccupancy
      * 목적: 좌석 하나의 탑승을 한 번 읽고, 바뀔 때마다 `sensed`에 넣는다.
      *       `INVERT_OCCUPANCY`면 받은 값을 뒤집는다. 뒷좌석 가운데는 부르지
@@ -466,7 +466,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-09 18:36:19 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: subscribeBelt
      * 목적: 좌석 하나의 벨트를 한 번 읽고, 바뀔 때마다 `sensed`에 넣는다.
      * 인자: seat — 구독할 좌석
@@ -490,7 +490,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: verify
      * 목적: 실행 뒤 잠시 기다렸다가 다시 읽어 원하는 값이 됐는지 본다.
      * 인자: target — 확인할 대상
@@ -508,7 +508,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: moveSeatTo
      * 목적: 시트 축 하나를 목표 위치까지 움직인다. SDK에는 "몇 번 위치로"가
      *       없고 앞/뒤/정지(`MoveControl`)만 있어서 위치를 읽어 가며 움직인다.
@@ -557,7 +557,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-09 18:37:39 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: readSeat
      * 목적: 시트 축 하나의 위치를 읽는 SDK 함수를 고른다.
      * 인자: axis — 읽을 축
@@ -581,7 +581,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-09 18:37:39 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: moveSeat
      * 목적: 시트 축 하나에 앞/뒤/정지를 보내고 차가 받을 때까지 기다린다.
      * 인자: axis — 움직일 축
@@ -606,7 +606,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-09 18:35:16 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: rearBlindSupported
      * 목적: 차가 뒷유리 블라인드를 갖고 있는지 SDK에 묻는다.
      * 반환: 있으면 true. 묻기에 실패해도 false
@@ -623,7 +623,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
     }.getOrDefault(false)
 
     /**
-     * 작성: 2026-11-09 18:50:00 · 박건준
+     * 작성: 2026-11-09 18:49:00 · 박건준
      * 함수: done
      * 목적: (area, 값)을 주는 SDK 성공 콜백을 `awaitCallback()`의 ok로 잇는다.
      *       받은 area와 값은 쓰지 않는다. 확인은 다시 읽어서 한다.
@@ -634,7 +634,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: unsupported
      * 목적: 차가 받지 않는 대상의 결과를 만든다. 루틴은 이 단계를 음성 안내로
      *       바꾼다.
@@ -645,7 +645,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: guard
      * 목적: 구독 하나가 실패해도 나머지 구독은 이어지게 예외를 잡아 남긴다.
      * 인자: what — 로그에 남길 구독 이름
@@ -657,7 +657,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: warn
      * 목적: 실패를 logcat에 한 줄로 남긴다.
      * 인자: what — 실패한 일
@@ -669,7 +669,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: toGear
      * 목적: SDK 기어 값을 루틴의 기어로 바꾼다. 나머지 주행 기어는 D로 본다.
      * 반환: 루틴 기어. null·UNKNOWN이면 `Gear.UNKNOWN`
@@ -684,7 +684,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: toMode
      * 목적: SDK 와이퍼 스위치 값을 루틴의 와이퍼 모드로 바꾼다. 단계(LEVEL)는
      *       묶는다.
@@ -701,7 +701,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: toSwitch
      * 목적: 루틴의 와이퍼 모드를 SDK 스위치 값으로 바꾼다. 단계가 있는 모드는
      *       1단계로 보낸다.
@@ -720,7 +720,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: area
      * 목적: 루틴의 창문을 SDK 창문 area로 바꾼다.
      * 반환: 창문 하나짜리 area
@@ -738,7 +738,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: area
      * 목적: 루틴의 문을 SDK 문 area로 바꾼다.
      * 반환: 문 하나짜리 area
@@ -755,7 +755,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: area
      * 목적: 루틴의 좌석을 SDK 좌석 area로 바꾼다.
      * 반환: 좌석 하나짜리 area

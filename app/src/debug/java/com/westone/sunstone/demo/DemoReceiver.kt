@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:50:00 · 박건준
+ * 수정: 2026-11-09 18:49:00 · 박건준
  * 클래스: DemoReceiver
  * 목적: 시연용 장면 넣기. 에뮬레이터가 못 만드는 상황(장소, 속도, 마이크
  *       입력)을 adb 한 줄로 넣는다. debug 빌드에만 있다.
@@ -40,7 +40,7 @@ class DemoReceiver : BroadcastReceiver() {
     private companion object {
         /**
          * 작성: 2026-11-09 18:34:38 · 박건준
-         * 수정: 2026-11-09 18:50:00 · 박건준
+         * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: AREAS_CONNECT_MS
          * 목적: `areas`가 차 서비스에 연결되기를 기다리는 시간(밀리초).
          * 근거: 미정 — 에뮬레이터에서 넉넉히 잡은 값
@@ -53,7 +53,7 @@ class DemoReceiver : BroadcastReceiver() {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: onReceive
      * 목적: 방송의 `cmd` 엑스트라를 명령어와 인자로 나눠 처리한다. 모르는
      *       명령은 logcat에 남긴다.
@@ -69,7 +69,7 @@ class DemoReceiver : BroadcastReceiver() {
         when (word) {
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
-             * 수정: 2026-11-09 18:50:00 · 박건준
+             * 수정: 2026-11-09 18:49:00 · 박건준
              * 함수: place
              * 목적: 지금 장소를 넣는다. 모르는 인자는 장소 없음으로 본다.
              */
@@ -84,14 +84,14 @@ class DemoReceiver : BroadcastReceiver() {
             )
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
-             * 수정: 2026-11-09 18:50:00 · 박건준
+             * 수정: 2026-11-09 18:49:00 · 박건준
              * 함수: speed
              * 목적: 속도를 덮어쓴다(km/h). 숫자가 아니면 센서 값으로 돌아간다.
              */
             "speed" -> g.overrideSpeed(arg.toFloatOrNull()) // → 로직 이동: AppGraph.overrideSpeed()
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
-             * 수정: 2026-11-09 18:50:00 · 박건준
+             * 수정: 2026-11-09 18:49:00 · 박건준
              * 함수: say
              * 목적: 말 한마디를 음성 인식 대신 넣는다. 못 알아들으면 그렇다고
              *       말한다.
@@ -103,28 +103,28 @@ class DemoReceiver : BroadcastReceiver() {
             }
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
-             * 수정: 2026-11-09 18:50:00 · 박건준
+             * 수정: 2026-11-09 18:49:00 · 박건준
              * 함수: accept
              * 목적: 지금 권하기에 "네"로 답한다.
              */
             "accept" -> g.runner.acceptSuggestion() // → 로직 이동: RoutineRunner.acceptSuggestion()
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
-             * 수정: 2026-11-09 18:50:00 · 박건준
+             * 수정: 2026-11-09 18:49:00 · 박건준
              * 함수: dismiss
              * 목적: 지금 권하기에 "아니요"로 답한다.
              */
             "dismiss" -> g.runner.dismissSuggestion() // → 로직 이동: RoutineRunner.dismissSuggestion()
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
-             * 수정: 2026-11-09 18:50:00 · 박건준
+             * 수정: 2026-11-09 18:49:00 · 박건준
              * 함수: fake
              * 목적: 다음 실행부터 가짜 차를 쓸지 정한다. `on`이 아니면 Pleos.
              */
             "fake" -> g.setUseFakeCar(arg == "on") // → 로직 이동: AppGraph.setUseFakeCar()
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
-             * 수정: 2026-11-09 18:50:00 · 박건준
+             * 수정: 2026-11-09 18:49:00 · 박건준
              * 함수: gear
              * 목적: 가짜 차의 기어를 바꾼다. 모르는 인자는 D로 본다.
              */
@@ -140,7 +140,7 @@ class DemoReceiver : BroadcastReceiver() {
             }
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
-             * 수정: 2026-11-09 18:50:00 · 박건준
+             * 수정: 2026-11-09 18:49:00 · 박건준
              * 함수: rear_door
              * 목적: 가짜 차의 뒷좌석 왼쪽 문을 열거나 닫는다.
              */
@@ -148,7 +148,7 @@ class DemoReceiver : BroadcastReceiver() {
             "rear_door" -> g.editFakeCar { it.copy(doorOpen = it.doorOpen + (Door.REAR_LEFT to (arg == "open"))) }
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
-             * 수정: 2026-11-09 18:50:00 · 박건준
+             * 수정: 2026-11-09 18:49:00 · 박건준
              * 함수: rear_seat
              * 목적: 가짜 차의 뒷좌석 왼쪽 탑승을 바꾼다.
              */
@@ -156,7 +156,7 @@ class DemoReceiver : BroadcastReceiver() {
             "rear_seat" -> g.editFakeCar { it.copy(seatOccupied = it.seatOccupied + (Seat.REAR_LEFT to (arg == "on"))) }
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
-             * 수정: 2026-11-09 18:50:00 · 박건준
+             * 수정: 2026-11-09 18:49:00 · 박건준
              * 함수: rear_belt
              * 목적: 가짜 차의 뒷좌석 왼쪽 벨트를 바꾼다.
              */
@@ -164,7 +164,7 @@ class DemoReceiver : BroadcastReceiver() {
             "rear_belt" -> g.editFakeCar { it.copy(beltBuckled = it.beltBuckled + (Seat.REAR_LEFT to (arg == "on"))) }
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
-             * 수정: 2026-11-09 18:50:00 · 박건준
+             * 수정: 2026-11-09 18:49:00 · 박건준
              * 함수: driver_seat
              * 목적: 가짜 차의 운전석 탑승을 바꾼다.
              */

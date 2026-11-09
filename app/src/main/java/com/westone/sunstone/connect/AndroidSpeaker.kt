@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:50:00 · 박건준
+ * 수정: 2026-11-09 18:49:00 · 박건준
  * 클래스: AndroidSpeaker
  * 목적: 음성 안내. 안드로이드 기본 TTS(글자를 소리로 읽는 기능)로 한국어를
  *       읽는다. TTS가 준비되기 전에 온 문장은 모았다가 준비되면 읽는다.
@@ -22,7 +22,7 @@ class AndroidSpeaker(context: Context) : Speaker, AutoCloseable {
     private companion object {
         /**
          * 작성: 2026-11-08 18:03:56 · 박건준
-         * 수정: 2026-11-09 18:50:00 · 박건준
+         * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: TAG
          * 목적: 음성 logcat 태그.
          * 근거: 표준 — 주석·코드 규칙 10-2 로그 태그 넷
@@ -53,7 +53,7 @@ class AndroidSpeaker(context: Context) : Speaker, AutoCloseable {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: say
      * 목적: 문장 하나를 읽는다. 앞 문장이 끝난 뒤 이어서 읽는다.
      * 인자: text — 읽을 문장
@@ -65,7 +65,7 @@ class AndroidSpeaker(context: Context) : Speaker, AutoCloseable {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: close
      * 목적: TTS를 놓는다.
      */
@@ -73,7 +73,7 @@ class AndroidSpeaker(context: Context) : Speaker, AutoCloseable {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: setKorean
      * 목적: TTS 언어를 한국어로 맞춘다.
      */
@@ -83,7 +83,7 @@ class AndroidSpeaker(context: Context) : Speaker, AutoCloseable {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:50:00 · 박건준
+     * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: speak
      * 목적: TTS 줄 뒤에 문장을 붙인다.
      * 인자: text — 읽을 문장

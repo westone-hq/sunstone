@@ -6,7 +6,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * 작성: 2026-11-09 18:50:00 · 박건준
+ * 작성: 2026-11-09 18:49:00 · 박건준
  * 변수: CALLBACK_TIMEOUT_MS
  * 목적: SDK 콜백을 기다리는 기본 제한 시간(밀리초).
  * 근거: 미정 — 에뮬레이터에서 정상 호출은 0.5초 안에 돌아와서 넉넉히 잡았다
@@ -15,7 +15,7 @@ private const val CALLBACK_TIMEOUT_MS = 3_000L
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:50:00 · 박건준
+ * 수정: 2026-11-09 18:49:00 · 박건준
  * 함수: awaitCallback
  * 목적: 성공·실패 콜백으로 결과를 주는 Pleos SDK 호출을 비동기로 기다린다.
  *       루틴이 결과를 받은 뒤 다음 단계로 가야 해서 감싼다. 콜백이 두 번
