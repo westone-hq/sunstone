@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 19:14:00 · 박건준
+ * 수정: 2026-11-09 20:18:22 · 박건준
  * 클래스: DemoReceiver
  * 목적: 시연용 장면 넣기. 에뮬레이터가 못 만드는 상황(장소, 속도, 마이크
  *       입력)을 adb 한 줄로 넣는다. debug 빌드에만 있다.
@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
  *       -p com.westone.sunstone --es cmd "place carwash"`
  *       - `place carwash|gas|kids|none` — 장소
  *       - `speed 30` | `speed off` — 속도 덮어쓰기
+ *       - `fuel 15` | `fuel off` — 연료(%) 덮어쓰기(Pleos 차만)
  *       - `say 세차할게` — 말 한마디(음성 인식 대신)
  *       - `accept` | `dismiss` — 권하기에 답하기
  *       - `fake on|off` — 다음 실행부터 가짜 차 사용
@@ -92,6 +93,13 @@ class DemoReceiver : BroadcastReceiver() {
              * 목적: 속도를 덮어쓴다(km/h). 숫자가 아니면 센서 값으로 돌아간다.
              */
             "speed" -> g.overrideSpeed(arg.toFloatOrNull()) // → 로직 이동: AppGraph.overrideSpeed()
+            /**
+             * 작성: 2026-11-09 20:18:22 · 박건준
+             * 함수: fuel
+             * 목적: 연료(%)를 덮어쓴다. 0~100 밖은 끝으로 자르고, 숫자가 아니면
+             *       (`fuel off`) 차 값으로 돌아간다. Pleos 차에만 들어간다.
+             */
+            "fuel" -> g.overrideFuel(arg.toIntOrNull()?.coerceIn(0, 100)) // → 로직 이동: AppGraph.overrideFuel()
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
              * 수정: 2026-11-09 18:49:00 · 박건준
