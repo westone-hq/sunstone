@@ -3,6 +3,7 @@ package com.westone.sunstone.demo
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import ai.pleos.playground.vehicle.Vehicle
 import android.util.Log
 import com.westone.sunstone.routines.understand.PhraseMatcher
 import com.westone.sunstone.graph
@@ -12,6 +13,7 @@ import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.routines.model.Seat
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -32,6 +34,7 @@ import kotlinx.coroutines.launch
  * driver_seat on|off            운전석 탑승
  * --- Pleos 차일 때만 ---
  * probe                         제어 API 실측, 결과는 logcat SunstoneCar `probe,` 줄
+ * areas                         지원 area 목록, 결과는 logcat SunstoneCar `areas,` 줄
  */
 class DemoReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -77,6 +80,23 @@ class DemoReceiver : BroadcastReceiver() {
                     else -> probeJob = g.scope.launch { CarProbe(pleos).run() }
                 }
             }
+            /**
+             * 작성: 2026-11-09 18:40:00 · 박건준
+             * 함수: areas
+             * 목적: 차가 받는 area 목록(`CarAreas`)을 읽는다. 루틴이 쓰는 차
+             *       창구와 따로 `Vehicle`을 만들고, 끝나면 놓는다.
+             * 근거: 미확인 — `Vehicle.initialize()`가 서비스 연결을 기다리지
+             *       않고 돌아와서, 연결될 시간을 1초 둔다
+             */
+            "areas" -> g.scope.launch {
+                val vehicle = Vehicle(context.applicationContext).also { it.initialize() } // 확인용 차 연결
+                delay(AREAS_CONNECT_MS)
+                try {
+                    CarAreas(vehicle).run() // → 로직 이동: CarAreas.run()
+                } finally {
+                    vehicle.release()
+                }
+            }
             else -> Log.w("SunstoneDemo", "모르는 명령: $cmd")
         }
     }
@@ -84,5 +104,13 @@ class DemoReceiver : BroadcastReceiver() {
     private companion object {
         /** 돌고 있는 실측 작업. 수신기는 방송마다 새로 만들어져서 여기에 둔다. 처음엔 null */
         var probeJob: Job? = null
+
+        /**
+         * 작성: 2026-11-09 18:40:00 · 박건준
+         * 변수: AREAS_CONNECT_MS
+         * 목적: `areas`가 차 서비스에 연결되기를 기다리는 시간(밀리초).
+         * 근거: 미정 — 에뮬레이터에서 넉넉히 잡은 값
+         */
+        const val AREAS_CONNECT_MS = 1_000L
     }
 }
