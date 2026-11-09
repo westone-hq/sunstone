@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.westone.sunstone.AppGraph
 import com.westone.sunstone.R
+import com.westone.sunstone.car.CarKind
 import com.westone.sunstone.car.FuelState
 import com.westone.sunstone.routines.understand.PhraseMatcher
 import com.westone.sunstone.routines.understand.VoiceAction
@@ -142,11 +143,11 @@ fun SunstoneScreen(graph: AppGraph) {
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 20:18:22 · 박건준
+ * 수정: 2026-11-09 20:58:00 · 박건준
  * 함수: StatusLine
- * 목적: 차 상태 한 줄(기어·속도·장소·열린 문·탑승, 받은 경우 연료·배터리·
- *       주행 가능 거리). 시연 때 차가 무엇을 알아챘는지 보여준다. 기어·
- *       장소는 영어 이름 대신 화면 문구로 바꾼다.
+ * 목적: 차 상태 한 줄(기어·속도·장소·열린 문·탑승, 받은 경우 차 종류·
+ *       연료·배터리·주행 가능 거리). 시연 때 차가 무엇을 알아챘는지
+ *       보여준다. 기어·장소는 영어 이름 대신 화면 문구로 바꾼다.
  * 인자: car — 지금 차 상태
  *       fuel — 연료 값. 가짜 차면 null
  *       fake — 가짜 차를 쓰면 true. 줄 끝에 표시한다
@@ -175,6 +176,14 @@ private fun StatusLine(car: CarState, fuel: FuelState?, fake: Boolean) {
         },
     )
     val energy = buildString { // 받은 연료 값만 이어 붙인 글자
+        fuel?.kind?.let {
+            val kind = when (it) { // 차 종류 문구
+                CarKind.ELECTRIC -> R.string.kind_electric
+                CarKind.HYBRID -> R.string.kind_hybrid
+                CarKind.COMBUSTION -> R.string.kind_combustion
+            }
+            append(stringResource(R.string.status_kind, stringResource(kind)))
+        }
         fuel?.percent?.let { append(stringResource(R.string.status_fuel, it)) }
         fuel?.batteryPercent?.let { append(stringResource(R.string.status_battery, it)) }
         fuel?.aaosRangeM?.let { append(stringResource(R.string.status_range, it / METERS_PER_KM)) }
@@ -256,11 +265,12 @@ private fun ProfileRow(graph: AppGraph) {
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 19:11:42 · 박건준
+ * 수정: 2026-11-09 20:50:30 · 박건준
  * 함수: RunDetail
  * 목적: 가장 최근 실행의 단계별 결과와 시작 뒤 지난 시간(분:초). 지난
- *       시간을 1초마다 다시 그린다. 단계가 안내로 바뀐 이유가 있으면 괄호로
- *       붙인다.
+ *       시간을 1초마다 다시 그린다. 단계 결과는 "완료"와 "안내" 두 가지만
+ *       붙이고(보냈지만 확인 못 한 `Sent`도 완료), 아직 안 했거나 건너뛴
+ *       단계는 이름만 보인다. 안내로 바뀐 이유가 있으면 괄호로 붙인다.
  * 인자: run — 보여줄 실행 기록
  */
 @Composable
@@ -281,20 +291,20 @@ private fun RunDetail(run: RunView) {
                 fontWeight = FontWeight.SemiBold,
             )
             run.steps.forEach { step ->
-                val mark = stringResource( // 단계 결과 글자
-                    when (step.status) {
-                        StepStatus.DONE -> R.string.step_done
-                        StepStatus.GUIDED -> R.string.step_guided
-                        StepStatus.RUNNING -> R.string.step_running
-                        StepStatus.SKIPPED -> R.string.step_skipped
-                        StepStatus.WAITING -> R.string.step_waiting
-                    },
-                )
+                val mark = when (step.status) { // 단계 결과 글자, 끝나지 않은 단계는 null
+                    StepStatus.DONE -> stringResource(R.string.step_done)
+                    StepStatus.GUIDED -> stringResource(R.string.step_guided)
+                    StepStatus.RUNNING, StepStatus.WAITING, StepStatus.SKIPPED -> null
+                }
                 val note = step.note // 안내로 바뀐 이유, 없으면 null
                 Text(
-                    if (note == null) stringResource(R.string.step_line, mark, step.title)
-                    else stringResource(R.string.step_line_with_note, mark, step.title, note),
+                    when {
+                        mark == null -> step.title
+                        note == null -> stringResource(R.string.step_line, mark, step.title)
+                        else -> stringResource(R.string.step_line_with_note, mark, step.title, note)
+                    },
                     fontSize = 16.sp,
+                    color = if (mark == null) Color(0xFF9AA0A6) else Color.Unspecified,
                 )
             }
         }

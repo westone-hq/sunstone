@@ -7,6 +7,10 @@
     <string name="status_line">기어 %1$s · %2$.0fkm/h · 장소 %3$s · 문 %4$s · 탑승 %5$s</string>
     <string name="status_fake_car">" · 가짜 차"</string>
     <!-- 받은 경우에만 상태 줄 뒤에 붙는다 -->
+    <string name="status_kind">" · %1$s"</string>
+    <string name="kind_electric">전기차</string>
+    <string name="kind_hybrid">하이브리드</string>
+    <string name="kind_combustion">내연기관</string>
     <string name="status_fuel">" · 연료 %1$d%%"</string>
     <string name="status_battery">" · 배터리 %1$d%%"</string>
     <string name="status_range">" · 주행 가능 %1$.0fkm"</string>
@@ -42,9 +46,6 @@
     <string name="step_line_with_note">%1$s %2$s  (%3$s)</string>
     <string name="step_done">완료</string>
     <string name="step_guided">안내</string>
-    <string name="step_running">진행</string>
-    <string name="step_skipped">건너뜀</string>
-    <string name="step_waiting">대기</string>
 
     <!-- 저장한 자세 줄 -->
     <string name="profiles_label">자세:</string>

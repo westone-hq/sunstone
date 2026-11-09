@@ -20,6 +20,7 @@ import ai.pleos.playground.vehicle.listener.SeatBeltBuckledStateListener
 import ai.pleos.playground.vehicle.listener.SeatOccupancyListener
 import android.car.VehiclePropertyIds
 import android.content.Context
+import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.StringRes
@@ -75,18 +76,28 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         const val TAG = "SunstoneCar"
 
         /**
+         * 작성: 2026-11-09 20:50:30 · 박건준
+         * 변수: EMULATOR_HARDWARE
+         * 목적: 에뮬레이터로 보는 하드웨어 이름(`Build.HARDWARE`).
+         * 근거: 측정 — Pleos Connect v2.1.0 AVD의 `ro.hardware`는 `ranchu`.
+         *       `goldfish`는 이전 안드로이드 에뮬레이터 이름이다
+         */
+        val EMULATOR_HARDWARE = setOf("ranchu", "goldfish")
+
+        /**
          * 작성: 2026-11-09 18:36:19 · 박건준
-         * 수정: 2026-11-09 18:49:00 · 박건준
+         * 수정: 2026-11-09 20:50:30 · 박건준
          * 변수: INVERT_OCCUPANCY
-         * 목적: 탑승 값 반전. true면 SDK가 준 탑승 값을 뒤집어 쓴다.
+         * 목적: 탑승 값 반전. 에뮬레이터에서만 SDK가 준 탑승 값을 뒤집어 쓴다.
          * 근거: 측정 — Pleos 에뮬레이터 v2.1.0에서 운전석·조수석·뒷좌석 좌우
          *       네 자리 모두 콘솔 탑승이 앱 빈자리로 읽혔다(docs/api-spike.md
          *       탑승 행). 에뮬레이터는 AAOS 기준 1=빈자리, 2=탑승을 보내는데
-         *       SDK 2.3.2는 1을 탑승으로 바꾼다
-         * 미확인: 실제 차에서도 반대로 읽히는지 확인하지 못했다. 실제 차에서
-         *       맞게 읽히면 false로 바꾼다
+         *       SDK 2.3.2는 1을 탑승으로 바꾼다. 다른 팀도 에뮬레이터에서 같은
+         *       현상
+         * 미확인: 실제 차에서는 뒤집지 않는다. 실제 차 값이 맞는지는 확인하지
+         *       못했다
          */
-        const val INVERT_OCCUPANCY = true
+        val INVERT_OCCUPANCY = Build.HARDWARE in EMULATOR_HARDWARE
 
         /**
          * 작성: 2026-11-09 19:09:00 · 박건준
@@ -313,6 +324,15 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
     fun overrideFuel(percent: Int?) = putFuel("override", percent) { it.copy(overridePercent = percent) }
 
     /**
+     * 작성: 2026-11-09 20:58:00 · 박건준
+     * 함수: onFuelTypes
+     * 목적: AAOS 연료 종류(`INFO_FUEL_TYPE`)를 `fuel`에 넣는다. 차 종류
+     *       (`FuelState.kind`)는 이 값으로 정한다.
+     * 인자: types — 연료 종류 번호 목록(`android.car.FuelType`)
+     */
+    fun onFuelTypes(types: List<Int>) = putFuel("INFO_FUEL_TYPE", types) { it.copy(fuelTypes = types) }
+
+    /**
      * 작성: 2026-11-09 20:18:22 · 박건준
      * 함수: onAaosEnergy
      * 목적: AAOS 에너지 속성 값을 `fuel`의 경로별 칸에 넣는다.
@@ -381,12 +401,13 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 19:09:00 · 박건준
+     * 수정: 2026-11-09 20:50:30 · 박건준
      * 함수: apply
-     * 목적: 제어 하나를 실행하고 결과를 돌려준다.
-     *       - 창문 위치·와이퍼·내기 순환·문 잠금·공조 전원 — 실행 뒤 다시 읽어
-     *         확인한다
-     *       - 창문 잠금·블라인드·시트 메모리 — 보내기만 하고 `Sent`
+     * 목적: 제어 하나를 실행하고 결과를 돌려준다. 결과 이름은 logcat에
+     *       남긴다(화면은 `Done`·`Sent` 모두 "완료"로 보인다).
+     *       - 창문 위치·창문 잠금·와이퍼·내기 순환·문 잠금·공조 전원 — 실행 뒤
+     *         다시 읽어 확인한다
+     *       - 블라인드·시트 메모리 — 보내기만 하고 `Sent`
      *       - 시트 위치 — `moveSeatTo()`가 시간으로 움직이고 `Sent`
      *       - 좌석별 공조 전원은 차 전체 공조 전원으로 부른다
      *       - 실패 이유는 화면에 그대로 보이므로 SDK 예외 문장 대신
@@ -394,9 +415,11 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      * 인자: command — 대상과 바꿀 값
      * 반환: `Done`(확인됨), `Sent`(보냈지만 확인 못 함), `Unsupported`(차가
      *       받지 않는 대상), `Failed`(실패 이유, 한국어)
-     * 근거: 측정 — 창문 잠금은 다시 읽은 값만 바뀌고 콘솔은 그대로였다
-     *       (docs/api-spike.md 창문 잠금 행). 공조·문 잠금·창문 잠금 area는
-     *       docs/api-spike.md 지원 area 표
+     * 근거: 측정 — 창문 잠금은 SDK 다시 읽기는 반영, 콘솔은 불일치
+     *       (에뮬레이터 쪽으로 보임, 다른 팀도 같은 현상, docs/api-spike.md
+     *       창문 잠금 행). 공조·문 잠금·창문 잠금 area는 같은 문서 지원
+     *       area 표
+     * 미확인: 창문 잠금을 실차에서 다시 읽은 값이 실제 잠김과 맞는지
      */
     override suspend fun apply(command: Command): ControlResult = runCatching {
         val target = command.target // 바꿀 대상
@@ -417,7 +440,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
                     awaitCallback<Unit> { ok, fail ->
                         vehicle.getWindow().setWindowLock(target.window.area(), value as Boolean, done(ok), fail)
                     }
-                    ControlResult.Sent
+                    verify(target, value)
                 }
             Target.Wiper -> {
                 awaitCallback<Unit> { ok, fail ->
@@ -465,7 +488,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         // selectSeatMemory는 성공 콜백이 없어서, 실패 콜백 없이 시간이 지나면 보낸 것으로 본다
         if (command.target is Target.SeatMemory && e is TimeoutCancellationException) ControlResult.Sent
         else failure("apply ${command.target}", e)
-    }
+    }.also { Log.i(TAG, "결과,${command.target},${it.javaClass.simpleName}") }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
@@ -529,11 +552,11 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-09 18:36:19 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-09 20:50:30 · 박건준
      * 함수: subscribeOccupancy
      * 목적: 좌석 하나의 탑승을 한 번 읽고, 바뀔 때마다 `sensed`에 넣는다.
-     *       `INVERT_OCCUPANCY`면 받은 값을 뒤집는다. 뒷좌석 가운데는 부르지
-     *       않는다.
+     *       에뮬레이터(`INVERT_OCCUPANCY`)면 받은 값을 뒤집는다. 뒷좌석
+     *       가운데는 부르지 않는다.
      * 인자: seat — 구독할 좌석
      * 근거: 측정 — 뒷좌석 가운데는 콘솔에 칸이 없고 앱은 늘 탑승으로 읽었다
      *       (docs/api-spike.md 탑승 행)

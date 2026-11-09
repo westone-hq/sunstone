@@ -9,6 +9,7 @@ import android.util.Log
 
 /**
  * 작성: 2026-11-09 20:18:22 · 박건준
+ * 수정: 2026-11-09 20:58:00 · 박건준
  * 클래스: AaosEnergySource
  * 목적: 주행 가능 거리·남은 연료·남은 배터리·탱크와 배터리 용량을 AAOS Car
  *       API로 읽어 넘긴다. Pleos SDK 값과 비교하려고 따로 읽는다. 권한이
@@ -16,12 +17,17 @@ import android.util.Log
  *       이유를 남긴다.
  * 인자: context — 앱 Context. Car 서비스 연결에 쓴다
  *       onValue — 값이 오거나 바뀔 때마다 부를 함수(속성 번호, 값)
+ *       onFuelTypes — 연료 종류(`INFO_FUEL_TYPE`)를 읽으면 부를 함수
  * 근거: 표준 — `RANGE_REMAINING`·`FUEL_LEVEL`·`EV_BATTERY_LEVEL`은
  *       `android.car.permission.CAR_ENERGY`(런타임 권한), 용량 두 개는
  *       `CAR_INFO`(설치 때 허가). `MainActivity`가 CAR_ENERGY를 요청한 뒤
  *       `start()`를 부른다
  */
-class AaosEnergySource(context: Context, private val onValue: (Int, Float) -> Unit) : AutoCloseable {
+class AaosEnergySource(
+    context: Context,
+    private val onValue: (Int, Float) -> Unit,
+    private val onFuelTypes: (List<Int>) -> Unit,
+) : AutoCloseable {
 
     private companion object {
         /**
@@ -67,9 +73,11 @@ class AaosEnergySource(context: Context, private val onValue: (Int, Float) -> Un
 
     /**
      * 작성: 2026-11-09 20:18:22 · 박건준
+     * 수정: 2026-11-09 20:58:00 · 박건준
      * 함수: start
-     * 목적: 용량을 한 번 읽어 넘기고, 바뀌는 값을 구독한다. 속성마다 따로
-     *       시도해서 하나가 실패해도 나머지는 받는다.
+     * 목적: 연료 종류와 용량을 한 번 읽어 넘기고, 바뀌는 값을 구독한다.
+     *       속성마다 따로 시도해서 하나가 실패해도 나머지는 받는다.
+     * 근거: 표준 — `INFO_FUEL_TYPE`은 `Integer[]`, `CAR_INFO` 권한
      */
     fun start() {
         val m = manager // 차량 속성 창구, 차가 아니면 null
@@ -77,6 +85,9 @@ class AaosEnergySource(context: Context, private val onValue: (Int, Float) -> Un
             Log.w(TAG, "에너지: CarPropertyManager 없음")
             return
         }
+        runCatching { m.getProperty<Array<Int>>(VehiclePropertyIds.INFO_FUEL_TYPE, 0).value.toList() }
+            .onSuccess(onFuelTypes)
+            .onFailure { Log.w(TAG, "에너지 읽기 실패 INFO_FUEL_TYPE: ${it.message}") }
         FIXED.forEach { id ->
             runCatching { m.getFloatProperty(id, 0) }
                 .onSuccess { onValue(id, it) }

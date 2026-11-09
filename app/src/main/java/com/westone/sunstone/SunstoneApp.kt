@@ -127,8 +127,12 @@ class AppGraph(private val app: Context) {
     /** 속도 센서. 값을 Pleos 차 창구에 넣는다. 가짜 차일 때는 버린다 */
     private val speed = AaosSpeedSource(app) { kmh -> pleos?.onSensorSpeed(kmh) }
 
-    /** AAOS 에너지 속성. 값을 Pleos 차 창구에 넣는다. 가짜 차일 때는 버린다 */
-    private val energy = AaosEnergySource(app) { id, value -> pleos?.onAaosEnergy(id, value) }
+    /** AAOS 에너지 속성과 연료 종류. 값을 Pleos 차 창구에 넣는다. 가짜 차일 때는 버린다 */
+    private val energy = AaosEnergySource(
+        app,
+        onValue = { id, value -> pleos?.onAaosEnergy(id, value) }, // → 로직 이동: PleosCarPort.onAaosEnergy()
+        onFuelTypes = { types -> pleos?.onFuelTypes(types) }, // → 로직 이동: PleosCarPort.onFuelTypes()
+    )
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
