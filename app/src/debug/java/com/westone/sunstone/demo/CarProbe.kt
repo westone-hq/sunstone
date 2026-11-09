@@ -108,6 +108,7 @@ internal class CarProbe(private val car: CarPort) {
 
     /**
      * 작성: 2026-11-09 16:52:02 · 박건준
+     * 수정: 2026-11-09 19:05:00 · 박건준
      * 함수: items
      * 목적: 실측할 대상 목록을 만든다. API 이름과 호출 방식은 차 연결
      *       (PleosCarPort.kt)의 `read()`·`apply()`에 적힌 그대로 옮긴다.
@@ -130,39 +131,39 @@ internal class CarProbe(private val car: CarPort) {
         listOf(Window.FRONT_LEFT, Window.FRONT_RIGHT, Window.REAR_LEFT, Window.REAR_RIGHT).forEach {
             add(
                 ProbeItem(
-                    Target.WindowLock(it), "getCurrentWindowLockState / setWindowLock", READ_DIRECT_WRITE_REFLECT,
+                    Target.WindowLock(it), "getCurrentWindowLockState / setWindowLock", DIRECT,
                     "window_lock.locked.${it.console()}", false, alter = ::flip,
                 ),
             )
         }
         add(
             ProbeItem(
-                Target.Wiper, "getCurrentWiperSwitch / setWiperSwitch", READ_DIRECT_WRITE_REFLECT,
+                Target.Wiper, "getCurrentWiperSwitch / setWiperSwitch", DIRECT,
                 "body.wipers.front.mode", WiperMode.OFF,
             ) { v -> if (v == WiperMode.OFF) WiperMode.AUTO else WiperMode.OFF },
         )
         add(
             ProbeItem(
-                Target.Recirculation, "getHvacRecirculationState / setHvacRecirculation", DIRECT,
+                Target.Recirculation, "getHvacRecirculationState / setHvacRecirculation (다섯 좌석 합친 area)", DIRECT,
                 "hvac.recirc_on", false, alter = ::flip,
             ),
         )
         add(
             ProbeItem(
-                Target.DoorLock, "getCurrentDoorLockState / setDoorLock", "읽기 리플렉션, 쓰기 직접",
+                Target.DoorLock, "getDoorLockState / setDoorLock (네 문 합친 area)", DIRECT,
                 "body.door_locks.all", true, alter = ::flip,
             ),
         )
         add(
             ProbeItem(
-                Target.RearBlind, "getCurrentWindowBlindPosition / moveWindowBlind", REFLECT,
+                Target.RearBlind, "getCurrentWindowBlindPosition / moveWindowBlind", DIRECT,
                 null, false, alter = ::flip,
             ),
         )
         listOf(Seat.DRIVER, Seat.PASSENGER, Seat.REAR_LEFT, Seat.REAR_RIGHT).forEach {
             add(
                 ProbeItem(
-                    Target.Climate(it), "getHvacPowerState / setHvacPower", DIRECT,
+                    Target.Climate(it), "getHvacPowerState / setHvacPower (다섯 좌석 합친 area)", DIRECT,
                     "hvac.power_on", false, alter = ::flip,
                 ),
             )
@@ -171,7 +172,7 @@ internal class CarProbe(private val car: CarPort) {
             add(
                 ProbeItem(
                     Target.SeatPosition(Seat.DRIVER, axis),
-                    "getCurrentSeat${axis.apiName()}Position / moveSeat${axis.apiName()}", REFLECT,
+                    axis.api(), DIRECT,
                     axis.console()?.let { "seat.positions.$it.driver" }, SEAT_FALLBACK, needsPark = true,
                 ) { v -> (v as Int).let { if (it <= SEAT_FALLBACK) it + SEAT_STEP else it - SEAT_STEP } },
             )
@@ -303,18 +304,21 @@ internal class CarProbe(private val car: CarPort) {
 
     /**
      * 작성: 2026-11-09 16:52:02 · 박건준
-     * 함수: apiName
-     * 목적: 시트 축을 SDK 함수 이름에 들어가는 이름으로 바꾼다. 차 연결
-     *       (PleosCarPort.kt)의 `apiName`과 같은 값이고, 그쪽이 private이라 옮겨 둔다.
-     * 반환: `ForeAft` 같은 이름
+     * 수정: 2026-11-09 19:05:00 · 박건준
+     * 함수: api
+     * 목적: 시트 축을 CSV API 칸에 적을 읽기 / 이동 SDK 함수 이름으로 바꾼다.
+     *       차 연결(PleosCarPort.kt)의 `readSeat()`·`moveSeat()`가 부르는 함수다.
+     * 반환: `getCurrentSeatForeAftPosition / moveSeatForeAft` 같은 이름
+     * 근거: 표준 — Pleos Vehicle SDK 2.3.2의 머리받이 읽기 함수 이름은
+     *       `getCurrentSeatHeadrestHeightAftPosition`이다
      */
-    private fun SeatAxis.apiName(): String = when (this) {
-        SeatAxis.FORE_AFT -> "ForeAft"
-        SeatAxis.HEIGHT -> "Height"
-        SeatAxis.BACKREST_ANGLE -> "BackrestAngle"
-        SeatAxis.TILT -> "Tilt"
-        SeatAxis.DEPTH -> "Depth"
-        SeatAxis.HEADREST_HEIGHT -> "HeadrestHeight"
+    private fun SeatAxis.api(): String = when (this) {
+        SeatAxis.FORE_AFT -> "getCurrentSeatForeAftPosition / moveSeatForeAft"
+        SeatAxis.HEIGHT -> "getCurrentSeatHeightPosition / moveSeatHeight"
+        SeatAxis.BACKREST_ANGLE -> "getCurrentSeatBackrestAnglePosition / moveSeatBackrestAngle"
+        SeatAxis.TILT -> "getCurrentSeatTiltPosition / moveSeatTilt"
+        SeatAxis.DEPTH -> "getCurrentSeatDepthPosition / moveSeatDepth"
+        SeatAxis.HEADREST_HEIGHT -> "getCurrentSeatHeadrestHeightAftPosition / moveSeatHeadrestHeight"
     }
 
     /**
@@ -323,7 +327,7 @@ internal class CarProbe(private val car: CarPort) {
      * 목적: 실측할 대상 하나와 그 대상을 어떻게 바꾸고 확인할지 묶는다.
      * 인자: target — 바꿀 대상
      *       api — 읽기 / 쓰기 SDK 함수 이름
-     *       call — 호출 방식(직접 / 리플렉션)
+     *       call — 호출 방식(지금은 모두 직접)
      *       consolePath — 콘솔 `/vehicle/state` 안의 점 경로. null이면 콘솔에 없음
      *       fallback — 원래 값을 못 읽었을 때 원래 값으로 볼 값
      *       needsPark — true면 기어 P일 때만 실측한다(시트)
@@ -429,12 +433,11 @@ internal class CarProbe(private val car: CarPort) {
 
         /**
          * 작성: 2026-11-09 16:52:02 · 박건준
-         * 변수: DIRECT, REFLECT, READ_DIRECT_WRITE_REFLECT
+         * 수정: 2026-11-09 19:05:00 · 박건준
+         * 변수: DIRECT
          * 목적: CSV 호출 방식 칸에 적는 이름. 차 연결(PleosCarPort.kt)이 SDK를
-         *       직접 부르는지, 이름으로 찾아 부르는지(`Reflective`) 나눈다.
+         *       모두 직접 부른다. 이전 실측 CSV와 칸을 맞추려고 칸은 남긴다.
          */
-        const val DIRECT = "직접" // 읽기·쓰기 모두 직접 호출
-        const val REFLECT = "리플렉션" // 읽기·쓰기 모두 이름으로 찾아 호출
-        const val READ_DIRECT_WRITE_REFLECT = "읽기 직접, 쓰기 리플렉션" // 쓰기만 이름으로 찾아 호출
+        const val DIRECT = "직접"
     }
 }

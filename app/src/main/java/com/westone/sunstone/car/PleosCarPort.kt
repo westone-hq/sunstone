@@ -154,12 +154,18 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
             Target.Recirculation -> awaitCallback<Boolean?> { ok, fail ->
                 vehicle.getHVAC().getHvacRecirculationState(ALL_SEATS, ok, fail)
             }
-            Target.DoorLock -> awaitGet(vehicle.getDoor(), DOOR_LOCK_GET, ALL_DOORS)
-            Target.RearBlind -> awaitGet(vehicle.getWindow(), BLIND_GET, REAR_GLASS)?.let { (it as? Int ?: 0) > 0 }
+            Target.DoorLock -> awaitCallback<Boolean?> { ok, fail ->
+                vehicle.getDoor().getDoorLockState(ALL_DOORS, ok, fail)
+            }
+            Target.RearBlind -> awaitCallback<Int?> { ok, fail ->
+                vehicle.getWindow().getCurrentWindowBlindPosition(REAR_GLASS, ok, fail)
+            }?.let { it > 0 }
             is Target.Climate -> awaitCallback<Boolean?> { ok, fail ->
                 vehicle.getHVAC().getHvacPowerState(ALL_SEATS, ok, fail)
             }
-            is Target.SeatPosition -> awaitGet(vehicle.getSeat(), target.axis.readNames(), target.seat.area()) as? Int
+            is Target.SeatPosition -> awaitCallback<Int?> { ok, fail ->
+                readSeat(target.axis, target.seat.area(), ok, fail)
+            }
             is Target.SeatMemory -> null
         }
     }.onFailure { warn("read $target", it) }.getOrNull()
@@ -179,11 +185,18 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
             is Target.WindowLock ->
                 if (target.window !in LOCKABLE_WINDOWS) unsupported("setWindowLock ${target.window}")
                 // 측정(docs/api-spike.md 창문 잠금 행): 다시 읽은 값만 바뀌고 콘솔은 그대로라 확인 못 한다.
-                else if (awaitSet(vehicle.getWindow(), listOf("setWindowLock"), target.window.area(), value as Boolean)) ControlResult.Sent
-                else unsupported("setWindowLock")
-            Target.Wiper ->
-                if (awaitSet(vehicle.getWiper(), listOf("setWiperSwitch"), FRONT_WIPER, (value as WiperMode).toSwitch())) verify(target, value)
-                else unsupported("setWiperSwitch")
+                else {
+                    awaitCallback<Unit> { ok, fail ->
+                        vehicle.getWindow().setWindowLock(target.window.area(), value as Boolean, { _, _ -> ok(Unit) }, fail)
+                    }
+                    ControlResult.Sent
+                }
+            Target.Wiper -> {
+                awaitCallback<Unit> { ok, fail ->
+                    vehicle.getWiper().setWiperSwitch(FRONT_WIPER, (value as WiperMode).toSwitch(), { _, _ -> ok(Unit) }, fail)
+                }
+                verify(target, value)
+            }
             Target.Recirculation -> {
                 awaitCallback<Unit> { ok, fail ->
                     vehicle.getHVAC().setHvacRecirculation(ALL_SEATS, value as Boolean, { _, _ -> ok(Unit) }, fail)
@@ -198,8 +211,13 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
             }
             Target.RearBlind ->
                 if (!rearBlindSupported()) unsupported("moveWindowBlind REAR_WINDSHIELD")
-                else if (awaitSet(vehicle.getWindow(), BLIND_MOVE, REAR_GLASS, if (value as Boolean) MoveControl.FORWARD else MoveControl.BACKWARD)) ControlResult.Sent
-                else unsupported("moveWindowBlind")
+                else {
+                    val control = if (value as Boolean) MoveControl.FORWARD else MoveControl.BACKWARD
+                    awaitCallback<Unit> { ok, fail ->
+                        vehicle.getWindow().moveWindowBlind(REAR_GLASS, control, { _, _ -> ok(Unit) }, fail)
+                    }
+                    ControlResult.Sent
+                }
             is Target.Climate -> {
                 awaitCallback<Unit> { ok, fail ->
                     vehicle.getHVAC().setHvacPower(ALL_SEATS, value as Boolean, { _, _ -> ok(Unit) }, fail)
@@ -237,13 +255,12 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      */
     private suspend fun moveSeatTo(target: Target.SeatPosition, goal: Int): ControlResult {
         val area = target.seat.area()
-        val seat = vehicle.getSeat()
-        val moveNames = listOf("moveSeat${target.axis.apiName}")
+        val axis = target.axis
         var pos = read(target) as? Int ?: return unsupported("seat ${target.axis} position")
         if (abs(pos - goal) <= SEAT_TOLERANCE) return ControlResult.Done
         var direction = if (goal > pos) MoveControl.FORWARD else MoveControl.BACKWARD
         var flipped = false
-        if (!awaitSet(seat, moveNames, area, direction)) return unsupported(moveNames.first())
+        moveSeat(axis, area, direction)
         val started = System.currentTimeMillis()
         try {
             while (System.currentTimeMillis() - started < SEAT_TIMEOUT_MS) {
@@ -255,13 +272,13 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
                 if (gettingWorse && !flipped) {
                     direction = if (direction == MoveControl.FORWARD) MoveControl.BACKWARD else MoveControl.FORWARD
                     flipped = true
-                    awaitSet(seat, moveNames, area, direction)
+                    moveSeat(axis, area, direction)
                 }
                 pos = now
             }
             return ControlResult.Failed("시간 안에 목표 위치에 못 갔어요")
         } finally {
-            runCatching { awaitSet(seat, moveNames, area, MoveControl.STOP) }
+            runCatching { moveSeat(axis, area, MoveControl.STOP) }
         }
     }
 
@@ -352,18 +369,30 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         },
     )
 
-    /** SDK 함수 이름에 들어가는 축 이름. moveSeatForeAft, getCurrentSeatForeAftPosition … */
-    private val SeatAxis.apiName: String
-        get() = when (this) {
-            SeatAxis.FORE_AFT -> "ForeAft"
-            SeatAxis.HEIGHT -> "Height"
-            SeatAxis.BACKREST_ANGLE -> "BackrestAngle"
-            SeatAxis.TILT -> "Tilt"
-            SeatAxis.DEPTH -> "Depth"
-            SeatAxis.HEADREST_HEIGHT -> "HeadrestHeight"
+    private fun readSeat(axis: SeatAxis, area: SeatArea, ok: (Int?) -> Unit, fail: (Exception) -> Unit) {
+        val seat = vehicle.getSeat()
+        when (axis) {
+            SeatAxis.FORE_AFT -> seat.getCurrentSeatForeAftPosition(area, ok, fail)
+            SeatAxis.HEIGHT -> seat.getCurrentSeatHeightPosition(area, ok, fail)
+            SeatAxis.BACKREST_ANGLE -> seat.getCurrentSeatBackrestAnglePosition(area, ok, fail)
+            SeatAxis.TILT -> seat.getCurrentSeatTiltPosition(area, ok, fail)
+            SeatAxis.DEPTH -> seat.getCurrentSeatDepthPosition(area, ok, fail)
+            SeatAxis.HEADREST_HEIGHT -> seat.getCurrentSeatHeadrestHeightAftPosition(area, ok, fail)
         }
+    }
 
-    private fun SeatAxis.readNames() = listOf("getCurrentSeat${apiName}Position", "getSeat${apiName}Position")
+    private suspend fun moveSeat(axis: SeatAxis, area: SeatArea, control: MoveControl) = awaitCallback<Unit> { ok, fail ->
+        val seat = vehicle.getSeat()
+        val done: (SeatArea, MoveControl?) -> Unit = { _, _ -> ok(Unit) }
+        when (axis) {
+            SeatAxis.FORE_AFT -> seat.moveSeatForeAft(area, control, done, fail)
+            SeatAxis.HEIGHT -> seat.moveSeatHeight(area, control, done, fail)
+            SeatAxis.BACKREST_ANGLE -> seat.moveSeatBackrestAngle(area, control, done, fail)
+            SeatAxis.TILT -> seat.moveSeatTilt(area, control, done, fail)
+            SeatAxis.DEPTH -> seat.moveSeatDepth(area, control, done, fail)
+            SeatAxis.HEADREST_HEIGHT -> seat.moveSeatHeadrestHeight(area, control, done, fail)
+        }
+    }
 
     private companion object {
         const val TAG = "SunstoneCar"
@@ -382,8 +411,5 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         val ALL_DOORS = DoorArea(DoorValue.ROW_1_LEFT, DoorValue.ROW_1_RIGHT, DoorValue.ROW_2_LEFT, DoorValue.ROW_2_RIGHT)
         // 측정: 창문 잠금을 따로 받는 창문은 뒷좌석 둘뿐이다(앞좌석은 네 창문 합친 area로만).
         val LOCKABLE_WINDOWS = setOf(Window.REAR_LEFT, Window.REAR_RIGHT)
-        val DOOR_LOCK_GET = listOf("getCurrentDoorLockState", "getDoorLockState")
-        val BLIND_GET = listOf("getCurrentWindowBlindPosition", "getWindowBlindPosition")
-        val BLIND_MOVE = listOf("moveWindowBlind")
     }
 }
