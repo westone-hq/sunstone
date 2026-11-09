@@ -273,21 +273,20 @@ internal class CarProbe(private val car: CarPort) {
 
     /**
      * 작성: 2026-11-09 16:52:02 · 박건준
-     * 수정: 2026-11-09 18:37:39 · 박건준
+     * 수정: 2026-11-09 20:05:58 · 박건준
      * 함수: api
-     * 목적: 시트 축을 CSV API 칸에 적을 읽기 / 이동 SDK 함수 이름으로 바꾼다.
-     *       차 연결(PleosCarPort.kt)의 `readSeat()`·`moveSeat()`가 부르는 함수다.
-     * 반환: `getCurrentSeatForeAftPosition / moveSeatForeAft` 같은 이름
-     * 근거: 표준 — Pleos Vehicle SDK 2.3.2의 머리받이 읽기 함수 이름은
-     *       `getCurrentSeatHeadrestHeightAftPosition`이다
+     * 목적: 시트 축을 CSV API 칸에 적을 읽기 / 이동 방법으로 바꾼다. 차
+     *       연결(PleosCarPort.kt)은 위치를 차에서 읽지 않고 시간으로 맞춘
+     *       추정값을 돌려주고, 이동은 `moveSeat…`를 시간만큼 보낸다.
+     * 반환: `추정 위치 / moveSeatForeAft(시간)` 같은 글자
      */
     private fun SeatAxis.api(): String = when (this) {
-        SeatAxis.FORE_AFT -> "getCurrentSeatForeAftPosition / moveSeatForeAft"
-        SeatAxis.HEIGHT -> "getCurrentSeatHeightPosition / moveSeatHeight"
-        SeatAxis.BACKREST_ANGLE -> "getCurrentSeatBackrestAnglePosition / moveSeatBackrestAngle"
-        SeatAxis.TILT -> "getCurrentSeatTiltPosition / moveSeatTilt"
-        SeatAxis.DEPTH -> "getCurrentSeatDepthPosition / moveSeatDepth"
-        SeatAxis.HEADREST_HEIGHT -> "getCurrentSeatHeadrestHeightAftPosition / moveSeatHeadrestHeight"
+        SeatAxis.FORE_AFT -> "추정 위치 / moveSeatForeAft(시간)"
+        SeatAxis.HEIGHT -> "추정 위치 / moveSeatHeight(시간)"
+        SeatAxis.BACKREST_ANGLE -> "추정 위치 / moveSeatBackrestAngle(시간)"
+        SeatAxis.TILT -> "추정 위치 / moveSeatTilt(시간)"
+        SeatAxis.DEPTH -> "추정 위치 / moveSeatDepth(시간)"
+        SeatAxis.HEADREST_HEIGHT -> "추정 위치 / moveSeatHeadrestHeight(시간)"
     }
 
     /**
