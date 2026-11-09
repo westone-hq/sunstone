@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:53:00 · 박건준
+ * 수정: 2026-11-09 19:14:00 · 박건준
  * 클래스: DemoReceiver
  * 목적: 시연용 장면 넣기. 에뮬레이터가 못 만드는 상황(장소, 속도, 마이크
  *       입력)을 adb 한 줄로 넣는다. debug 빌드에만 있다.
@@ -35,7 +35,8 @@ import kotlinx.coroutines.launch
  *       - Pleos 차일 때만: `probe`(제어 API 실측, logcat `probe,` 줄),
  *         `areas`(지원 area 목록, logcat `areas,` 줄),
  *         `seatread`(AAOS 속성으로 시트 위치 읽기, logcat `seatread,` 줄),
- *         `seattime`(시트 축 이동 시간, logcat `seattime` 줄)
+ *         `seattime`(시트 축 이동 시간, logcat `seattime` 줄),
+ *         `seatfit`(시간 기반 시트 이동 오차, logcat `seatfit,` 줄)
  */
 class DemoReceiver : BroadcastReceiver() {
 
@@ -100,8 +101,8 @@ class DemoReceiver : BroadcastReceiver() {
              */
             "say" -> {
                 val action = PhraseMatcher.match(arg, Source.DEMO) // 알아들은 요청, 못 알아들으면 null
-                // → 로직 이동: AppGraph.handle(), Speaker.say()
-                if (action != null) g.handle(action) else g.speaker.say("잘 못 알아들었어요.")
+                // → 로직 이동: AppGraph.handle(), AppGraph.notUnderstood()
+                if (action != null) g.handle(action) else g.notUnderstood()
             }
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
@@ -226,6 +227,17 @@ class DemoReceiver : BroadcastReceiver() {
                 } finally {
                     vehicle.release()
                 }
+            }
+            /**
+             * 작성: 2026-11-09 19:14:00 · 박건준
+             * 함수: seatfit
+             * 목적: 시간 기반 시트 이동이 목표 30·70에 얼마나 가깝게 가는지
+             *       잰다(`SeatFit`). Pleos 차가 아니면 하지 않는다.
+             */
+            "seatfit" -> {
+                val pleos = g.pleos // 실측할 차, 가짜 차를 쓰는 중이면 null
+                if (pleos == null) Log.w("SunstoneDemo", "seatfit: Pleos 차가 아니라서 실측하지 않음")
+                else g.scope.launch { SeatFit(pleos).run() } // → 로직 이동: SeatFit.run()
             }
             else -> Log.w("SunstoneDemo", "모르는 명령: $cmd")
         }
