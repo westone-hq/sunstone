@@ -7,7 +7,11 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
-relay/files/
 *.apk
+!apk/*.apk
 *.keystore
 *.jks
+keystore.properties
+relay/
+CLAUDE.local.md
+.claude/settings.local.json

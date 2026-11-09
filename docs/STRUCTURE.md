@@ -4,7 +4,7 @@
 원래대로 돌리는 Pleos Connect 앱이다.
 
 > 상태: 지금 들어 있는 루틴·문장·판단 숫자는 전부 **초안(미승인)** 이다.
-> 기능은 대표 승인을 받으며 하나씩 다시 만든다. 승인 전에는 늘리거나 다듬지 않는다.
+> 기능은 박건준 승인을 받으며 하나씩 다시 만든다(`CONTRIBUTING.md`). 승인 전에는 늘리거나 다듬지 않는다.
 
 ---
 
@@ -13,7 +13,7 @@
 | 영역 | 모듈 | 담당 | 한 줄 |
 |---|---|---|---|
 | ① 기능 구현 | `routines/` | 박희정 | 무엇을, 언제 할지 정한다. 순수 Kotlin, 차 없이 테스트한다 |
-| ② 앱 연결 | `app/` | 박건준 (대표) | 어떻게 할지 맡는다. Pleos SDK·내비·바깥 API·음성·화면 |
+| ② 앱 연결 | `app/` | 박건준 | 어떻게 할지 맡는다. Pleos SDK·내비·바깥 API·음성·화면 |
 | 시연·결정 | — | 박건준 | 시연 빌드, 시연 영상, 루틴·문장·숫자 최종 결정 |
 
 두 영역이 만나는 곳은 **창구(포트)** 몇 개뿐이다(3장). 창구를 바꿀 때만 두 사람이 합의한다.
@@ -24,15 +24,15 @@
 
 ```
 sunstone/
-├─ CLAUDE.md               Claude Code 작업 안내 (두 사람 공통)
 ├─ README.md
+├─ CONTRIBUTING.md         담당, 기능 승인, 브랜치·PR
+├─ CLAUDE.md               Claude Code 작업 안내 (두 사람 공통)
+├─ .claude/settings.json   Claude Code 공통 설정
 ├─ docs/
 │  ├─ STRUCTURE.md         이 문서
-│  ├─ COMMENT_RULES.md     주석·코드 규칙 (작업 전마다 읽는다)
-│  ├─ HANDOFF_FEATURES.md  기능 구현 시작 안내와 참고 자료
-│  ├─ PLAN.md              초기 구조 계획 (참고용, 승인 전 초안)
+│  ├─ COMMENT_RULES.md     주석·코드·커밋 규칙 (작업 전마다 읽는다)
 │  └─ api-spike.md         Pleos API 실측 기록
-├─ relay/                  클라우드 Claude ↔ 로컬 Claude Code 주고받는 폴더
+├─ apk/                    (예정) 심사용 release APK
 ├─ tools/api-explorer/     Pleos 공식 Vehicle 샘플 (실측용, 출품 제외)
 │
 ├─ routines/               ① 기능 구현 ─ 박희정
@@ -57,7 +57,8 @@ sunstone/
       │  (예정) navi/      내비 SDK(경로·경유지·도착)
       │  (예정) info/      바깥 API(카카오·오피넷·기상청·에어코리아) + 고정 응답
       ├─ main/assets/      schema.json(Gleo), (예정) 참고 문서 카드·대사집·녹음본
-      └─ debug/            DemoReceiver (adb 장면 주입, 출시 빌드에는 없음)
+      ├─ debug/            DemoReceiver (adb 장면 주입, 출시 빌드에는 없음)
+      (예정) sim/, pleos/  빌드 2종: 시연 빌드(가짜 차·고정 응답) / Pleos 빌드(실제 SDK)
 ```
 
 예정 폴더는 그 기능이 승인될 때 만든다. 빈 폴더를 미리 두지 않는다.
@@ -76,7 +77,7 @@ sunstone/
 | 기억 창구 | 기능 → 저장소 | | 방문 기록, 마지막 세차일 |
 
 - 창구는 `routines/.../port/`에 두고, 구현은 `app/`이 한다.
-- 창구 함수를 더하거나 바꾸려면 relay에 제안 → 상대 확인 → 대표 결정.
+- 창구 함수를 더하거나 바꾸려면 GitHub 이슈로 제안 → 상대 확인 → 박건준 결정.
 - 기능 쪽 테스트는 창구의 가짜 구현으로 돈다. 앱 쪽은 실제 SDK·API로 같은 창구를 채운다.
 
 ---
