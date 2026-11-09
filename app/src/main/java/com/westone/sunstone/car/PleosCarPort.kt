@@ -147,12 +147,12 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
                 vehicle.getWiper().getCurrentWiperSwitch(FRONT_WIPER, ok, fail)
             }?.toMode()
             Target.Recirculation -> awaitCallback<Boolean?> { ok, fail ->
-                vehicle.getHVAC().getHvacRecirculationState(FRONT_CLIMATE, ok, fail)
+                vehicle.getHVAC().getHvacRecirculationState(ALL_SEATS, ok, fail)
             }
-            Target.DoorLock -> awaitGet(vehicle.getDoor(), DOOR_LOCK_GET, DoorArea(DoorValue.ROW_1_LEFT))
+            Target.DoorLock -> awaitGet(vehicle.getDoor(), DOOR_LOCK_GET, ALL_DOORS)
             Target.RearBlind -> awaitGet(vehicle.getWindow(), BLIND_GET, REAR_GLASS)?.let { (it as? Int ?: 0) > 0 }
             is Target.Climate -> awaitCallback<Boolean?> { ok, fail ->
-                vehicle.getHVAC().getHvacPowerState(target.seat.area(), ok, fail)
+                vehicle.getHVAC().getHvacPowerState(ALL_SEATS, ok, fail)
             }
             is Target.SeatPosition -> awaitGet(vehicle.getSeat(), target.axis.readNames(), target.seat.area()) as? Int
             is Target.SeatMemory -> null
@@ -172,31 +172,31 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
                 verify(target, value, settleMs = 1_500)
             }
             is Target.WindowLock ->
-                if (awaitSet(vehicle.getWindow(), listOf("setWindowLock"), target.window.area(), value as Boolean)) verify(target, value)
+                if (target.window !in LOCKABLE_WINDOWS) unsupported("setWindowLock ${target.window}")
+                else if (awaitSet(vehicle.getWindow(), listOf("setWindowLock"), target.window.area(), value as Boolean)) verify(target, value)
                 else unsupported("setWindowLock")
             Target.Wiper ->
                 if (awaitSet(vehicle.getWiper(), listOf("setWiperSwitch"), FRONT_WIPER, (value as WiperMode).toSwitch())) verify(target, value)
                 else unsupported("setWiperSwitch")
             Target.Recirculation -> {
                 awaitCallback<Unit> { ok, fail ->
-                    vehicle.getHVAC().setHvacRecirculation(FRONT_CLIMATE, value as Boolean, { _, _ -> ok(Unit) }, fail)
+                    vehicle.getHVAC().setHvacRecirculation(ALL_SEATS, value as Boolean, { _, _ -> ok(Unit) }, fail)
                 }
                 verify(target, value)
             }
             Target.DoorLock -> {
-                listOf(Door.FRONT_LEFT, Door.FRONT_RIGHT, Door.REAR_LEFT, Door.REAR_RIGHT).forEach { door ->
-                    awaitCallback<Unit> { ok, fail ->
-                        vehicle.getDoor().setDoorLock(door.area(), value as Boolean, { _, _ -> ok(Unit) }, fail)
-                    }
+                awaitCallback<Unit> { ok, fail ->
+                    vehicle.getDoor().setDoorLock(ALL_DOORS, value as Boolean, { _, _ -> ok(Unit) }, fail)
                 }
                 verify(target, value)
             }
             Target.RearBlind ->
-                if (awaitSet(vehicle.getWindow(), BLIND_MOVE, REAR_GLASS, if (value as Boolean) MoveControl.FORWARD else MoveControl.BACKWARD)) ControlResult.Sent
+                if (!rearBlindSupported()) unsupported("moveWindowBlind REAR_WINDSHIELD")
+                else if (awaitSet(vehicle.getWindow(), BLIND_MOVE, REAR_GLASS, if (value as Boolean) MoveControl.FORWARD else MoveControl.BACKWARD)) ControlResult.Sent
                 else unsupported("moveWindowBlind")
             is Target.Climate -> {
                 awaitCallback<Unit> { ok, fail ->
-                    vehicle.getHVAC().setHvacPower(target.seat.area(), value as Boolean, { _, _ -> ok(Unit) }, fail)
+                    vehicle.getHVAC().setHvacPower(ALL_SEATS, value as Boolean, { _, _ -> ok(Unit) }, fail)
                 }
                 verify(target, value)
             }
@@ -258,6 +258,19 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
             runCatching { awaitSet(seat, moveNames, area, MoveControl.STOP) }
         }
     }
+
+    /**
+     * 차가 뒷유리 블라인드를 갖고 있는지 SDK에 묻는다. 에뮬레이터는 옆 창문 블라인드만 있다.
+     * 묻기에 실패하면 없는 것으로 본다.
+     */
+    private suspend fun rearBlindSupported(): Boolean = runCatching {
+        awaitCallback<Boolean> { ok, fail ->
+            vehicle.getWindow().checkMoveWindowBlindCapabilities(
+                { _, areas -> ok(areas.any { WindowValue.REAR_WINDSHIELD in it.values }) },
+                fail,
+            )
+        }
+    }.getOrDefault(false)
 
     override fun close() {
         unsubscribe.forEach { runCatching(it) }
@@ -353,7 +366,14 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         const val SEAT_TIMEOUT_MS = 10_000L
         val FRONT_WIPER = WindowArea(WindowValue.FRONT_WINDSHIELD)
         val REAR_GLASS = WindowArea(WindowValue.REAR_WINDSHIELD)
-        val FRONT_CLIMATE = SeatArea(SeatValue.ROW_1_LEFT)
+        // 측정(docs/api-spike.md 지원 area): 공조 전원·내기 순환은 다섯 좌석을 합친 area 하나만 받는다.
+        val ALL_SEATS = SeatArea(
+            SeatValue.ROW_1_LEFT, SeatValue.ROW_1_RIGHT, SeatValue.ROW_2_LEFT, SeatValue.ROW_2_CENTER, SeatValue.ROW_2_RIGHT,
+        )
+        // 측정: 문 잠금은 네 문을 합친 area 하나(와 보닛)만 받는다. 문 전체 잠금으로 다룬다.
+        val ALL_DOORS = DoorArea(DoorValue.ROW_1_LEFT, DoorValue.ROW_1_RIGHT, DoorValue.ROW_2_LEFT, DoorValue.ROW_2_RIGHT)
+        // 측정: 창문 잠금을 따로 받는 창문은 뒷좌석 둘뿐이다(앞좌석은 네 창문 합친 area로만).
+        val LOCKABLE_WINDOWS = setOf(Window.REAR_LEFT, Window.REAR_RIGHT)
         val DOOR_LOCK_GET = listOf("getCurrentDoorLockState", "getDoorLockState")
         val BLIND_GET = listOf("getCurrentWindowBlindPosition", "getWindowBlindPosition")
         val BLIND_MOVE = listOf("moveWindowBlind")
