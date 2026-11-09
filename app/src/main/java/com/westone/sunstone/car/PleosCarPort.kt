@@ -324,6 +324,15 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
     fun overrideFuel(percent: Int?) = putFuel("override", percent) { it.copy(overridePercent = percent) }
 
     /**
+     * 작성: 2026-11-09 20:58:00 · 박건준
+     * 함수: onFuelTypes
+     * 목적: AAOS 연료 종류(`INFO_FUEL_TYPE`)를 `fuel`에 넣는다. 차 종류
+     *       (`FuelState.kind`)는 이 값으로 정한다.
+     * 인자: types — 연료 종류 번호 목록(`android.car.FuelType`)
+     */
+    fun onFuelTypes(types: List<Int>) = putFuel("INFO_FUEL_TYPE", types) { it.copy(fuelTypes = types) }
+
+    /**
      * 작성: 2026-11-09 20:18:22 · 박건준
      * 함수: onAaosEnergy
      * 목적: AAOS 에너지 속성 값을 `fuel`의 경로별 칸에 넣는다.
