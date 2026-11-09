@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.westone.sunstone.AppGraph
 import com.westone.sunstone.R
+import com.westone.sunstone.car.CarKind
 import com.westone.sunstone.car.FuelState
 import com.westone.sunstone.routines.understand.PhraseMatcher
 import com.westone.sunstone.routines.understand.VoiceAction
@@ -142,11 +143,11 @@ fun SunstoneScreen(graph: AppGraph) {
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 20:18:22 · 박건준
+ * 수정: 2026-11-09 20:58:00 · 박건준
  * 함수: StatusLine
- * 목적: 차 상태 한 줄(기어·속도·장소·열린 문·탑승, 받은 경우 연료·배터리·
- *       주행 가능 거리). 시연 때 차가 무엇을 알아챘는지 보여준다. 기어·
- *       장소는 영어 이름 대신 화면 문구로 바꾼다.
+ * 목적: 차 상태 한 줄(기어·속도·장소·열린 문·탑승, 받은 경우 차 종류·
+ *       연료·배터리·주행 가능 거리). 시연 때 차가 무엇을 알아챘는지
+ *       보여준다. 기어·장소는 영어 이름 대신 화면 문구로 바꾼다.
  * 인자: car — 지금 차 상태
  *       fuel — 연료 값. 가짜 차면 null
  *       fake — 가짜 차를 쓰면 true. 줄 끝에 표시한다
@@ -175,6 +176,14 @@ private fun StatusLine(car: CarState, fuel: FuelState?, fake: Boolean) {
         },
     )
     val energy = buildString { // 받은 연료 값만 이어 붙인 글자
+        fuel?.kind?.let {
+            val kind = when (it) { // 차 종류 문구
+                CarKind.ELECTRIC -> R.string.kind_electric
+                CarKind.HYBRID -> R.string.kind_hybrid
+                CarKind.COMBUSTION -> R.string.kind_combustion
+            }
+            append(stringResource(R.string.status_kind, stringResource(kind)))
+        }
         fuel?.percent?.let { append(stringResource(R.string.status_fuel, it)) }
         fuel?.batteryPercent?.let { append(stringResource(R.string.status_battery, it)) }
         fuel?.aaosRangeM?.let { append(stringResource(R.string.status_range, it / METERS_PER_KM)) }
