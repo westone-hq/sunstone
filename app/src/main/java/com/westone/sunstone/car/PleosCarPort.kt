@@ -11,9 +11,14 @@ import ai.pleos.playground.vehicle.constant.control.MoveControl
 import ai.pleos.playground.vehicle.constant.control.VehicleGear
 import ai.pleos.playground.vehicle.constant.control.WiperSwitch
 import ai.pleos.playground.vehicle.listener.DoorPositionListener
+import ai.pleos.playground.vehicle.listener.EvBatteryStateOfChargeListener
+import ai.pleos.playground.vehicle.listener.FuelEconomyListener
+import ai.pleos.playground.vehicle.listener.FuelPercentListener
 import ai.pleos.playground.vehicle.listener.GearSelectionListener
+import ai.pleos.playground.vehicle.listener.RangeRemainingListener
 import ai.pleos.playground.vehicle.listener.SeatBeltBuckledStateListener
 import ai.pleos.playground.vehicle.listener.SeatOccupancyListener
+import android.car.VehiclePropertyIds
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
@@ -43,12 +48,14 @@ import kotlinx.coroutines.flow.update
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-09 20:18:22 · 박건준
  * 클래스: PleosCarPort
  * 목적: Pleos Vehicle SDK로 만든 `CarPort`(기능 구현이 차에 요청하는 창구).
  *       - 차에서 오는 값(기어·문·탑승·벨트)은 리스너로 받아 `sensed`에 모은다
  *       - 차가 모르는 값(장소, 에뮬레이터에서 못 넣는 속도)은 앱이 `manual`에
  *         넣는다
+ *       - 연료·배터리·주행 가능 거리는 `CarState`에 칸이 없어 `fuel`에 따로
+ *         모은다
  *       - 제어는 "실행 → 다시 읽어 확인". 확인되면 `Done`, 확인할 수 없으면
  *         `Sent`, 차가 받지 않는 대상이면 `Unsupported`
  * 인자: context — 앱 Context. SDK 연결에 쓴다
@@ -235,6 +242,12 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
     /** 차가 위치를 받는 창문. 처음 쓸 때 SDK에 물어 채운다. 묻기에 실패하면 null로 두고 보내 본다 */
     private var windowAreas: Set<WindowValue>? = null
 
+    /** 연료·배터리·주행 가능 거리. SDK 리스너와 `onAaosEnergy()`가 채우고, 데모 `fuel`이 덮어쓴다 */
+    private val fuelState = MutableStateFlow(FuelState())
+
+    /** 화면이 보는 연료 값(값이 바뀌면 알려주는 상태). 받지 못한 칸은 null */
+    val fuel: StateFlow<FuelState> = fuelState
+
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
      * 수정: 2026-11-09 18:49:00 · 박건준
@@ -260,6 +273,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         Door.entries.forEach(::subscribeDoor)
         Seat.entries.filter { it != Seat.REAR_CENTER }.forEach(::subscribeOccupancy)
         Seat.entries.forEach(::subscribeBelt)
+        subscribeFuel()
     }
 
     /**
@@ -288,6 +302,36 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      * 인자: kmh — 덮어쓸 속도(km/h). null이면 센서 값으로 돌아간다
      */
     fun overrideSpeed(kmh: Float?) = manual.update { it.copy(speedKmh = kmh) }
+
+    /**
+     * 작성: 2026-11-09 20:18:22 · 박건준
+     * 함수: overrideFuel
+     * 목적: 데모용 연료(%) 덮어쓰기. 에뮬레이터는 전기차라 연료 값을 넣을 수
+     *       없어서 쓴다.
+     * 인자: percent — 덮어쓸 연료(0~100%). null이면 SDK 값으로 돌아간다
+     */
+    fun overrideFuel(percent: Int?) = putFuel("override", percent) { it.copy(overridePercent = percent) }
+
+    /**
+     * 작성: 2026-11-09 20:18:22 · 박건준
+     * 함수: onAaosEnergy
+     * 목적: AAOS 에너지 속성 값을 `fuel`의 경로별 칸에 넣는다.
+     * 인자: propertyId — AAOS 속성 번호(`AaosEnergySource`가 읽는 다섯 개)
+     *       value — 값(m, ml, Wh)
+     */
+    fun onAaosEnergy(propertyId: Int, value: Float) {
+        val name = VehiclePropertyIds.toString(propertyId) // 로그에 남길 속성 이름
+        putFuel(name, value) {
+            when (propertyId) {
+                VehiclePropertyIds.RANGE_REMAINING -> it.copy(aaosRangeM = value)
+                VehiclePropertyIds.FUEL_LEVEL -> it.copy(aaosFuelMl = value)
+                VehiclePropertyIds.EV_BATTERY_LEVEL -> it.copy(aaosBatteryWh = value)
+                VehiclePropertyIds.INFO_FUEL_CAPACITY -> it.copy(fuelCapacityMl = value)
+                VehiclePropertyIds.INFO_EV_BATTERY_CAPACITY -> it.copy(batteryCapacityWh = value)
+                else -> it
+            }
+        }
+    }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
@@ -532,6 +576,78 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         api.getCurrentSeatBeltBuckledState(area, buckled, { warn("belt read $seat", it) })
         api.registerSeatBeltBuckledState(area, listener)
         unsubscribe += { api.unregisterSeatBeltBuckledState(area, listener) }
+    }
+
+    /**
+     * 작성: 2026-11-09 20:18:22 · 박건준
+     * 함수: subscribeFuel
+     * 목적: 연료(%)·연비·주행 가능 거리·배터리 충전량을 SDK로 한 번 읽고,
+     *       바뀔 때마다 `fuel`에 넣는다. 하나가 실패해도 나머지는 구독한다.
+     * 근거: 측정 — 에뮬레이터 차는 전기차라 콘솔에 연료 칸이 없고 배터리
+     *       충전량·주행 가능 거리만 있다(docs/api-spike.md 연료 행)
+     */
+    private fun subscribeFuel() {
+        guard("fuel percent") {
+            val api = vehicle.getFuel() // 연료 API
+            val put: (Int?) -> Unit = { v -> putFuel("fuelPercent", v) { it.copy(fuelPercent = v) } } // 연료(%)를 넣는다
+            val listener = object : FuelPercentListener { // 연료가 바뀌면 받는다
+                override fun onFuelPercentUpdated(value: Int?) = put(value)
+                override fun onFailed(e: Exception) = warn("fuel percent", e)
+            }
+            api.getFuelPercent(put, { warn("fuel percent read", it) })
+            api.registerFuelPercent(listener)
+            unsubscribe += { api.unregisterFuelPercent(listener) }
+        }
+        guard("fuel economy") {
+            val api = vehicle.getFuel() // 연료 API
+            val put: (Float?) -> Unit = { v -> putFuel("economy", v) { it.copy(economy = v) } } // 연비를 넣는다
+            val listener = object : FuelEconomyListener { // 연비가 바뀌면 받는다
+                override fun onFuelEconomyUpdated(value: Float?) = put(value)
+                override fun onFailed(e: Exception) = warn("fuel economy", e)
+            }
+            api.getCurrentFuelEconomy(put, { warn("fuel economy read", it) })
+            api.registerCurrentFuelEconomy(listener)
+            unsubscribe += { api.unregisterCurrentFuelEconomy(listener) }
+        }
+        guard("range") {
+            val api = vehicle.getOdometer() // 주행 기록 API
+            val put: (Float?) -> Unit = { v -> putFuel("range", v) { it.copy(range = v) } } // 주행 가능 거리를 넣는다
+            val listener = object : RangeRemainingListener { // 주행 가능 거리가 바뀌면 받는다
+                override fun onRangeRemainingChanged(value: Float?) = put(value)
+                override fun onFailed(e: Exception) = warn("range", e)
+            }
+            api.getRangeRemainingDistance(put, { warn("range read", it) })
+            api.registerRangeRemainingListener(listener)
+            unsubscribe += { api.unregisterRangeRemainingListener(listener) }
+        }
+        guard("battery") {
+            val api = vehicle.getEvBattery() // 전기차 배터리 API
+            val put: (Int?) -> Unit = { v -> putFuel("batteryPercent", v) { it.copy(batteryPercent = v) } } // 충전량(%)
+            val listener = object : EvBatteryStateOfChargeListener { // 충전량이 바뀌면 받는다
+                override fun onEvBatteryStateOfChargeUpdated(value: Int?) = put(value)
+                override fun onFailed(e: Exception) = warn("battery", e)
+            }
+            api.getEvBatteryStateOfCharge(put, { warn("battery read", it) })
+            api.registerEvBatteryStateOfCharge(listener)
+            unsubscribe += { api.unregisterEvBatteryStateOfCharge(listener) }
+        }
+    }
+
+    /**
+     * 작성: 2026-11-09 20:18:22 · 박건준
+     * 함수: putFuel
+     * 목적: 연료 값 한 칸을 바꾸고, 값이 실제로 바뀌었을 때만 어느 경로에서
+     *       무슨 값이 왔는지 logcat에 남긴다.
+     * 인자: name — 로그에 남길 칸 이름
+     *       value — 받은 값
+     *       change — 지금 값을 받아 바꾼 값을 돌려주는 함수
+     * 근거: 측정 — 에뮬레이터 AAOS 에너지 속성은 값이 같아도 1초마다 다시
+     *       온다(docs/api-spike.md 연료 행)
+     */
+    private fun putFuel(name: String, value: Any?, change: (FuelState) -> FuelState) {
+        val before = fuelState.value // 바꾸기 전 값
+        fuelState.update(change)
+        if (fuelState.value != before) Log.i(TAG, "fuel,$name,$value")
     }
 
     /**

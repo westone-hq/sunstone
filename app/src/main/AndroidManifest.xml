@@ -10,6 +10,9 @@
     <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" />
     <uses-permission android:name="pleos.car.permission.READ_WINDSHIELD_WIPERS" />
     <uses-permission android:name="pleos.car.permission.CAR_CLIMATE" />
+    <!-- 읽기: 연료·연비·배터리(CAR_ENERGY), 주행 가능 거리(CAR_INFO 또는 CAR_ENERGY, 실측으로 확인) -->
+    <uses-permission android:name="pleos.car.permission.CAR_ENERGY" />
+    <uses-permission android:name="pleos.car.permission.CAR_INFO" />
     <!-- 제어: Playground에서는 아직 "준비 중". 에뮬레이터에서는 선언만으로 동작한 사례가 있다. -->
     <uses-permission android:name="pleos.car.permission.CONTROL_CAR_WINDOWS" />
     <uses-permission android:name="pleos.car.permission.CONTROL_WINDSHIELD_WIPERS" />
@@ -18,6 +21,9 @@
     <uses-permission android:name="pleos.car.permission.CONTROL_CAR_SEATS" />
     <!-- 속도(AAOS, 런타임 권한) -->
     <uses-permission android:name="android.car.permission.CAR_SPEED" />
+    <!-- 주행 가능 거리·남은 연료·남은 배터리(AAOS, 런타임 권한)와 탱크·배터리 용량(AAOS, 설치 때 허가) -->
+    <uses-permission android:name="android.car.permission.CAR_ENERGY" />
+    <uses-permission android:name="android.car.permission.CAR_INFO" />
 
     <application
         android:name=".SunstoneApp"

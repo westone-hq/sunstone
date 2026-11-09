@@ -27,6 +27,12 @@ Virtual Console은 브라우저 세션이 열려 있을 때만 차량 쪽과 연
 | 시트 | selectSeatMemory(area, n) | 직접 | | 2026-11-09 probe 측정. 1번 호출, 실패 콜백 없이 1초 후 Sent. 콘솔 앞뒤 위치 변화 없음(100→100). 지원은 운전석 1~2번, 쓰기만(`checkSeatMemoryCapabilities`). SDK 2.3.2에 메모리 저장 API(save·set·store 계열)가 없고 콘솔 카탈로그에도 메모리 항목이 없어 "저장 → 움직임 → 불러오기" 확인은 못 했다 |
 | 공통 | getGear().registerGearSelection | 직접 | 반영 | 2026-11-09 측정. P→D→R→P 모두 전달(`VENDOR_GEAR_SELECTION` 4/8/2/4), 앱 상태 PARK/DRIVE/PARK 확인. R에서는 후방 카메라가 앱을 가려 화면 확인은 못 함. deprecated, GEAR_SELECTION 속성 권장 – 실측 때 비교 |
 | 공통 | getCurrentDoorPosition / registerDoorPosition | 직접 | 반영 | 2026-11-09 측정. ROW_2_LEFT/RIGHT 열기·닫기 모두 전달(`DOOR_POS` area 16/64, 1/0), 앱 상태 줄 일치 |
+| 주유 | Fuel.getFuelPercent / registerFuelPercent | 직접 | 실패 | 2026-11-09 측정. `property ID 0x21400be5 is not in carPropertyConfig list`. 에뮬레이터 차는 전기차라 연료 % 속성이 없다. 데모 `fuel N`으로 덮어써 시연한다 |
+| 주유 | Fuel.getCurrentFuelEconomy | 직접 | 실패 | 2026-11-09 측정. `ERROR_NOT_SUPPORTED_PROPERTY` |
+| 주유 | Odometer.getRangeRemainingDistance / registerRangeRemainingListener | 직접 | 반영 | 2026-11-09 측정. 콘솔 `odometer.remaining_range_m` 350000→120000→0에 앱 350000→120000→0. 단위 m |
+| 주유 | EvBattery.getEvBatteryStateOfCharge / registerEvBatteryStateOfCharge | 직접 | 반영 | 2026-11-09 측정. 콘솔 SoC 40→15→100에 앱 40→15→100 |
+| 주유 | AAOS RANGE_REMAINING·EV_BATTERY_LEVEL·INFO_EV_BATTERY_CAPACITY | 직접 | 반영 | 2026-11-09 측정. `android.car.permission.CAR_ENERGY`(dangerous)를 MainActivity에서 요청해 허가받음. 주행 가능 거리 m, 배터리 Wh(콘솔 30kWh → 30000). 같은 값도 1초마다 다시 온다 |
+| 주유 | AAOS FUEL_LEVEL·INFO_FUEL_CAPACITY | 직접 | 읽기값만 | 2026-11-09 측정. 둘 다 15000ml로 고정. 콘솔에 연료 칸이 없어 바꿀 수 없다. 에뮬레이터 기본값으로 보인다(미확인) |
 | 공통 | PERF_VEHICLE_SPEED (AAOS) | 직접 | | 에뮬레이터에서 못 넣으면 데모 `speed` |
 
 ## 지원 area (2026-11-09, 데모 `areas`)

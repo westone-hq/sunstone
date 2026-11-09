@@ -3,6 +3,7 @@ package com.westone.sunstone
 import android.app.Application
 import android.content.Context
 import android.util.Log
+import com.westone.sunstone.car.AaosEnergySource
 import com.westone.sunstone.car.AaosSpeedSource
 import com.westone.sunstone.car.PleosCarPort
 import com.westone.sunstone.connect.AndroidSpeaker
@@ -126,6 +127,9 @@ class AppGraph(private val app: Context) {
     /** 속도 센서. 값을 Pleos 차 창구에 넣는다. 가짜 차일 때는 버린다 */
     private val speed = AaosSpeedSource(app) { kmh -> pleos?.onSensorSpeed(kmh) }
 
+    /** AAOS 에너지 속성. 값을 Pleos 차 창구에 넣는다. 가짜 차일 때는 버린다 */
+    private val energy = AaosEnergySource(app) { id, value -> pleos?.onAaosEnergy(id, value) }
+
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
      * 수정: 2026-11-09 18:49:00 · 박건준
@@ -133,6 +137,14 @@ class AppGraph(private val app: Context) {
      * 목적: 속도 구독을 시작한다. 속도 권한을 받은 뒤 `MainActivity`가 부른다.
      */
     fun startSpeed() = speed.start() // → 로직 이동: AaosSpeedSource.start()
+
+    /**
+     * 작성: 2026-11-09 20:18:22 · 박건준
+     * 함수: startEnergy
+     * 목적: AAOS 에너지 구독을 시작한다. 에너지 권한을 받은 뒤 `MainActivity`가
+     *       부른다.
+     */
+    fun startEnergy() = energy.start() // → 로직 이동: AaosEnergySource.start()
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
@@ -196,6 +208,17 @@ class AppGraph(private val app: Context) {
     fun overrideSpeed(kmh: Float?) {
         pleos?.overrideSpeed(kmh) // → 로직 이동: PleosCarPort.overrideSpeed()
         fake?.update { it.copy(speedKmh = kmh ?: 0f) }
+    }
+
+    /**
+     * 작성: 2026-11-09 20:18:22 · 박건준
+     * 함수: overrideFuel
+     * 목적: 데모 입력으로 연료(%)를 덮어쓴다. 가짜 차에는 연료 칸이 없어
+     *       Pleos 차에만 들어간다.
+     * 인자: percent — 연료(0~100%). null이면 차 값으로 돌아간다
+     */
+    fun overrideFuel(percent: Int?) {
+        pleos?.overrideFuel(percent) // → 로직 이동: PleosCarPort.overrideFuel()
     }
 
     /**
