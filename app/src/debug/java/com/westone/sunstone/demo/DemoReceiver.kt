@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-09 18:53:00 · 박건준
  * 클래스: DemoReceiver
  * 목적: 시연용 장면 넣기. 에뮬레이터가 못 만드는 상황(장소, 속도, 마이크
  *       입력)을 adb 한 줄로 넣는다. debug 빌드에만 있다.
@@ -33,16 +33,18 @@ import kotlinx.coroutines.launch
  *         `rear_door open|close`, `rear_seat on|off`, `rear_belt on|off`,
  *         `driver_seat on|off`
  *       - Pleos 차일 때만: `probe`(제어 API 실측, logcat `probe,` 줄),
- *         `areas`(지원 area 목록, logcat `areas,` 줄)
+ *         `areas`(지원 area 목록, logcat `areas,` 줄),
+ *         `seatread`(AAOS 속성으로 시트 위치 읽기, logcat `seatread,` 줄),
+ *         `seattime`(시트 축 이동 시간, logcat `seattime` 줄)
  */
 class DemoReceiver : BroadcastReceiver() {
 
     private companion object {
         /**
          * 작성: 2026-11-09 18:34:38 · 박건준
-         * 수정: 2026-11-09 18:49:00 · 박건준
+         * 수정: 2026-11-09 18:53:00 · 박건준
          * 변수: AREAS_CONNECT_MS
-         * 목적: `areas`가 차 서비스에 연결되기를 기다리는 시간(밀리초).
+         * 목적: `areas`·`seattime`이 차 서비스에 연결되기를 기다리는 시간(밀리초).
          * 근거: 미정 — 에뮬레이터에서 넉넉히 잡은 값
          */
         const val AREAS_CONNECT_MS = 1_000L
@@ -199,6 +201,28 @@ class DemoReceiver : BroadcastReceiver() {
                 delay(AREAS_CONNECT_MS)
                 try {
                     CarAreas(vehicle).run() // → 로직 이동: CarAreas.run()
+                } finally {
+                    vehicle.release()
+                }
+            }
+            /**
+             * 작성: 2026-11-09 18:51:00 · 박건준
+             * 함수: seatread
+             * 목적: 시트 위치를 `CarPropertyManager`로 읽어 본다(`CarSeatRead`).
+             */
+            "seatread" -> CarSeatRead(context).run() // → 로직 이동: CarSeatRead.run()
+            /**
+             * 작성: 2026-11-09 18:53:00 · 박건준
+             * 함수: seattime
+             * 목적: 운전석 시트 축마다 0→100, 100→0 시간을 잰다(`SeatTimer`).
+             *       몇 분 걸려서 앱 범위에서 돌리고, 따로 만든 `Vehicle`은
+             *       끝나면 놓는다.
+             */
+            "seattime" -> g.scope.launch {
+                val vehicle = Vehicle(context.applicationContext).also { it.initialize() } // 실측용 차 연결
+                delay(AREAS_CONNECT_MS)
+                try {
+                    SeatTimer(vehicle).run() // → 로직 이동: SeatTimer.run()
                 } finally {
                     vehicle.release()
                 }

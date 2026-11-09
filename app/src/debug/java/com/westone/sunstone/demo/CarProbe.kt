@@ -11,12 +11,7 @@ import com.westone.sunstone.routines.port.CarPort
 import com.westone.sunstone.routines.port.Command
 import com.westone.sunstone.routines.port.ControlResult
 import com.westone.sunstone.routines.port.Target
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * 작성: 2026-11-09 16:52:02 · 박건준
@@ -52,6 +47,7 @@ internal class CarProbe(private val car: CarPort) {
 
     /**
      * 작성: 2026-11-09 16:52:02 · 박건준
+     * 수정: 2026-11-09 18:53:00 · 박건준
      * 함수: measure
      * 목적: 대상 하나를 바꿨다가 되돌리고, CSV 한 줄에 들어갈 칸을 만든다.
      *       원래 값을 못 읽으면 `ProbeItem.fallback`을 원래 값으로 보고 진행하고,
@@ -79,7 +75,7 @@ internal class CarProbe(private val car: CarPort) {
         delay(SETTLE_MS)
         // → 로직 이동: PleosCarPort.read()
         val afterChange = car.read(item.readBack) // 바꾼 뒤 앱이 다시 읽은 값
-        val consoleAfterChange = console(item.consolePath) // 바꾼 뒤 콘솔 값
+        val consoleAfterChange = VirtualConsole.read(item.consolePath) // 바꾼 뒤 콘솔 값
 
         var revertResult: ControlResult? = null // 되돌리기 결과, 되돌리지 않는 대상은 null
         var revertMs = 0L // 되돌리기에 걸린 시간(밀리초)
@@ -95,7 +91,7 @@ internal class CarProbe(private val car: CarPort) {
         }
         // → 로직 이동: PleosCarPort.read()
         val afterRevert = car.read(item.readBack) // 되돌린 뒤 앱이 다시 읽은 값
-        val consoleAfterRevert = console(item.consolePath) // 되돌린 뒤 콘솔 값
+        val consoleAfterRevert = VirtualConsole.read(item.consolePath) // 되돌린 뒤 콘솔 값
 
         return listOf(
             label, item.api, item.call,
@@ -184,33 +180,6 @@ internal class CarProbe(private val car: CarPort) {
                 readBack = Target.SeatPosition(Seat.DRIVER, SeatAxis.FORE_AFT),
             ) { MEMORY_SLOT },
         )
-    }
-
-    /**
-     * 작성: 2026-11-09 16:52:02 · 박건준
-     * 함수: console
-     * 목적: Virtual Console의 지금 값을 읽는다. 콘솔은 에뮬레이터 안에서
-     *       8088 포트로 돌아서 앱이 `127.0.0.1`로 바로 읽을 수 있다.
-     * 인자: path — `/vehicle/state` JSON 안의 점 경로. null이면 콘솔에 없는 대상
-     * 반환: 값의 글자 표현. 콘솔에 없으면 `없음`, 못 읽으면 `읽기 실패: 이유`
-     * 근거: 측정 — 에뮬레이터 안 `netstat`에서 0.0.0.0:8088 LISTEN 확인
-     */
-    private suspend fun console(path: String?): String {
-        if (path == null) return "없음"
-        return withContext(Dispatchers.IO) {
-            runCatching {
-                val conn = URL(CONSOLE_STATE).openConnection() as HttpURLConnection // 콘솔 상태 요청
-                conn.connectTimeout = CONSOLE_TIMEOUT_MS
-                conn.readTimeout = CONSOLE_TIMEOUT_MS
-                val text = try { // 콘솔 상태 JSON 원문
-                    conn.inputStream.bufferedReader().use { it.readText() }
-                } finally {
-                    conn.disconnect()
-                }
-                path.split('.').fold<String, Any?>(JSONObject(text)) { node, key -> (node as? JSONObject)?.opt(key) }
-                    ?.toString() ?: "없음"
-            }.getOrElse { "읽기 실패: ${it.javaClass.simpleName}" }
-        }
     }
 
     /**
@@ -415,21 +384,6 @@ internal class CarProbe(private val car: CarPort) {
          * 목적: 불러 볼 시트 메모리 번호.
          */
         const val MEMORY_SLOT = 1
-
-        /**
-         * 작성: 2026-11-09 16:52:02 · 박건준
-         * 변수: CONSOLE_STATE
-         * 목적: 에뮬레이터 안에서 본 Virtual Console 상태 주소.
-         */
-        const val CONSOLE_STATE = "http://127.0.0.1:8088/vehicle/state"
-
-        /**
-         * 작성: 2026-11-09 16:52:02 · 박건준
-         * 변수: CONSOLE_TIMEOUT_MS
-         * 목적: 콘솔 연결·읽기 제한 시간(밀리초). 콘솔이 꺼져 있어도 실측이 멈추지
-         *       않게 짧게 둔다.
-         */
-        const val CONSOLE_TIMEOUT_MS = 1_000
 
         /**
          * 작성: 2026-11-09 16:52:02 · 박건준

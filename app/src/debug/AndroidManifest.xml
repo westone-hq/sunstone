@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 제어 API 실측(probe)이 에뮬레이터 안 Virtual Console(127.0.0.1:8088, http)을 읽는다. 출시 빌드에는 없다. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 시트 위치를 AAOS 속성으로 읽어 보는 실측(seatread). signature|privileged라 허가되지 않을 수 있다. -->
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_SEATS" />
 
     <application android:usesCleartextTraffic="true">
         <!-- 디버그 빌드에만 있는 데모 입력. 출시 빌드에는 들어가지 않는다. -->
