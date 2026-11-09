@@ -1,4 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 앱이 직접 보이거나 말하는 문구. 루틴이 말하는 문장은 routines/에 있다. -->
 <resources>
     <string name="app_name">Sunstone</string>
+
+    <!-- 상태 줄: 기어 · 속도 · 장소 · 열린 문 · 탑승 -->
+    <string name="status_line">기어 %1$s · %2$.0fkm/h · 장소 %3$s · 문 %4$s · 탑승 %5$s</string>
+    <string name="status_fake_car">" · 가짜 차"</string>
+    <string name="status_doors_closed">닫힘</string>
+    <string name="status_seats_empty">-</string>
+    <string name="gear_park">P</string>
+    <string name="gear_reverse">R</string>
+    <string name="gear_neutral">N</string>
+    <string name="gear_drive">D</string>
+    <string name="gear_unknown">모름</string>
+    <string name="place_car_wash">세차장</string>
+    <string name="place_gas_station">주유소</string>
+    <string name="place_kids">아이 시설</string>
+    <string name="place_none">없음</string>
+
+    <!-- 권하기 카드 -->
+    <string name="suggestion_yes">네</string>
+    <string name="suggestion_no">아니요</string>
+
+    <!-- 루틴 카드 -->
+    <string name="routine_running">실행 중</string>
+    <string name="routine_active">켜짐</string>
+    <string name="routine_undoing">되돌리는 중</string>
+    <string name="routine_idle">대기</string>
+    <string name="routine_run">실행</string>
+    <string name="routine_undo">원래대로</string>
+    <!-- 주행 중에는 켜진 루틴 이름만 보인다 -->
+    <string name="routine_active_while_driving">%1$s 켜짐</string>
+
+    <!-- 실행 기록: 루틴 이름 · 분:초, 단계마다 결과와 이유 -->
+    <string name="run_title">%1$s · %2$d:%3$02d</string>
+    <string name="step_line">%1$s %2$s</string>
+    <string name="step_line_with_note">%1$s %2$s  (%3$s)</string>
+    <string name="step_done">완료</string>
+    <string name="step_guided">안내</string>
+    <string name="step_running">진행</string>
+    <string name="step_skipped">건너뜀</string>
+    <string name="step_waiting">대기</string>
+
+    <!-- 저장한 자세 줄 -->
+    <string name="profiles_label">자세:</string>
+
+    <!-- 말 입력칸(음성 인식 대신) -->
+    <string name="say_hint">말 한마디</string>
+    <string name="say_send">말하기</string>
+    <string-array name="say_quick">
+        <item>세차할게</item>
+        <item>세차 끝났어</item>
+        <item>애 태웠어</item>
+        <item>지금 자세 엄마로 저장해줘</item>
+        <item>엄마 자세로</item>
+        <item>원래대로</item>
+    </string-array>
+
+    <!-- 앱이 말하는 안내 -->
+    <string name="voice_not_understood">잘 못 알아들었어요.</string>
+    <string name="voice_nothing_to_undo">되돌릴 게 없어요.</string>
+    <string name="voice_seat_saved">%1$s 자세를 저장했어요.</string>
+    <string name="voice_seat_unreadable">시트 위치를 읽을 수 없어요.</string>
+
+    <!-- Gleo에 돌려주는 결과 -->
+    <string name="gleo_run">%1$s 실행</string>
+    <string name="gleo_undo">되돌리기</string>
+    <string name="gleo_save">%1$s 자세 저장</string>
+
+    <!-- 차 제어 단계가 안내로 바뀐 이유(실행 기록에 보인다) -->
+    <string name="car_unsupported">이 차에서는 지원하지 않아요</string>
+    <string name="car_no_reply">차가 응답하지 않았어요</string>
+    <string name="car_no_permission">차 제어 권한이 없어요</string>
+    <string name="car_send_failed">차에 보내지 못했어요</string>
+    <string name="car_not_changed">보냈지만 값이 그대로예요(지금 %1$s, 기대 %2$s)</string>
+    <string name="car_seat_not_park">기어가 P가 아니라서 시트를 움직이지 않았어요</string>
+    <string name="car_seat_gear_changed">기어가 바뀌어서 시트를 멈췄어요</string>
 </resources>

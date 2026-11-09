@@ -6,11 +6,29 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * Pleos SDK는 결과를 onComplete·onFailed 콜백으로 준다. 루틴은 suspend로 기다리고 싶어서 감싼다.
- * 응답이 없으면 [timeoutMs] 뒤에 예외로 끝낸다(에뮬레이터에서 콜백이 안 오는 경우가 있다).
+ * 작성: 2026-11-09 18:49:00 · 박건준
+ * 변수: CALLBACK_TIMEOUT_MS
+ * 목적: SDK 콜백을 기다리는 기본 제한 시간(밀리초).
+ * 근거: 미정 — 에뮬레이터에서 정상 호출은 0.5초 안에 돌아와서 넉넉히 잡았다
+ */
+private const val CALLBACK_TIMEOUT_MS = 3_000L
+
+/**
+ * 작성: 2026-11-08 18:03:56 · 박건준
+ * 수정: 2026-11-09 18:49:00 · 박건준
+ * 함수: awaitCallback
+ * 목적: 성공·실패 콜백으로 결과를 주는 Pleos SDK 호출을 비동기로 기다린다.
+ *       루틴이 결과를 받은 뒤 다음 단계로 가야 해서 감싼다. 콜백이 두 번
+ *       와도 처음 것만 쓴다.
+ * 인자: timeoutMs — 기다리는 제한 시간(밀리초)
+ *       block — 받은 두 콜백(ok, fail)을 SDK 호출에 넘기는 코드
+ * 반환: ok로 받은 값. 실패 콜백이면 그 예외, 시간이 지나면
+ *       `TimeoutCancellationException`
+ * 근거: 측정 — 에뮬레이터에서 `selectSeatMemory`처럼 콜백이 오지 않는
+ *       호출이 있어 제한 시간을 둔다(docs/api-spike.md 시트 메모리 행)
  */
 internal suspend fun <T> awaitCallback(
-    timeoutMs: Long = 3_000,
+    timeoutMs: Long = CALLBACK_TIMEOUT_MS,
     block: (ok: (T) -> Unit, fail: (Exception) -> Unit) -> Unit,
 ): T = withTimeout(timeoutMs) {
     suspendCancellableCoroutine { cont ->
@@ -18,51 +36,5 @@ internal suspend fun <T> awaitCallback(
             { value -> if (cont.isActive) cont.resume(value) },
             { e -> if (cont.isActive) cont.resumeWithException(e) },
         )
-    }
-}
-
-/**
- * 문서로 서명을 확정하지 못한 API를 이름으로 부른다.
- * 컴파일은 항상 되고, 없는 API면 false를 돌려서 루틴이 "안내"로 넘어간다.
- * 에뮬레이터 실측(docs/api-spike.md)으로 서명이 확인되면 직접 호출로 바꾼다.
- */
-internal object Reflective {
-    fun call(target: Any, names: List<String>, vararg args: Any?): Boolean {
-        val method = target.javaClass.methods.firstOrNull { it.name in names && it.parameterCount == args.size }
-            ?: return false
-        method.invoke(target, *args)
-        return true
-    }
-
-    fun has(target: Any, names: List<String>, argCount: Int): Boolean =
-        target.javaClass.methods.any { it.name in names && it.parameterCount == argCount }
-}
-
-/** 성공 콜백(인자 2개: area, value)을 받는 set 계열 호출을 suspend로 기다린다. */
-internal suspend fun awaitSet(
-    target: Any,
-    names: List<String>,
-    vararg args: Any?,
-): Boolean {
-    if (!Reflective.has(target, names, args.size + 2)) return false
-    awaitCallback<Unit> { ok, fail ->
-        val done: (Any?, Any?) -> Unit = { _, _ -> ok(Unit) }
-        val failed: (Exception) -> Unit = fail
-        Reflective.call(target, names, *args, done, failed)
-    }
-    return true
-}
-
-/** 성공 콜백(인자 1개: value)을 받는 get 계열 호출을 suspend로 기다린다. 없는 API면 null. */
-internal suspend fun awaitGet(
-    target: Any,
-    names: List<String>,
-    vararg args: Any?,
-): Any? {
-    if (!Reflective.has(target, names, args.size + 2)) return null
-    return awaitCallback<Any?> { ok, fail ->
-        val done: (Any?) -> Unit = ok
-        val failed: (Exception) -> Unit = fail
-        Reflective.call(target, names, *args, done, failed)
     }
 }
