@@ -20,6 +20,7 @@ import ai.pleos.playground.vehicle.listener.SeatBeltBuckledStateListener
 import ai.pleos.playground.vehicle.listener.SeatOccupancyListener
 import android.car.VehiclePropertyIds
 import android.content.Context
+import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.StringRes
@@ -75,18 +76,28 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         const val TAG = "SunstoneCar"
 
         /**
+         * 작성: 2026-11-09 20:50:30 · 박건준
+         * 변수: EMULATOR_HARDWARE
+         * 목적: 에뮬레이터로 보는 하드웨어 이름(`Build.HARDWARE`).
+         * 근거: 측정 — Pleos Connect v2.1.0 AVD의 `ro.hardware`는 `ranchu`.
+         *       `goldfish`는 이전 안드로이드 에뮬레이터 이름이다
+         */
+        val EMULATOR_HARDWARE = setOf("ranchu", "goldfish")
+
+        /**
          * 작성: 2026-11-09 18:36:19 · 박건준
-         * 수정: 2026-11-09 18:49:00 · 박건준
+         * 수정: 2026-11-09 20:50:30 · 박건준
          * 변수: INVERT_OCCUPANCY
-         * 목적: 탑승 값 반전. true면 SDK가 준 탑승 값을 뒤집어 쓴다.
+         * 목적: 탑승 값 반전. 에뮬레이터에서만 SDK가 준 탑승 값을 뒤집어 쓴다.
          * 근거: 측정 — Pleos 에뮬레이터 v2.1.0에서 운전석·조수석·뒷좌석 좌우
          *       네 자리 모두 콘솔 탑승이 앱 빈자리로 읽혔다(docs/api-spike.md
          *       탑승 행). 에뮬레이터는 AAOS 기준 1=빈자리, 2=탑승을 보내는데
-         *       SDK 2.3.2는 1을 탑승으로 바꾼다
-         * 미확인: 실제 차에서도 반대로 읽히는지 확인하지 못했다. 실제 차에서
-         *       맞게 읽히면 false로 바꾼다
+         *       SDK 2.3.2는 1을 탑승으로 바꾼다. 다른 팀도 에뮬레이터에서 같은
+         *       현상
+         * 미확인: 실제 차에서는 뒤집지 않는다. 실제 차 값이 맞는지는 확인하지
+         *       못했다
          */
-        const val INVERT_OCCUPANCY = true
+        val INVERT_OCCUPANCY = Build.HARDWARE in EMULATOR_HARDWARE
 
         /**
          * 작성: 2026-11-09 19:09:00 · 박건준
@@ -532,11 +543,11 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-09 18:36:19 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-09 20:50:30 · 박건준
      * 함수: subscribeOccupancy
      * 목적: 좌석 하나의 탑승을 한 번 읽고, 바뀔 때마다 `sensed`에 넣는다.
-     *       `INVERT_OCCUPANCY`면 받은 값을 뒤집는다. 뒷좌석 가운데는 부르지
-     *       않는다.
+     *       에뮬레이터(`INVERT_OCCUPANCY`)면 받은 값을 뒤집는다. 뒷좌석
+     *       가운데는 부르지 않는다.
      * 인자: seat — 구독할 좌석
      * 근거: 측정 — 뒷좌석 가운데는 콘솔에 칸이 없고 앱은 늘 탑승으로 읽었다
      *       (docs/api-spike.md 탑승 행)
