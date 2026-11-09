@@ -30,11 +30,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.westone.sunstone.AppGraph
+import com.westone.sunstone.R
 import com.westone.sunstone.routines.understand.PhraseMatcher
 import com.westone.sunstone.routines.understand.VoiceAction
 import com.westone.sunstone.routines.engine.Phase
@@ -45,14 +48,15 @@ import com.westone.sunstone.routines.engine.Source
 import com.westone.sunstone.routines.engine.StepStatus
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.model.Gear
+import com.westone.sunstone.routines.model.Place
 import kotlinx.coroutines.delay
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-09 19:11:42 · 박건준
  * 함수: SunstoneScreen
  * 목적: 앱 화면 전체. 주 입력은 말 한마디와 상황 감지이고, 화면은 지금 무엇을
- *       했는지 보여주는 보조다.
+ *       했는지 보여주는 보조다. 문구는 res/values/strings.xml에 있다.
  *       - 늘 보임 — 상태 줄, 마지막 안내, 권하기 카드
  *       - 정차 중에만 보임 — 루틴 카드, 저장한 자세, 실행 기록, 말 입력칸
  * 인자: graph — 앱 조립부
@@ -86,16 +90,22 @@ fun SunstoneScreen(graph: AppGraph) {
                     ) {
                         Text(s.message, Modifier.weight(1f), fontSize = 20.sp)
                         // → 로직 이동: RoutineRunner.acceptSuggestion()
-                        Button(onClick = { graph.runner.acceptSuggestion() }) { Text("네") }
+                        Button(onClick = { graph.runner.acceptSuggestion() }) {
+                            Text(stringResource(R.string.suggestion_yes))
+                        }
                         Spacer(Modifier.width(8.dp))
                         // → 로직 이동: RoutineRunner.dismissSuggestion()
-                        OutlinedButton(onClick = { graph.runner.dismissSuggestion() }) { Text("아니요") }
+                        OutlinedButton(onClick = { graph.runner.dismissSuggestion() }) {
+                            Text(stringResource(R.string.suggestion_no))
+                        }
                     }
                 }
             }
 
             if (driving) {
-                ui.runs.values.filter { it.phase == Phase.ACTIVE }.forEach { Text("${it.title} 켜짐", fontSize = 18.sp) }
+                ui.runs.values.filter { it.phase == Phase.ACTIVE }.forEach {
+                    Text(stringResource(R.string.routine_active_while_driving, it.title), fontSize = 18.sp)
+                }
                 return@Column
             }
 
@@ -122,20 +132,39 @@ fun SunstoneScreen(graph: AppGraph) {
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-09 19:11:42 · 박건준
  * 함수: StatusLine
  * 목적: 차 상태 한 줄(기어·속도·장소·열린 문·탑승). 시연 때 차가 무엇을
- *       알아챘는지 보여준다.
+ *       알아챘는지 보여준다. 기어·장소는 영어 이름 대신 화면 문구로 바꾼다.
  * 인자: car — 지금 차 상태
  *       fake — 가짜 차를 쓰면 true. 줄 끝에 표시한다
  */
 @Composable
 private fun StatusLine(car: CarState, fake: Boolean) {
-    val doors = car.doorOpen.filterValues { it }.keys.joinToString { it.label }.ifEmpty { "닫힘" } // 열린 문
-    val seats = car.seatOccupied.filterValues { it }.keys.joinToString { it.label }.ifEmpty { "-" } // 탑승한 좌석
+    val doors = car.doorOpen.filterValues { it }.keys.joinToString { it.label } // 열린 문
+        .ifEmpty { stringResource(R.string.status_doors_closed) }
+    val seats = car.seatOccupied.filterValues { it }.keys.joinToString { it.label } // 탑승한 좌석
+        .ifEmpty { stringResource(R.string.status_seats_empty) }
+    val gear = stringResource( // 기어 글자
+        when (car.gear) {
+            Gear.PARK -> R.string.gear_park
+            Gear.REVERSE -> R.string.gear_reverse
+            Gear.NEUTRAL -> R.string.gear_neutral
+            Gear.DRIVE -> R.string.gear_drive
+            Gear.UNKNOWN -> R.string.gear_unknown
+        },
+    )
+    val place = stringResource( // 장소 이름
+        when (car.place) {
+            Place.CAR_WASH -> R.string.place_car_wash
+            Place.GAS_STATION -> R.string.place_gas_station
+            Place.KIDS -> R.string.place_kids
+            Place.NONE -> R.string.place_none
+        },
+    )
     Text(
-        "기어 ${car.gear} · ${"%.0f".format(car.speedKmh)}km/h · 장소 ${car.place} · 문 $doors · 탑승 $seats" +
-            if (fake) " · 가짜 차" else "",
+        stringResource(R.string.status_line, gear, car.speedKmh, place, doors, seats) +
+            if (fake) stringResource(R.string.status_fake_car) else "",
         color = Color(0xFF9AA0A6),
         fontSize = 14.sp,
     )
@@ -143,7 +172,7 @@ private fun StatusLine(car: CarState, fake: Boolean) {
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-09 19:11:42 · 박건준
  * 함수: RoutineCard
  * 목적: 루틴 하나의 카드. 이름, 지금 단계, 실행 또는 원래대로 버튼을 둔다.
  *       실행 중에는 실행 버튼을 막는다.
@@ -159,18 +188,24 @@ private fun RoutineCard(modifier: Modifier, title: String, run: RunView?, onRun:
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                when (run?.phase) {
-                    Phase.RUNNING -> "실행 중"
-                    Phase.ACTIVE -> "켜짐"
-                    Phase.UNDOING -> "되돌리는 중"
-                    else -> "대기"
-                },
+                stringResource(
+                    when (run?.phase) {
+                        Phase.RUNNING -> R.string.routine_running
+                        Phase.ACTIVE -> R.string.routine_active
+                        Phase.UNDOING -> R.string.routine_undoing
+                        else -> R.string.routine_idle
+                    },
+                ),
                 color = Color(0xFF9AA0A6),
             )
             if (run?.phase == Phase.ACTIVE) {
-                OutlinedButton(onClick = onUndo, Modifier.fillMaxWidth()) { Text("원래대로") }
+                OutlinedButton(onClick = onUndo, Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.routine_undo))
+                }
             } else {
-                Button(onClick = onRun, Modifier.fillMaxWidth(), enabled = run?.phase != Phase.RUNNING) { Text("실행") }
+                Button(onClick = onRun, Modifier.fillMaxWidth(), enabled = run?.phase != Phase.RUNNING) {
+                    Text(stringResource(R.string.routine_run))
+                }
             }
         }
     }
@@ -178,7 +213,7 @@ private fun RoutineCard(modifier: Modifier, title: String, run: RunView?, onRun:
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-09 19:11:42 · 박건준
  * 함수: ProfileRow
  * 목적: 저장한 시트 자세 버튼 줄. 누르면 그 자세로 시트 루틴을 돌린다.
  *       안내 문장이 바뀔 때(자세를 저장했을 때 등) 이름 목록을 다시 읽는다.
@@ -192,7 +227,7 @@ private fun ProfileRow(graph: AppGraph) {
     }
     if (names.isEmpty()) return
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("자세:", color = Color(0xFF9AA0A6))
+        Text(stringResource(R.string.profiles_label), color = Color(0xFF9AA0A6))
         names.forEach { name ->
             OutlinedButton(onClick = {
                 // → 로직 이동: AppGraph.handle()
@@ -204,10 +239,11 @@ private fun ProfileRow(graph: AppGraph) {
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-09 19:11:42 · 박건준
  * 함수: RunDetail
  * 목적: 가장 최근 실행의 단계별 결과와 시작 뒤 지난 시간(분:초). 지난
- *       시간을 1초마다 다시 그린다.
+ *       시간을 1초마다 다시 그린다. 단계가 안내로 바뀐 이유가 있으면 괄호로
+ *       붙인다.
  * 인자: run — 보여줄 실행 기록
  */
 @Composable
@@ -219,23 +255,30 @@ private fun RunDetail(run: RunView) {
             delay(1_000)
         }
     }
-    val elapsed = (now - run.startedAtMs).coerceAtLeast(0) / 1000 // 시작 뒤 지난 시간(초)
+    val elapsed = ((now - run.startedAtMs).coerceAtLeast(0) / 1000).toInt() // 시작 뒤 지난 시간(초)
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                "${run.title} · %d:%02d".format(elapsed / 60, elapsed % 60),
+                stringResource(R.string.run_title, run.title, elapsed / 60, elapsed % 60),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             run.steps.forEach { step ->
-                val mark = when (step.status) { // 단계 결과 글자
-                    StepStatus.DONE -> "완료"
-                    StepStatus.GUIDED -> "안내"
-                    StepStatus.RUNNING -> "진행"
-                    StepStatus.SKIPPED -> "건너뜀"
-                    StepStatus.WAITING -> "대기"
-                }
-                Text("$mark ${step.title}" + (step.note?.let { "  ($it)" } ?: ""), fontSize = 16.sp)
+                val mark = stringResource( // 단계 결과 글자
+                    when (step.status) {
+                        StepStatus.DONE -> R.string.step_done
+                        StepStatus.GUIDED -> R.string.step_guided
+                        StepStatus.RUNNING -> R.string.step_running
+                        StepStatus.SKIPPED -> R.string.step_skipped
+                        StepStatus.WAITING -> R.string.step_waiting
+                    },
+                )
+                val note = step.note // 안내로 바뀐 이유, 없으면 null
+                Text(
+                    if (note == null) stringResource(R.string.step_line, mark, step.title)
+                    else stringResource(R.string.step_line_with_note, mark, step.title, note),
+                    fontSize = 16.sp,
+                )
             }
         }
     }
@@ -243,7 +286,7 @@ private fun RunDetail(run: RunView) {
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-09 19:11:42 · 박건준
  * 함수: SayBox
  * 목적: 음성 인식 대신 쓰는 말 입력칸과 자주 쓰는 말 버튼.
  * 인자: graph — 앱 조립부
@@ -253,12 +296,18 @@ private fun RunDetail(run: RunView) {
 @Composable
 private fun SayBox(graph: AppGraph) {
     var text by remember { mutableStateOf("") } // 입력칸 글자
-    val quick = listOf("세차할게", "세차 끝났어", "애 태웠어", "지금 자세 엄마로 저장해줘", "엄마 자세로", "원래대로") // 빠른 말 버튼
+    val quick = stringArrayResource(R.array.say_quick) // 빠른 말 버튼
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(text, { text = it }, Modifier.weight(1f), label = { Text("말 한마디") }, singleLine = true)
+            OutlinedTextField(
+                text,
+                { text = it },
+                Modifier.weight(1f),
+                label = { Text(stringResource(R.string.say_hint)) },
+                singleLine = true,
+            )
             Spacer(Modifier.width(8.dp))
-            Button(onClick = { say(graph, text); text = "" }) { Text("말하기") }
+            Button(onClick = { say(graph, text); text = "" }) { Text(stringResource(R.string.say_send)) }
         }
         Row(
             // 빠른 말 버튼, 넘치면 가로로 넘긴다
@@ -272,7 +321,7 @@ private fun SayBox(graph: AppGraph) {
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-09 19:11:42 · 박건준
  * 함수: say
  * 목적: 입력한 말을 요청으로 바꿔 처리한다. 못 알아들으면 그렇다고 말한다.
  * 인자: graph — 앱 조립부
@@ -280,6 +329,6 @@ private fun SayBox(graph: AppGraph) {
  */
 private fun say(graph: AppGraph, text: String) {
     val action = PhraseMatcher.match(text, Source.VOICE) // 알아들은 요청, 못 알아들으면 null
-    // → 로직 이동: Speaker.say(), AppGraph.handle()
-    if (action == null) graph.speaker.say("잘 못 알아들었어요.") else graph.handle(action)
+    // → 로직 이동: AppGraph.notUnderstood(), AppGraph.handle()
+    if (action == null) graph.notUnderstood() else graph.handle(action)
 }

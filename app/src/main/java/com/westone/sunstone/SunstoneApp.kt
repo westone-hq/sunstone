@@ -136,7 +136,7 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-09 19:11:42 · 박건준
      * 함수: handle
      * 목적: 말·Gleo·화면·데모 입력을 처리한다.
      *       - `Run` — 루틴 실행을 요청한다
@@ -153,15 +153,26 @@ class AppGraph(private val app: Context) {
                     .filter { it.phase == Phase.ACTIVE }
                     .maxByOrNull { it.startedAtMs }?.id
                 // → 로직 이동: Speaker.say(), RoutineRunner.undo()
-                if (id == null) speaker.say("되돌릴 게 없어요.") else runner.undo(id)
+                if (id == null) speaker.say(app.getString(R.string.voice_nothing_to_undo)) else runner.undo(id)
             }
             is VoiceAction.SaveSeat -> scope.launch {
                 val saved = seatRoutine.capture(action.name, car) // 저장한 자세, 시트를 못 읽으면 null
                 // → 로직 이동: Speaker.say()
-                speaker.say(if (saved != null) "${action.name} 자세를 저장했어요." else "시트 위치를 읽을 수 없어요.")
+                speaker.say(
+                    if (saved != null) app.getString(R.string.voice_seat_saved, action.name)
+                    else app.getString(R.string.voice_seat_unreadable),
+                )
             }
         }
     }
+
+    /**
+     * 작성: 2026-11-09 19:11:42 · 박건준
+     * 함수: notUnderstood
+     * 목적: 말을 알아듣지 못했다고 말한다. 화면 입력칸과 데모 `say`가 함께
+     *       쓴다.
+     */
+    fun notUnderstood() = speaker.say(app.getString(R.string.voice_not_understood)) // → 로직 이동: Speaker.say()
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
