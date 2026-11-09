@@ -31,25 +31,36 @@ class MainActivity : ComponentActivity() {
          * 근거: 표준 — AAOS `android.car.permission.CAR_SPEED`(런타임 권한)
          */
         const val SPEED = "android.car.permission.CAR_SPEED"
+
+        /**
+         * 작성: 2026-11-09 20:18:22 · 박건준
+         * 변수: ENERGY
+         * 목적: AAOS 에너지 권한 이름. 주행 가능 거리·남은 연료·남은 배터리를
+         *       읽는 데 필요하다.
+         * 근거: 표준 — AAOS `android.car.permission.CAR_ENERGY`(런타임 권한,
+         *       에뮬레이터 `prot=dangerous`)
+         */
+        const val ENERGY = "android.car.permission.CAR_ENERGY"
     }
 
-    /** 속도 권한 요청 창. 허락되면 속도 구독을 시작한다 */
-    private val speedPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) graph.startSpeed() // → 로직 이동: AppGraph.startSpeed()
-    }
+    /** 차 권한 요청 창(속도·에너지 함께). 허락된 것만 구독을 시작한다 */
+    private val carPermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+            results.filterValues { it }.keys.forEach(::startFor)
+        }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-09 20:18:22 · 박건준
      * 함수: onCreate
-     * 목적: 화면을 띄우고, 속도 권한을 확인하고, 앱을 연 인텐트가 Gleo 호출이면
-     *       처리한다.
+     * 목적: 화면을 띄우고, 차 권한(속도·에너지)을 확인하고, 앱을 연 인텐트가
+     *       Gleo 호출이면 처리한다.
      * 인자: savedInstanceState — 안드로이드가 넘기는 이전 화면 상태
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { SunstoneScreen(graph) }
-        requestSpeed()
+        requestCarPermissions()
         handleGleo(intent)
     }
 
@@ -67,16 +78,31 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
-     * 함수: requestSpeed
-     * 목적: 속도 권한이 있으면 바로 구독하고, 없으면 묻는다. 차가 아니라 권한을
-     *       물을 수 없으면 속도 없이 진행한다.
+     * 수정: 2026-11-09 20:18:22 · 박건준
+     * 함수: requestCarPermissions
+     * 목적: 차 권한(속도·에너지) 중 이미 있는 것은 바로 구독하고, 없는 것만
+     *       한꺼번에 묻는다. 차가 아니라 권한을 물을 수 없으면 그 값 없이
+     *       진행한다.
      */
-    private fun requestSpeed() {
-        if (ContextCompat.checkSelfPermission(this, SPEED) == PackageManager.PERMISSION_GRANTED) {
-            graph.startSpeed() // → 로직 이동: AppGraph.startSpeed()
-        } else {
-            runCatching { speedPermission.launch(SPEED) }
+    private fun requestCarPermissions() {
+        val missing = listOf(SPEED, ENERGY).filter { permission -> // 아직 허가받지 못한 권한
+            val granted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+            if (granted) startFor(permission)
+            !granted
+        }
+        if (missing.isNotEmpty()) runCatching { carPermissions.launch(missing.toTypedArray()) }
+    }
+
+    /**
+     * 작성: 2026-11-09 20:18:22 · 박건준
+     * 함수: startFor
+     * 목적: 허가받은 권한에 맞는 구독을 시작한다.
+     * 인자: permission — 허가받은 권한 이름
+     */
+    private fun startFor(permission: String) {
+        when (permission) {
+            SPEED -> graph.startSpeed() // → 로직 이동: AppGraph.startSpeed()
+            ENERGY -> graph.startEnergy() // → 로직 이동: AppGraph.startEnergy()
         }
     }
 
