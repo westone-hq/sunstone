@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 앱이 직접 보이거나 말하는 문구. 루틴이 말하는 문장은 routines/에 있다. -->
 <resources>
     <string name="app_name">Sunstone</string>
+
+    <!-- 차 제어 단계가 안내로 바뀐 이유(실행 기록에 보인다) -->
+    <string name="car_seat_not_park">기어가 P가 아니라서 시트를 움직이지 않았어요</string>
+    <string name="car_seat_gear_changed">기어가 바뀌어서 시트를 멈췄어요</string>
 </resources>

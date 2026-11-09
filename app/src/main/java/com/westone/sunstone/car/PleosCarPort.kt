@@ -15,7 +15,9 @@ import ai.pleos.playground.vehicle.listener.GearSelectionListener
 import ai.pleos.playground.vehicle.listener.SeatBeltBuckledStateListener
 import ai.pleos.playground.vehicle.listener.SeatOccupancyListener
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
+import com.westone.sunstone.R
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.model.Door
 import com.westone.sunstone.routines.model.Gear
@@ -37,7 +39,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlin.math.abs
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
@@ -66,15 +67,6 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         const val TAG = "SunstoneCar"
 
         /**
-         * 작성: 2026-11-08 18:03:56 · 박건준
-         * 수정: 2026-11-09 18:49:00 · 박건준
-         * 변수: SEAT_TOLERANCE
-         * 목적: 시트가 목표 위치에 닿았다고 보는 차이(차가 주는 위치 단위).
-         * 근거: 미정 — 위치 단위를 확인하기 전 임시 값
-         */
-        const val SEAT_TOLERANCE = 1
-
-        /**
          * 작성: 2026-11-09 18:36:19 · 박건준
          * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: INVERT_OCCUPANCY
@@ -89,24 +81,57 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         const val INVERT_OCCUPANCY = true
 
         /**
-         * 작성: 2026-11-08 18:03:56 · 박건준
-         * 수정: 2026-11-09 18:49:00 · 박건준
-         * 변수: SEAT_POLL_MS
-         * 목적: 시트를 움직이는 동안 위치를 다시 읽는 간격(밀리초).
-         * 근거: 미정 — 시트 이동 속도를 재기 전 임시 값
+         * 작성: 2026-11-09 19:09:00 · 박건준
+         * 변수: SEAT_MAX
+         * 목적: 시트 축 위치의 끝 값. 0이 맨 뒤(BACKWARD 끝), 이 값이 맨 앞이다.
+         * 근거: 측정 — `checkSeatForeAftPositionCapabilities` 범위 0~100,
+         *       콘솔 `seat.positions`도 0~100(docs/api-spike.md 지원 area 표)
          */
-        const val SEAT_POLL_MS = 250L
+        const val SEAT_MAX = 100
 
         /**
-         * 작성: 2026-11-08 18:03:56 · 박건준
-         * 수정: 2026-11-09 18:49:00 · 박건준
-         * 변수: SEAT_TIMEOUT_MS
-         * 목적: 시트 축 하나를 움직이는 제한 시간(밀리초). 넘으면 STOP하고
-         *       실패로 돌려준다.
-         * 근거: 측정 — 에뮬레이터에서 축 하나가 0→100까지 10초 안에 움직였다
-         *       (docs/api-spike.md 시트 이동 행)
+         * 작성: 2026-11-09 19:09:00 · 박건준
+         * 변수: SEAT_HOME_MS
+         * 목적: 기준점을 잡으려고 BACKWARD로 보내는 시간(밀리초). 어디서
+         *       시작해도 맨 뒤(0)에 닿을 만큼 끝에서 끝 시간보다 길게 둔다.
+         * 근거: 측정 — api-spike.md 시트 이동 시간 행(에뮬레이터), 끝에서 끝
+         *       최대 2.14초. 실차 속도 미확인
          */
-        const val SEAT_TIMEOUT_MS = 10_000L
+        const val SEAT_HOME_MS = 2_500L
+
+        /**
+         * 작성: 2026-11-09 19:09:00 · 박건준
+         * 변수: SEAT_FULL_MS
+         * 목적: 축마다 0→`SEAT_MAX`에 걸리는 시간(밀리초). 목표까지 FORWARD로
+         *       보낼 시간을 이 값에 비례해 정한다.
+         * 근거: 측정 — api-spike.md 시트 이동 시간 행(에뮬레이터, 0→100 5번
+         *       평균). 실차 속도 미확인
+         */
+        val SEAT_FULL_MS = mapOf(
+            SeatAxis.FORE_AFT to 2_075L,
+            SeatAxis.HEIGHT to 2_049L,
+            SeatAxis.BACKREST_ANGLE to 2_045L,
+            SeatAxis.TILT to 2_052L,
+        )
+
+        /**
+         * 작성: 2026-11-09 19:09:00 · 박건준
+         * 변수: SEAT_FULL_DEFAULT_MS
+         * 목적: 시간을 재지 못한 축(쿠션 길이, 머리받이)의 0→`SEAT_MAX` 시간
+         *       (밀리초).
+         * 근거: 미확인 — 콘솔에 칸이 없어 재지 못했다. 잰 축과 같은 1단위
+         *       21밀리초로 둔다
+         */
+        const val SEAT_FULL_DEFAULT_MS = 2_100L
+
+        /**
+         * 작성: 2026-11-09 19:09:00 · 박건준
+         * 변수: GEAR_CHECK_MS
+         * 목적: 시트를 움직이는 동안 기어를 다시 보는 간격(밀리초). 기어가 P가
+         *       아니게 되면 이 시간 안에 STOP한다.
+         * 근거: 미정 — 시트가 1단위 움직이는 시간(약 20밀리초)의 두세 배
+         */
+        const val GEAR_CHECK_MS = 50L
 
         /**
          * 작성: 2026-11-09 18:49:00 · 박건준
@@ -197,6 +222,15 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
     /** 구독을 끊는 함수 목록. 구독할 때 더하고 `close()`에서 모두 부른다 */
     private val unsubscribe = mutableListOf<() -> Unit>()
 
+    /** 안내 문구를 꺼낼 앱 Context */
+    private val app = context.applicationContext
+
+    /**
+     * 좌석·축별 추정 위치(0~`SEAT_MAX`). `moveSeatTo()`가 다 움직인 뒤 채우고, 움직이다 멈추면 지운다.
+     * 앱을 다시 켜거나 사람이 시트를 손으로 움직이면 실제와 달라진다. 없으면 위치를 모르는 것
+     */
+    private val seatEstimate = mutableMapOf<Pair<Seat, SeatAxis>, Int>()
+
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
      * 수정: 2026-11-09 18:49:00 · 박건준
@@ -253,15 +287,17 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-09 19:09:00 · 박건준
      * 함수: read
      * 목적: 제어 대상의 지금 값을 읽는다. 원래 값 저장과 실행 뒤 확인에 쓴다.
      * 인자: target — 읽을 대상
      * 반환: 대상 값(창문·시트 위치 Int, 잠금·전원 Boolean, 와이퍼 `WiperMode`).
-     *       읽지 못하면 null이고 logcat에 이유를 남긴다. 시트 메모리는 지금
-     *       번호를 읽는 API가 없어 늘 null
-     * 근거: 측정 — 시트 위치 읽기는 콘솔 값과 상관없이 늘 0을 돌려준다
-     *       (docs/api-spike.md 시트 위치 읽기 행)
+     *       읽지 못하면 null이고 logcat에 이유를 남긴다. 시트 위치는 차에서
+     *       읽지 않고
+     *       `seatEstimate` 추정값, 한 번도 움직이지 않은 축은 null. 시트
+     *       메모리는 지금 번호를 읽는 API가 없어 늘 null
+     * 근거: 측정 — SDK 시트 위치 읽기는 콘솔 값과 상관없이 늘 0이고, AAOS
+     *       속성은 권한이 없다(docs/api-spike.md 시트 위치 읽기 행)
      */
     override suspend fun read(target: Target): Any? = runCatching {
         when (target) {
@@ -286,22 +322,20 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
             is Target.Climate -> awaitCallback<Boolean?> { ok, fail ->
                 vehicle.getHVAC().getHvacPowerState(ALL_SEATS, ok, fail)
             }
-            is Target.SeatPosition -> awaitCallback<Int?> { ok, fail ->
-                readSeat(target.axis, target.seat.area(), ok, fail)
-            }
+            is Target.SeatPosition -> seatEstimate[target.seat to target.axis]
             is Target.SeatMemory -> null
         }
     }.onFailure { warn("read $target", it) }.getOrNull()
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-09 19:09:00 · 박건준
      * 함수: apply
      * 목적: 제어 하나를 실행하고 결과를 돌려준다.
      *       - 창문 위치·와이퍼·내기 순환·문 잠금·공조 전원 — 실행 뒤 다시 읽어
      *         확인한다
      *       - 창문 잠금·블라인드·시트 메모리 — 보내기만 하고 `Sent`
-     *       - 시트 위치 — `moveSeatTo()`가 움직이며 확인한다
+     *       - 시트 위치 — `moveSeatTo()`가 시간으로 움직이고 `Sent`
      *       - 좌석별 공조 전원은 차 전체 공조 전원으로 부른다
      * 인자: command — 대상과 바꿀 값
      * 반환: `Done`(확인됨), `Sent`(보냈지만 확인 못 함), `Unsupported`(차가
@@ -508,76 +542,74 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-09 19:09:00 · 박건준
      * 함수: moveSeatTo
-     * 목적: 시트 축 하나를 목표 위치까지 움직인다. SDK에는 "몇 번 위치로"가
-     *       없고 앞/뒤/정지(`MoveControl`)만 있어서 위치를 읽어 가며 움직인다.
-     *       1. 지금 위치를 읽고, 이미 목표면 끝낸다
-     *       2. 목표 쪽으로 움직이기 시작한다
-     *       3. `SEAT_POLL_MS`마다 다시 읽어 목표에 닿으면 끝낸다. 멀어지면
-     *          방향을 한 번 뒤집는다
-     *       4. 기어가 P가 아니게 되거나 `SEAT_TIMEOUT_MS`가 지나면 실패
-     *       - 어떻게 끝나든 STOP을 보낸다
+     * 목적: 시트 축 하나를 목표 위치로 움직인다. 차에서 위치를 읽을 수 없어
+     *       시간으로 맞춘다.
+     *       1. 기어가 P가 아니면 움직이지 않는다
+     *       2. BACKWARD로 `SEAT_HOME_MS` 보낸 뒤 STOP. 이 축은 이제 0이다
+     *       3. FORWARD로 목표만큼의 시간 보낸 뒤 STOP
+     *       4. 추정 위치를 목표로 기억한다
+     *       - 움직이는 중 기어가 P가 아니게 되면 바로 STOP하고 추정 위치를
+     *         지운다
      * 인자: target — 움직일 좌석과 축
-     *       goal — 목표 위치(차가 주는 위치 단위)
-     * 반환: 목표에 닿으면 `Done`, 위치를 못 읽으면 `Unsupported`, 아니면 `Failed`
-     * 식: |now − goal| ≤ SEAT_TOLERANCE 이면 닿음
-     *     (now = 다시 읽은 위치, goal = `goal`)
-     * 근거: 측정 — 에뮬레이터는 위치 읽기가 늘 0이라 목표에서 못 멈추고 제한
-     *       시간 뒤 STOP한다(docs/api-spike.md 시트 이동 행)
+     *       goal — 목표 위치(0~`SEAT_MAX`, 넘으면 끝으로 자른다)
+     * 반환: 다 움직이면 `Sent`(위치를 확인할 수 없어서), 기어 때문에 멈추면
+     *       `Failed`
+     * 식: t = goal × T_full / SEAT_MAX
+     *     (t = FORWARD 시간(밀리초), T_full = 축의 `SEAT_FULL_MS`)
+     * 근거: 측정 — api-spike.md 시트 이동 시간 행(에뮬레이터), 실차 속도
+     *       미확인. 목표 30·70 맞추기 오차는 같은 문서 시간 맞추기 표
      */
     private suspend fun moveSeatTo(target: Target.SeatPosition, goal: Int): ControlResult {
+        if (state.value.gear != Gear.PARK) return ControlResult.Failed(app.getString(R.string.car_seat_not_park))
+        val key = target.seat to target.axis // 추정 위치를 기억할 칸
         val area = target.seat.area() // 움직일 좌석의 area
         val axis = target.axis // 움직일 축
-        var pos = read(target) as? Int ?: return unsupported("seat ${target.axis} position") // 직전에 읽은 위치
-        if (abs(pos - goal) <= SEAT_TOLERANCE) return ControlResult.Done
-        var direction = if (goal > pos) MoveControl.FORWARD else MoveControl.BACKWARD // 지금 움직이는 방향
-        var flipped = false // 방향을 이미 한 번 뒤집었는지
-        moveSeat(axis, area, direction)
-        val started = System.currentTimeMillis() // 움직이기 시작한 시각(밀리초)
+        val aim = goal.coerceIn(0, SEAT_MAX) // 자른 목표 위치
+        val forwardMs = aim * (SEAT_FULL_MS[axis] ?: SEAT_FULL_DEFAULT_MS) / SEAT_MAX // FORWARD 보낼 시간(밀리초)
+        seatEstimate.remove(key)
+        if (!runSeat(axis, area, MoveControl.BACKWARD, SEAT_HOME_MS)) return seatStopped()
+        if (forwardMs > 0 && !runSeat(axis, area, MoveControl.FORWARD, forwardMs)) return seatStopped()
+        seatEstimate[key] = aim
+        return ControlResult.Sent
+    }
+
+    /**
+     * 작성: 2026-11-09 19:09:00 · 박건준
+     * 함수: runSeat
+     * 목적: 시트 축 하나를 한 방향으로 정한 시간만큼 보낸 뒤 STOP한다. 기다리는
+     *       동안 `GEAR_CHECK_MS`마다 기어를 보고, P가 아니게 되면 바로 멈춘다.
+     *       어떻게 끝나든 STOP을 보낸다.
+     * 인자: axis — 움직일 축
+     *       area — 좌석 area
+     *       direction — FORWARD 또는 BACKWARD
+     *       durationMs — 보낼 시간(밀리초)
+     * 반환: 시간을 다 채웠으면 true, 기어 때문에 멈췄으면 false
+     */
+    private suspend fun runSeat(axis: SeatAxis, area: SeatArea, direction: MoveControl, durationMs: Long): Boolean {
+        val started = SystemClock.elapsedRealtime() // 보내기 시작한 시각(밀리초)
         try {
-            while (System.currentTimeMillis() - started < SEAT_TIMEOUT_MS) {
-                if (state.value.gear != Gear.PARK) return ControlResult.Failed("기어가 바뀌어서 멈췄어요")
-                delay(SEAT_POLL_MS)
-                val now = read(target) as? Int ?: break // 다시 읽은 위치, 못 읽으면 그만 움직인다
-                if (abs(now - goal) <= SEAT_TOLERANCE) return ControlResult.Done
-                val gettingWorse = abs(now - goal) > abs(pos - goal) // 목표에서 멀어졌는지
-                if (gettingWorse && !flipped) {
-                    direction = if (direction == MoveControl.FORWARD) MoveControl.BACKWARD else MoveControl.FORWARD
-                    flipped = true
-                    moveSeat(axis, area, direction)
-                }
-                pos = now
+            moveSeat(axis, area, direction)
+            while (true) {
+                if (state.value.gear != Gear.PARK) return false
+                val left = durationMs - (SystemClock.elapsedRealtime() - started) // 남은 시간(밀리초)
+                if (left <= 0) return true
+                delay(minOf(left, GEAR_CHECK_MS))
             }
-            return ControlResult.Failed("시간 안에 목표 위치에 못 갔어요")
         } finally {
             runCatching { moveSeat(axis, area, MoveControl.STOP) }
         }
     }
 
     /**
-     * 작성: 2026-11-09 18:37:39 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
-     * 함수: readSeat
-     * 목적: 시트 축 하나의 위치를 읽는 SDK 함수를 고른다.
-     * 인자: axis — 읽을 축
-     *       area — 좌석 area
-     *       ok — 위치를 받을 콜백(차가 주는 위치 단위, null이면 값 없음)
-     *       fail — 실패를 받을 콜백
-     * 근거: 표준 — Pleos Vehicle SDK 2.3.2. 머리받이 높이 읽기 이름은
-     *       `getCurrentSeatHeadrestHeightAftPosition`이다
+     * 작성: 2026-11-09 19:09:00 · 박건준
+     * 함수: seatStopped
+     * 목적: 기어가 바뀌어 시트를 멈췄을 때의 결과. 위치를 모르게 됐으므로
+     *       루틴은 이 단계를 안내로 바꾼다.
+     * 반환: `Failed`(한국어 이유)
      */
-    private fun readSeat(axis: SeatAxis, area: SeatArea, ok: (Int?) -> Unit, fail: (Exception) -> Unit) {
-        val seat = vehicle.getSeat() // 시트 API
-        when (axis) {
-            SeatAxis.FORE_AFT -> seat.getCurrentSeatForeAftPosition(area, ok, fail)
-            SeatAxis.HEIGHT -> seat.getCurrentSeatHeightPosition(area, ok, fail)
-            SeatAxis.BACKREST_ANGLE -> seat.getCurrentSeatBackrestAnglePosition(area, ok, fail)
-            SeatAxis.TILT -> seat.getCurrentSeatTiltPosition(area, ok, fail)
-            SeatAxis.DEPTH -> seat.getCurrentSeatDepthPosition(area, ok, fail)
-            SeatAxis.HEADREST_HEIGHT -> seat.getCurrentSeatHeadrestHeightAftPosition(area, ok, fail)
-        }
-    }
+    private fun seatStopped() = ControlResult.Failed(app.getString(R.string.car_seat_gear_changed))
 
     /**
      * 작성: 2026-11-09 18:37:39 · 박건준
