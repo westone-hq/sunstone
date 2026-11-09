@@ -381,12 +381,12 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 19:09:00 · 박건준
+     * 수정: 2026-11-09 20:50:30 · 박건준
      * 함수: apply
      * 목적: 제어 하나를 실행하고 결과를 돌려준다.
-     *       - 창문 위치·와이퍼·내기 순환·문 잠금·공조 전원 — 실행 뒤 다시 읽어
-     *         확인한다
-     *       - 창문 잠금·블라인드·시트 메모리 — 보내기만 하고 `Sent`
+     *       - 창문 위치·창문 잠금·와이퍼·내기 순환·문 잠금·공조 전원 — 실행 뒤
+     *         다시 읽어 확인한다
+     *       - 블라인드·시트 메모리 — 보내기만 하고 `Sent`
      *       - 시트 위치 — `moveSeatTo()`가 시간으로 움직이고 `Sent`
      *       - 좌석별 공조 전원은 차 전체 공조 전원으로 부른다
      *       - 실패 이유는 화면에 그대로 보이므로 SDK 예외 문장 대신
@@ -394,9 +394,11 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      * 인자: command — 대상과 바꿀 값
      * 반환: `Done`(확인됨), `Sent`(보냈지만 확인 못 함), `Unsupported`(차가
      *       받지 않는 대상), `Failed`(실패 이유, 한국어)
-     * 근거: 측정 — 창문 잠금은 다시 읽은 값만 바뀌고 콘솔은 그대로였다
-     *       (docs/api-spike.md 창문 잠금 행). 공조·문 잠금·창문 잠금 area는
-     *       docs/api-spike.md 지원 area 표
+     * 근거: 측정 — 창문 잠금은 SDK 다시 읽기는 반영, 콘솔은 불일치
+     *       (에뮬레이터 쪽으로 보임, 다른 팀도 같은 현상, docs/api-spike.md
+     *       창문 잠금 행). 공조·문 잠금·창문 잠금 area는 같은 문서 지원
+     *       area 표
+     * 미확인: 창문 잠금을 실차에서 다시 읽은 값이 실제 잠김과 맞는지
      */
     override suspend fun apply(command: Command): ControlResult = runCatching {
         val target = command.target // 바꿀 대상
@@ -417,7 +419,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
                     awaitCallback<Unit> { ok, fail ->
                         vehicle.getWindow().setWindowLock(target.window.area(), value as Boolean, done(ok), fail)
                     }
-                    ControlResult.Sent
+                    verify(target, value)
                 }
             Target.Wiper -> {
                 awaitCallback<Unit> { ok, fail ->
