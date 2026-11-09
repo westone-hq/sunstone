@@ -232,6 +232,9 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      */
     private val seatEstimate = mutableMapOf<Pair<Seat, SeatAxis>, Int>()
 
+    /** 차가 위치를 받는 창문. 처음 쓸 때 SDK에 물어 채운다. 묻기에 실패하면 null로 두고 보내 본다 */
+    private var windowAreas: Set<WindowValue>? = null
+
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
      * 수정: 2026-11-09 18:49:00 · 박건준
@@ -293,8 +296,8 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      * 목적: 제어 대상의 지금 값을 읽는다. 원래 값 저장과 실행 뒤 확인에 쓴다.
      * 인자: target — 읽을 대상
      * 반환: 대상 값(창문·시트 위치 Int, 잠금·전원 Boolean, 와이퍼 `WiperMode`).
-     *       읽지 못하면 null이고 logcat에 이유를 남긴다. 시트 위치는 차에서
-     *       읽지 않고
+     *       읽지 못하면 null이고 logcat에 이유를 남긴다. 차가 받지 않는
+     *       창문(선루프)은 묻지 않고 null. 시트 위치는 차에서 읽지 않고
      *       `seatEstimate` 추정값, 한 번도 움직이지 않은 축은 null. 시트
      *       메모리는 지금 번호를 읽는 API가 없어 늘 null
      * 근거: 측정 — SDK 시트 위치 읽기는 콘솔 값과 상관없이 늘 0이고, AAOS
@@ -302,8 +305,12 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      */
     override suspend fun read(target: Target): Any? = runCatching {
         when (target) {
-            is Target.WindowPosition -> awaitCallback<Int?> { ok, fail ->
-                vehicle.getWindow().getCurrentWindowPosition(target.window.area(), ok, fail)
+            is Target.WindowPosition -> if (!windowSupported(target.window)) {
+                null
+            } else {
+                awaitCallback<Int?> { ok, fail ->
+                    vehicle.getWindow().getCurrentWindowPosition(target.window.area(), ok, fail)
+                }
             }
             is Target.WindowLock -> awaitCallback<Boolean?> { ok, fail ->
                 vehicle.getWindow().getCurrentWindowLockState(target.window.area(), ok, fail)
@@ -351,7 +358,9 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         val target = command.target // 바꿀 대상
         val value = command.value // 바꿀 값, 대상마다 형태가 다르다
         when (target) {
-            is Target.WindowPosition -> {
+            is Target.WindowPosition -> if (!windowSupported(target.window)) {
+                unsupported("setWindowPosition ${target.window}")
+            } else {
                 awaitCallback<Unit> { ok, fail ->
                     vehicle.getWindow().setWindowPosition(target.window.area(), value as Int, done(ok), fail)
                 }
@@ -656,6 +665,28 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
             )
         }
     }.getOrDefault(false)
+
+    /**
+     * 작성: 2026-11-09 19:09:00 · 박건준
+     * 함수: windowSupported
+     * 목적: 차가 이 창문의 위치를 받는지 SDK에 묻는다. 처음 한 번만 묻고
+     *       `windowAreas`에 기억한다. 묻기에 실패하면 보내 본다.
+     * 인자: window — 확인할 창문
+     * 반환: 받으면 true. 묻기에 실패해도 true
+     * 근거: 측정 — 에뮬레이터는 선루프(ROOF_TOP_1/2) 위치를 받지 않는다
+     *       (docs/api-spike.md 선루프 행, 지원 area 표)
+     */
+    private suspend fun windowSupported(window: Window): Boolean {
+        val known = windowAreas ?: runCatching { // 위치를 받는 창문, 모르면 null
+            awaitCallback<Set<WindowValue>> { ok, fail ->
+                vehicle.getWindow().checkWindowPositionCapabilities(
+                    { _, areas -> ok(areas.keys.flatMap { it.values.toList() }.toSet()) },
+                    fail,
+                )
+            }
+        }.onFailure { warn("window capabilities", it) }.getOrNull()?.also { windowAreas = it }
+        return known == null || window.area().values.all { it in known }
+    }
 
     /**
      * 작성: 2026-11-09 18:49:00 · 박건준
