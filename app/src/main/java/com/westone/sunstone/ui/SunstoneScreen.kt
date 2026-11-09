@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.westone.sunstone.AppGraph
 import com.westone.sunstone.R
+import com.westone.sunstone.car.FuelState
 import com.westone.sunstone.routines.understand.PhraseMatcher
 import com.westone.sunstone.routines.understand.VoiceAction
 import com.westone.sunstone.routines.engine.Phase
@@ -52,8 +54,15 @@ import com.westone.sunstone.routines.model.Place
 import kotlinx.coroutines.delay
 
 /**
+ * 작성: 2026-11-09 20:18:22 · 박건준
+ * 변수: METERS_PER_KM
+ * 목적: AAOS 주행 가능 거리(m)를 km로 바꾸는 나눗수.
+ */
+private const val METERS_PER_KM = 1000f
+
+/**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 19:11:42 · 박건준
+ * 수정: 2026-11-09 20:18:22 · 박건준
  * 함수: SunstoneScreen
  * 목적: 앱 화면 전체. 주 입력은 말 한마디와 상황 감지이고, 화면은 지금 무엇을
  *       했는지 보여주는 보조다. 문구는 res/values/strings.xml에 있다.
@@ -67,6 +76,7 @@ fun SunstoneScreen(graph: AppGraph) {
     val car by graph.car.state.collectAsStateWithLifecycle() // 지금 차 상태
     val ui by graph.runner.ui.collectAsStateWithLifecycle() // 루틴 실행기 화면 상태
     val driving = !car.stopped || car.gear == Gear.DRIVE || car.gear == Gear.REVERSE // 주행 중 화면 제한 여부
+    val fuel = graph.pleos?.fuel?.collectAsStateWithLifecycle()?.value // 연료 값, 가짜 차면 null
 
     MaterialTheme(colorScheme = darkColorScheme()) {
         Column(
@@ -78,7 +88,7 @@ fun SunstoneScreen(graph: AppGraph) {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            StatusLine(car, graph.usingFakeCar || graph.pleos == null)
+            StatusLine(car, fuel, graph.usingFakeCar || graph.pleos == null)
             ui.lastMessage?.let { Text(it, color = Color(0xFFB8C4FF), fontSize = 18.sp) }
 
             ui.suggestion?.let { s ->
@@ -132,15 +142,17 @@ fun SunstoneScreen(graph: AppGraph) {
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 19:11:42 · 박건준
+ * 수정: 2026-11-09 20:18:22 · 박건준
  * 함수: StatusLine
- * 목적: 차 상태 한 줄(기어·속도·장소·열린 문·탑승). 시연 때 차가 무엇을
- *       알아챘는지 보여준다. 기어·장소는 영어 이름 대신 화면 문구로 바꾼다.
+ * 목적: 차 상태 한 줄(기어·속도·장소·열린 문·탑승, 받은 경우 연료·배터리·
+ *       주행 가능 거리). 시연 때 차가 무엇을 알아챘는지 보여준다. 기어·
+ *       장소는 영어 이름 대신 화면 문구로 바꾼다.
  * 인자: car — 지금 차 상태
+ *       fuel — 연료 값. 가짜 차면 null
  *       fake — 가짜 차를 쓰면 true. 줄 끝에 표시한다
  */
 @Composable
-private fun StatusLine(car: CarState, fake: Boolean) {
+private fun StatusLine(car: CarState, fuel: FuelState?, fake: Boolean) {
     val doors = car.doorOpen.filterValues { it }.keys.joinToString { it.label } // 열린 문
         .ifEmpty { stringResource(R.string.status_doors_closed) }
     val seats = car.seatOccupied.filterValues { it }.keys.joinToString { it.label } // 탑승한 좌석
@@ -162,8 +174,13 @@ private fun StatusLine(car: CarState, fake: Boolean) {
             Place.NONE -> R.string.place_none
         },
     )
+    val energy = buildString { // 받은 연료 값만 이어 붙인 글자
+        fuel?.percent?.let { append(stringResource(R.string.status_fuel, it)) }
+        fuel?.batteryPercent?.let { append(stringResource(R.string.status_battery, it)) }
+        fuel?.aaosRangeM?.let { append(stringResource(R.string.status_range, it / METERS_PER_KM)) }
+    }
     Text(
-        stringResource(R.string.status_line, gear, car.speedKmh, place, doors, seats) +
+        stringResource(R.string.status_line, gear, car.speedKmh, place, doors, seats) + energy +
             if (fake) stringResource(R.string.status_fake_car) else "",
         color = Color(0xFF9AA0A6),
         fontSize = 14.sp,
