@@ -4,6 +4,11 @@
     <string name="app_name">Sunstone</string>
 
     <!-- 차 제어 단계가 안내로 바뀐 이유(실행 기록에 보인다) -->
+    <string name="car_unsupported">이 차에서는 지원하지 않아요</string>
+    <string name="car_no_reply">차가 응답하지 않았어요</string>
+    <string name="car_no_permission">차 제어 권한이 없어요</string>
+    <string name="car_send_failed">차에 보내지 못했어요</string>
+    <string name="car_not_changed">보냈지만 값이 그대로예요(지금 %1$s, 기대 %2$s)</string>
     <string name="car_seat_not_park">기어가 P가 아니라서 시트를 움직이지 않았어요</string>
     <string name="car_seat_gear_changed">기어가 바뀌어서 시트를 멈췄어요</string>
 </resources>

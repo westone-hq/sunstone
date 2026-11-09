@@ -17,6 +17,7 @@ import ai.pleos.playground.vehicle.listener.SeatOccupancyListener
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
+import androidx.annotation.StringRes
 import com.westone.sunstone.R
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.model.Door
@@ -337,9 +338,11 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      *       - 창문 잠금·블라인드·시트 메모리 — 보내기만 하고 `Sent`
      *       - 시트 위치 — `moveSeatTo()`가 시간으로 움직이고 `Sent`
      *       - 좌석별 공조 전원은 차 전체 공조 전원으로 부른다
+     *       - 실패 이유는 화면에 그대로 보이므로 SDK 예외 문장 대신
+     *         `failure()`가 고른 한국어 안내를 쓴다
      * 인자: command — 대상과 바꿀 값
      * 반환: `Done`(확인됨), `Sent`(보냈지만 확인 못 함), `Unsupported`(차가
-     *       받지 않는 대상), `Failed`(실패 이유)
+     *       받지 않는 대상), `Failed`(실패 이유, 한국어)
      * 근거: 측정 — 창문 잠금은 다시 읽은 값만 바뀌고 콘솔은 그대로였다
      *       (docs/api-spike.md 창문 잠금 행). 공조·문 잠금·창문 잠금 area는
      *       docs/api-spike.md 지원 area 표
@@ -408,7 +411,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
     }.getOrElse { e ->
         // selectSeatMemory는 성공 콜백이 없어서, 실패 콜백 없이 시간이 지나면 보낸 것으로 본다
         if (command.target is Target.SeatMemory && e is TimeoutCancellationException) ControlResult.Sent
-        else ControlResult.Failed(e.message ?: e.javaClass.simpleName)
+        else failure("apply ${command.target}", e)
     }
 
     /**
@@ -524,7 +527,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-09 19:09:00 · 박건준
      * 함수: verify
      * 목적: 실행 뒤 잠시 기다렸다가 다시 읽어 원하는 값이 됐는지 본다.
      * 인자: target — 확인할 대상
@@ -537,7 +540,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         val now = read(target) ?: return ControlResult.Sent // 다시 읽은 값
         if (now.javaClass != expected.javaClass) return ControlResult.Sent
         return if (now == expected) ControlResult.Done
-        else ControlResult.Failed("보냈지만 값이 $now 그대로예요(기대 $expected)")
+        else ControlResult.Failed(app.getString(R.string.car_not_changed, now.toString(), expected.toString()))
     }
 
     /**
@@ -666,14 +669,42 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-09 19:09:00 · 박건준
      * 함수: unsupported
      * 목적: 차가 받지 않는 대상의 결과를 만든다. 루틴은 이 단계를 음성 안내로
-     *       바꾼다.
+     *       바꾼다. 화면에는 한국어 안내만 보이고, API 이름은 logcat에 남긴다.
      * 인자: what — 받지 않는 API나 대상 이름
-     * 반환: `Unsupported`
+     * 반환: `Unsupported`(한국어 이유)
      */
-    private fun unsupported(what: String) = ControlResult.Unsupported("$what 없음")
+    private fun unsupported(what: String): ControlResult {
+        Log.i(TAG, "지원 안 함: $what")
+        return ControlResult.Unsupported(app.getString(R.string.car_unsupported))
+    }
+
+    /**
+     * 작성: 2026-11-09 19:09:00 · 박건준
+     * 함수: failure
+     * 목적: SDK 예외를 화면에 보일 한국어 이유로 바꾼다. 원래 예외는
+     *       logcat에 남긴다.
+     * 인자: what — 실패한 일(로그용)
+     *       e — SDK나 기다리기에서 난 예외
+     * 반환: 차가 받지 않는 area면 `Unsupported`, 나머지는 `Failed`
+     * 근거: 측정 — 에뮬레이터는 받지 않는 area에
+     *       `IllegalArgumentException: area ID … not supported`를 던진다
+     *       (docs/api-spike.md)
+     */
+    private fun failure(what: String, e: Throwable): ControlResult {
+        warn(what, e)
+        if (e is IllegalArgumentException && e.message.orEmpty().contains("not supported")) {
+            return ControlResult.Unsupported(app.getString(R.string.car_unsupported))
+        }
+        @StringRes val reason = when (e) { // 화면에 보일 이유
+            is TimeoutCancellationException -> R.string.car_no_reply
+            is SecurityException -> R.string.car_no_permission
+            else -> R.string.car_send_failed
+        }
+        return ControlResult.Failed(app.getString(reason))
+    }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
