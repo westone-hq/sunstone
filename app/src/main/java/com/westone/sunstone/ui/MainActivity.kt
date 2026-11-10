@@ -41,9 +41,19 @@ class MainActivity : ComponentActivity() {
          *       에뮬레이터 `prot=dangerous`)
          */
         const val ENERGY = "android.car.permission.CAR_ENERGY"
+
+        /**
+         * 작성: 2026-11-10 14:36:00 · 박건준
+         * 변수: LOCATION
+         * 목적: Pleos 위치(FusedLocation) 권한 이름. 현재 위치·근접 알림을
+         *       받는 데 필요하다. 지금은 debug 실측(`location`)만 쓴다.
+         * 근거: 측정 — 권한 없이 부르면 `need Permission
+         *       pleos.car.permission.FUSED_LOCATION`, 에뮬레이터 `dangerous`
+         */
+        const val LOCATION = "pleos.car.permission.FUSED_LOCATION"
     }
 
-    /** 차 권한 요청 창(속도·에너지 함께). 허락된 것만 구독을 시작한다 */
+    /** 차 권한 요청 창(속도·에너지·위치 함께). 허락된 것만 구독을 시작한다 */
     private val carPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
             results.filterValues { it }.keys.forEach(::startFor)
@@ -78,14 +88,14 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 20:18:22 · 박건준
+     * 수정: 2026-11-10 14:36:00 · 박건준
      * 함수: requestCarPermissions
-     * 목적: 차 권한(속도·에너지) 중 이미 있는 것은 바로 구독하고, 없는 것만
+     * 목적: 차 권한(속도·에너지·위치) 중 이미 있는 것은 바로 구독하고, 없는 것만
      *       한꺼번에 묻는다. 차가 아니라 권한을 물을 수 없으면 그 값 없이
      *       진행한다.
      */
     private fun requestCarPermissions() {
-        val missing = listOf(SPEED, ENERGY).filter { permission -> // 아직 허가받지 못한 권한
+        val missing = listOf(SPEED, ENERGY, LOCATION).filter { permission -> // 아직 허가받지 못한 권한
             val granted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
             if (granted) startFor(permission)
             !granted
@@ -95,8 +105,10 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 작성: 2026-11-09 20:18:22 · 박건준
+     * 수정: 2026-11-10 14:36:00 · 박건준
      * 함수: startFor
-     * 목적: 허가받은 권한에 맞는 구독을 시작한다.
+     * 목적: 허가받은 권한에 맞는 구독을 시작한다. 위치는 아직 구독하는 곳이
+     *       없어 아무것도 하지 않는다.
      * 인자: permission — 허가받은 권한 이름
      */
     private fun startFor(permission: String) {

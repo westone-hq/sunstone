@@ -39,6 +39,10 @@ android {
 dependencies {
     implementation(project(":routines"))
     implementation(libs.vehicle.sdk)
+    // Pleos 내비(경로·경유지·남은 거리·도착). 지금은 debug 실측(`navi`)만 쓴다.
+    implementation(libs.navi.helper)
+    // Pleos 위치(현재 위치·근접 알림). 지금은 debug 실측(`location`)만 쓴다.
+    implementation(libs.fused.location)
     implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.androidx.core.ktx)
