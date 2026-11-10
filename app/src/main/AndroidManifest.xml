@@ -10,6 +10,8 @@
     <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" />
     <uses-permission android:name="pleos.car.permission.READ_WINDSHIELD_WIPERS" />
     <uses-permission android:name="pleos.car.permission.CAR_CLIMATE" />
+    <!-- 읽기: 벨트 미착용 경고(Safety). normal, 설치 때 허가 -->
+    <uses-permission android:name="pleos.car.permission.CAR_SAFETY" />
     <!-- 읽기: 연료·연비·배터리(CAR_ENERGY), 주행 가능 거리(CAR_INFO 또는 CAR_ENERGY, 실측으로 확인) -->
     <uses-permission android:name="pleos.car.permission.CAR_ENERGY" />
     <uses-permission android:name="pleos.car.permission.CAR_INFO" />
@@ -24,6 +26,13 @@
     <!-- 주행 가능 거리·남은 연료·남은 배터리(AAOS, 런타임 권한)와 탱크·배터리 용량(AAOS, 설치 때 허가) -->
     <uses-permission android:name="android.car.permission.CAR_ENERGY" />
     <uses-permission android:name="android.car.permission.CAR_INFO" />
+    <!-- 내비(NaviHelper): 경로 상태·목적지·경유지 읽기(NAVI_ROUTE), 경로 요청·경유지·취소(NAVI_ROUTE_SEARCH),
+         안내 이벤트(NAVI_NOTIFY). 셋 다 normal, 설치 때 허가 -->
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
+    <uses-permission android:name="pleos.car.permission.NAVI_NOTIFY" />
+    <!-- 위치(FusedLocation): 현재 위치·근접 알림. dangerous, MainActivity에서 요청 -->
+    <uses-permission android:name="pleos.car.permission.FUSED_LOCATION" />
 
     <application
         android:name=".SunstoneApp"
