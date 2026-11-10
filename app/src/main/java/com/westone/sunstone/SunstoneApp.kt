@@ -57,7 +57,7 @@ val Context.graph: AppGraph get() = (applicationContext as SunstoneApp).graph
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-10 12:56:20 · 박건준
  * 클래스: AppGraph
  * 목적: 기능 구현(routines)과 앱 연결을 한곳에서 잇는 조립부. 의존성 주입
  *       라이브러리 없이 손으로 만든다.
@@ -65,6 +65,8 @@ val Context.graph: AppGraph get() = (applicationContext as SunstoneApp).graph
  *         실패하면 가짜 차를 쓴다
  *       - 말·Gleo·화면·데모 입력은 모두 `handle()`로 들어온다
  * 인자: app — 앱 Context
+ * 미구현: 프로토타입이라 Pleos 연결에 실패하면 알리지 않고 가짜 차로 진행한다
+ *       (상태 줄에 "가짜 차"). 실제 차에서는 연결 실패를 안내해야 한다
  */
 class AppGraph(private val app: Context) {
 
@@ -192,10 +194,12 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-10 12:56:20 · 박건준
      * 함수: setPlace
      * 목적: 데모 입력으로 지금 장소를 넣는다. 쓰고 있는 차에만 들어간다.
      * 인자: place — 지금 장소
+     * 미구현: 프로토타입이라 장소 검색 대신 데모 입력이 부른다(`PleosCarPort.setPlace`
+     *       참고)
      */
     fun setPlace(place: Place) {
         pleos?.setPlace(place) // → 로직 이동: PleosCarPort.setPlace()
@@ -204,10 +208,11 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-10 12:56:20 · 박건준
      * 함수: overrideSpeed
      * 목적: 데모 입력으로 속도를 덮어쓴다.
      * 인자: kmh — 속도(km/h). null이면 센서 값으로 돌아간다(가짜 차는 0)
+     * 미구현: 프로토타입이라 데모 `speed`가 부른다. 실제 차에서는 쓰지 않는다
      */
     fun overrideSpeed(kmh: Float?) {
         pleos?.overrideSpeed(kmh) // → 로직 이동: PleosCarPort.overrideSpeed()
@@ -216,10 +221,13 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-09 20:18:22 · 박건준
+     * 수정: 2026-11-10 12:56:20 · 박건준
      * 함수: overrideFuel
      * 목적: 데모 입력으로 연료(%)를 덮어쓴다. 가짜 차에는 연료 칸이 없어
      *       Pleos 차에만 들어간다.
      * 인자: percent — 연료(0~100%). null이면 차 값으로 돌아간다
+     * 미구현: 프로토타입이라 데모 `fuel N`이 부른다. 실제 차에서는 쓰지 않는다
+     *       (`PleosCarPort.overrideFuel` 참고)
      */
     fun overrideFuel(percent: Int?) {
         pleos?.overrideFuel(percent) // → 로직 이동: PleosCarPort.overrideFuel()

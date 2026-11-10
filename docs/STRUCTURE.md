@@ -50,14 +50,25 @@ sunstone/
 └─ app/                    ② 앱 연결 ─ 박건준
    └─ src/
       ├─ main/java/com/westone/sunstone/
-      │  ├─ car/           PleosCarPort(차량 SDK), AaosSpeedSource(속도)
+      │  ├─ car/           PleosCarPort(차량 SDK·제어), Callbacks(SDK 콜백 기다리기),
+      │  │                 AaosSpeedSource(속도), AaosEnergySource(주행 가능 거리·배터리·연료 종류),
+      │  │                 FuelState(연료·배터리·차 종류 값 묶음)
       │  ├─ connect/       GleoEntry, AndroidSpeaker, PrefsSeatProfiles
       │  ├─ ui/            MainActivity, SunstoneScreen
       │  └─ SunstoneApp.kt AppGraph: 두 영역 조립, 모든 입력의 입구
       │  (예정) navi/      내비 SDK(경로·경유지·도착)
       │  (예정) info/      바깥 API(카카오·오피넷·기상청·에어코리아) + 고정 응답
+      ├─ main/res/values/  strings.xml (앱 문구. 루틴 문장은 routines/)
       ├─ main/assets/      schema.json(Gleo), (예정) 참고 문서 카드·대사집·녹음본
-      ├─ debug/            DemoReceiver (adb 장면 주입, 출시 빌드에는 없음)
+      ├─ debug/            출시 빌드에는 없음
+      │  ├─ DemoReceiver   adb 장면 주입·실측 명령 입구
+      │  ├─ VirtualConsole 앱 안에서 콘솔 HTTP API 읽기·쓰기
+      │  ├─ CarProbe       probe: 제어 대상별 바꾸기·되돌리기 실측
+      │  ├─ CarAreas       areas: 차가 받는 area 목록
+      │  ├─ CarSeatRead    seatread: AAOS 속성으로 시트 위치 읽기 시도
+      │  ├─ SeatTimer      seattime: 시트 축 0→100 이동 시간
+      │  ├─ SeatFit        seatfit: 시간 기반 시트 이동 오차
+      │  └─ SeatReadCheck  seatcheck: 시트 위치 지원 목록·리스너 재확인
       (예정) sim/, pleos/  빌드 2종: 시연 빌드(가짜 차·고정 응답) / Pleos 빌드(실제 SDK)
 ```
 

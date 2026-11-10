@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 20:18:22 · 박건준
+ * 수정: 2026-11-10 12:56:20 · 박건준
  * 클래스: DemoReceiver
  * 목적: 시연용 장면 넣기. 에뮬레이터가 못 만드는 상황(장소, 속도, 마이크
  *       입력)을 adb 한 줄로 넣는다. debug 빌드에만 있다.
@@ -38,6 +38,9 @@ import kotlinx.coroutines.launch
  *         `seatread`(AAOS 속성으로 시트 위치 읽기, logcat `seatread,` 줄),
  *         `seattime`(시트 축 이동 시간, logcat `seattime` 줄),
  *         `seatfit`(시간 기반 시트 이동 오차, logcat `seatfit,` 줄)
+ * 미구현: 프로토타입이라 에뮬레이터가 못 만드는 상황(장소, 연료, 콘솔이 없을 때
+ *       속도, 마이크 입력)을 이 명령으로 넣는다. debug 빌드에만 있어 실제
+ *       차 빌드에는 들어가지 않는다
  */
 class DemoReceiver : BroadcastReceiver() {
 

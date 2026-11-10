@@ -9,13 +9,15 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-10 12:56:20 · 박건준
  * 클래스: AndroidSpeaker
  * 목적: 음성 안내. 안드로이드 기본 TTS(글자를 소리로 읽는 기능)로 한국어를
  *       읽는다. TTS가 준비되기 전에 온 문장은 모았다가 준비되면 읽는다.
  * 인자: context — 앱 Context
  * 근거: 인용 — Pleos Playground에서 Pleos TTS는 "준비 중"이라 기본 TTS를
  *       쓴다. 시연 음성을 녹음 파일로 바꿀 수 있게 `Speaker` 뒤에 둔다
+ * 미구현: 프로토타입이라 Pleos TTS 대신 안드로이드 기본 TTS로 읽는다. Pleos TTS가
+ *       열리면 `Speaker` 구현만 바꾼다
  */
 class AndroidSpeaker(context: Context) : Speaker, AutoCloseable {
 

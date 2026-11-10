@@ -10,7 +10,7 @@ import org.json.JSONObject
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-10 12:56:20 · 박건준
  * 클래스: GleoEntry
  * 목적: Gleo AI(Pleos 음성 비서) 연결. assets/schema.json의 함수 3개를
  *       Gleo가 Activity 인텐트로 부르면 요청으로 바꾸고, 결과를 방송으로
@@ -20,6 +20,8 @@ import org.json.JSONObject
  * 미확인: 공모전 SDK 목록에 Gleo가 없어 실제로 불리는지 확인하지 못했다.
  *       시연은 같은 인텐트를 adb로 보내 `MainActivity.handleGleo()`로
  *       들어오게 한다
+ * 미구현: 프로토타입이라 시연에서는 Gleo 대신 같은 인텐트를 adb로 보낸다. 실제
+ *       차에서 Gleo가 부르는지는 확인하지 못했다
  */
 object GleoEntry {
     /**
