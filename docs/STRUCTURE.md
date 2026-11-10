@@ -68,7 +68,10 @@ sunstone/
       │  ├─ CarSeatRead    seatread: AAOS 속성으로 시트 위치 읽기 시도
       │  ├─ SeatTimer      seattime: 시트 축 0→100 이동 시간
       │  ├─ SeatFit        seatfit: 시간 기반 시트 이동 오차
-      │  └─ SeatReadCheck  seatcheck: 시트 위치 지원 목록·리스너 재확인
+      │  ├─ SeatReadCheck  seatcheck: 시트 위치 지원 목록·리스너 재확인
+      │  ├─ NaviProbe      navi: 내비 경로·경유지·남은 거리·통행료·도착
+      │  ├─ LocationProbe  location: FusedLocation 위치·근접 알림
+      │  └─ BeltProbe      belt: 좌석별 벨트·미착용 경고·벨트 경고등
       (예정) sim/, pleos/  빌드 2종: 시연 빌드(가짜 차·고정 응답) / Pleos 빌드(실제 SDK)
 ```
 

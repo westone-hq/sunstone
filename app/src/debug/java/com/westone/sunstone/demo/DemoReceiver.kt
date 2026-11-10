@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-10 12:56:20 · 박건준
+ * 수정: 2026-11-10 14:40:00 · 박건준
  * 클래스: DemoReceiver
  * 목적: 시연용 장면 넣기. 에뮬레이터가 못 만드는 상황(장소, 속도, 마이크
  *       입력)을 adb 한 줄로 넣는다. debug 빌드에만 있다.
@@ -38,6 +38,10 @@ import kotlinx.coroutines.launch
  *         `seatread`(AAOS 속성으로 시트 위치 읽기, logcat `seatread,` 줄),
  *         `seattime`(시트 축 이동 시간, logcat `seattime` 줄),
  *         `seatfit`(시간 기반 시트 이동 오차, logcat `seatfit,` 줄)
+ *       - `navi` — 내비 실측(경로·경유지·남은 거리·도착, logcat `navi,` 줄)
+ *       - `location` — 위치 실측(FusedLocation 위치·근접 알림, logcat
+ *         `location,` 줄)
+ *       - `belt` — 벨트 실측(좌석별 착용·미착용 경고·경고등, logcat `belt,` 줄)
  * 미구현: 프로토타입이라 에뮬레이터가 못 만드는 상황(장소, 연료, 콘솔이 없을 때
  *       속도, 마이크 입력)을 이 명령으로 넣는다. debug 빌드에만 있어 실제
  *       차 빌드에는 들어가지 않는다
@@ -264,6 +268,38 @@ class DemoReceiver : BroadcastReceiver() {
                 val pleos = g.pleos // 실측할 차, 가짜 차를 쓰는 중이면 null
                 if (pleos == null) Log.w("SunstoneDemo", "seatfit: Pleos 차가 아니라서 실측하지 않음")
                 else g.scope.launch { SeatFit(pleos).run() } // → 로직 이동: SeatFit.run()
+            }
+            /**
+             * 작성: 2026-11-10 14:16:00 · 박건준
+             * 함수: navi
+             * 목적: 내비 실측(`NaviProbe`)을 앱 범위에서 돌린다. 2분쯤 걸린다.
+             *       이미 돌고 있으면 시작하지 않는다.
+             */
+            "navi" -> if (probeJob?.isActive == true) {
+                Log.w("SunstoneDemo", "navi: 이미 실측 중")
+            } else {
+                probeJob = g.scope.launch { NaviProbe(context).run() } // → 로직 이동: NaviProbe.run()
+            }
+            /**
+             * 작성: 2026-11-10 14:35:00 · 박건준
+             * 함수: location
+             * 목적: 위치 실측(`LocationProbe`)을 앱 범위에서 돌린다. 1분쯤 걸린다.
+             */
+            "location" -> g.scope.launch { LocationProbe(context).run() } // → 로직 이동: LocationProbe.run()
+            /**
+             * 작성: 2026-11-10 14:40:00 · 박건준
+             * 함수: belt
+             * 목적: 벨트 실측(`BeltProbe`)을 앱 범위에서 돌린다. 따로 만든
+             *       `Vehicle`은 끝나면 놓는다.
+             */
+            "belt" -> g.scope.launch {
+                val vehicle = Vehicle(context.applicationContext).also { it.initialize() } // 실측용 차 연결
+                delay(AREAS_CONNECT_MS)
+                try {
+                    BeltProbe(vehicle).run() // → 로직 이동: BeltProbe.run()
+                } finally {
+                    vehicle.release()
+                }
             }
             else -> Log.w("SunstoneDemo", "모르는 명령: $cmd")
         }
