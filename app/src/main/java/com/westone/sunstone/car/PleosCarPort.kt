@@ -86,7 +86,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
         /**
          * 작성: 2026-11-09 18:36:19 · 박건준
-         * 수정: 2026-11-09 20:50:30 · 박건준
+         * 수정: 2026-11-10 12:56:20 · 박건준
          * 변수: INVERT_OCCUPANCY
          * 목적: 탑승 값 반전. 에뮬레이터에서만 SDK가 준 탑승 값을 뒤집어 쓴다.
          * 근거: 측정 — Pleos 에뮬레이터 v2.1.0에서 운전석·조수석·뒷좌석 좌우
@@ -94,8 +94,8 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
          *       탑승 행). 에뮬레이터는 AAOS 기준 1=빈자리, 2=탑승을 보내는데
          *       SDK 2.3.2는 1을 탑승으로 바꾼다. 다른 팀도 에뮬레이터에서 같은
          *       현상
-         * 미확인: 실제 차에서는 뒤집지 않는다. 실제 차 값이 맞는지는 확인하지
-         *       못했다
+         * 미구현: 프로토타입이라 에뮬레이터에서만 탑승 값을 뒤집는다. 실제 차에서는
+         *       SDK 값을 그대로 쓴다(실차 미확인)
          */
         val INVERT_OCCUPANCY = Build.HARDWARE in EMULATOR_HARDWARE
 
@@ -192,12 +192,15 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
         /**
          * 작성: 2026-11-09 18:35:16 · 박건준
-         * 수정: 2026-11-09 18:49:00 · 박건준
+         * 수정: 2026-11-10 12:56:20 · 박건준
          * 변수: ALL_SEATS
          * 목적: 공조 전원·내기 순환을 부를 area. 다섯 좌석을 합친 하나다.
          * 근거: 측정 — `checkHvacPowerCapabilities`·
          *       `checkHvacRecirculationCapabilities`가 다섯 좌석 합친 area(117)
          *       하나만 돌려줬다(docs/api-spike.md 지원 area 표)
+         * 미구현: 프로토타입이라 좌석별 공조 요청(뒷좌석 공조 켜기)도 이 area로 차
+         *       전체 공조 전원을 켠다. 에뮬레이터가 좌석별 area를 받지 않아서다.
+         *       실제 차가 좌석별 area를 받으면 그 좌석만 부르게 바꾼다(실차 미확인)
          */
         val ALL_SEATS = SeatArea(
             SeatValue.ROW_1_LEFT, SeatValue.ROW_1_RIGHT, SeatValue.ROW_2_LEFT, SeatValue.ROW_2_CENTER,
@@ -219,12 +222,14 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
         /**
          * 작성: 2026-11-09 18:35:16 · 박건준
-         * 수정: 2026-11-09 18:49:00 · 박건준
+         * 수정: 2026-11-10 12:56:20 · 박건준
          * 변수: LOCKABLE_WINDOWS
          * 목적: 창문 잠금을 따로 부를 수 있는 창문.
          * 근거: 측정 — `checkWindowLockCapabilities`가 뒷좌석 좌우와 네 창문
          *       합친 area만 돌려줬다. 앞좌석은 따로 잠글 수 없다
          *       (docs/api-spike.md 지원 area 표)
+         * 미구현: 프로토타입이라 에뮬레이터에서 잰 목록을 고정해 둔다. 실제 차에서는
+         *       `checkWindowLockCapabilities` 결과로 정해야 한다(실차 미확인)
          */
         val LOCKABLE_WINDOWS = setOf(Window.REAR_LEFT, Window.REAR_RIGHT)
     }
@@ -289,10 +294,12 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-10 12:56:20 · 박건준
      * 함수: setPlace
      * 목적: 지금 장소를 넣는다. 장소 검색 결과나 데모 입력이 부른다.
      * 인자: place — 지금 장소
+     * 미구현: 프로토타입이라 장소 검색이 아직 없어 데모 `place`가 장소를 넣는다.
+     *       실제 차에서는 내비 위치·장소 검색 결과가 부른다
      */
     fun setPlace(place: Place) = manual.update { it.copy(place = place) }
 
@@ -307,19 +314,26 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-10 12:56:20 · 박건준
      * 함수: overrideSpeed
      * 목적: 데모용 속도 덮어쓰기. 에뮬레이터에서 속도를 넣을 수 없어서 쓴다.
      * 인자: kmh — 덮어쓸 속도(km/h). null이면 센서 값으로 돌아간다
+     * 미구현: 프로토타입이라 콘솔이 없을 때 데모 `speed`로 속도를 덮어쓴다. 실제
+     *       차에서는 쓰지 않고 AAOS 속도 센서 값만 쓴다. 에뮬레이터도 콘솔
+     *       `controls.speed`로 넣으면 센서 값이 온다(docs/api-spike.md 속도 행)
      */
     fun overrideSpeed(kmh: Float?) = manual.update { it.copy(speedKmh = kmh) }
 
     /**
      * 작성: 2026-11-09 20:18:22 · 박건준
+     * 수정: 2026-11-10 12:56:20 · 박건준
      * 함수: overrideFuel
      * 목적: 데모용 연료(%) 덮어쓰기. 에뮬레이터는 전기차라 연료 값을 넣을 수
      *       없어서 쓴다.
      * 인자: percent — 덮어쓸 연료(0~100%). null이면 SDK 값으로 돌아간다
+     * 미구현: 프로토타입이라 연료 %를 데모 `fuel N`으로 넣는다. 에뮬레이터는
+     *       전기차라 SDK 연료 %가 없어서다. 실제 차(내연기관)에서는 SDK
+     *       `getFuelPercent` 값을 쓴다(실차 미확인)
      */
     fun overrideFuel(percent: Int?) = putFuel("override", percent) { it.copy(overridePercent = percent) }
 
@@ -693,7 +707,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 19:09:00 · 박건준
+     * 수정: 2026-11-10 12:56:20 · 박건준
      * 함수: moveSeatTo
      * 목적: 시트 축 하나를 목표 위치로 움직인다. 차에서 위치를 읽을 수 없어
      *       시간으로 맞춘다.
@@ -711,6 +725,10 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      *     (t = FORWARD 시간(밀리초), T_full = 축의 `SEAT_FULL_MS`)
      * 근거: 측정 — api-spike.md 시트 이동 시간 행(에뮬레이터), 실차 속도
      *       미확인. 목표 30·70 맞추기 오차는 같은 문서 시간 맞추기 표
+     * 미구현: 프로토타입이라 위치를 읽으며 멈추지 않고 시간으로 맞춘다.
+     *       에뮬레이터는 SDK 위치 읽기·리스너가 늘 0이고 AAOS 속성은 권한이
+     *       없어서다. 사람이 시트를 손으로 움직이면 추정 위치가 틀린다. 실제
+     *       차에서 위치가 읽히면 읽으며 멈추는 방식으로 바꾼다(실차 미확인)
      */
     private suspend fun moveSeatTo(target: Target.SeatPosition, goal: Int): ControlResult {
         if (state.value.gear != Gear.PARK) return ControlResult.Failed(app.getString(R.string.car_seat_not_park))

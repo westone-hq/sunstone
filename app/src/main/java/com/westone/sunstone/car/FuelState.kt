@@ -19,7 +19,7 @@ import android.car.FuelType
  *       fuelCapacityMl — AAOS `INFO_FUEL_CAPACITY` 탱크 용량(ml)
  *       batteryCapacityWh — AAOS `INFO_EV_BATTERY_CAPACITY` 배터리 용량(Wh)
  *       overridePercent — 데모 `fuel N`이 덮어쓴 연료(%). null이면 덮어쓰지
- *       않음
+ *       않음(프로토타입 조작, `percent` 참고)
  *       fuelTypes — AAOS `INFO_FUEL_TYPE` 연료 종류 번호 목록(`FuelType`)
  * 근거: 표준 — AAOS `VehiclePropertyIds` 단위(m, ml, Wh)
  */
@@ -38,12 +38,15 @@ data class FuelState(
 ) {
     /**
      * 작성: 2026-11-09 20:18:22 · 박건준
+     * 수정: 2026-11-10 12:56:20 · 박건준
      * 함수: percent
      * 목적: 화면과 루틴 판단에 쓸 연료(%). 데모 덮어쓰기가 있으면 그 값,
      *       없으면 SDK 연료 값.
      * 반환: 연료(%). 둘 다 없으면 null
-     * 미확인: 에뮬레이터는 전기차라 SDK 연료 값이 오지 않을 수 있다. 그때
-     *       배터리 충전량으로 대신할지는 정하지 않았다(docs/api-spike.md 연료 행)
+     * 미확인: 전기차일 때 배터리 충전량으로 대신할지는 정하지 않았다
+     *       (docs/api-spike.md 주유 행)
+     * 미구현: 프로토타입이라 데모 `fuel N` 덮어쓰기가 SDK 값보다 앞선다. 실제
+     *       차에서는 덮어쓰기 없이 SDK 연료 값만 쓴다
      */
     val percent: Int? get() = overridePercent ?: fuelPercent
 
