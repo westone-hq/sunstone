@@ -92,7 +92,7 @@ class WashScenarioTest {
 
         car.update { it.copy(place = Place.GAS_STATION, speedKmh = 0f) }; runCurrent()
         car.update { it.copy(gear = Gear.PARK) }; runCurrent()
-        assertEquals(listOf("주유소에 도착했어요. 세차하실 거면 세차 모드로 맞춰 드릴까요?"), said)
+        assertEquals(listOf("세차하시나요? 세차하실 거면 세차 모드로 맞춰 드릴까요?"), said)
 
         said.clear()
         assertTrue(answer(runner, "응")); runCurrent()
