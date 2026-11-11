@@ -39,21 +39,18 @@ class PleosNaviPort(
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-11 16:08:00 · 박희정
+     * 수정: 2026-11-11 17:06:00 · 박희정
      * 함수: startRoute
-     * 목적: Pleos 내비로 경로를 시작한다. 실패하면 한 번 더 요청한다.
+     * 목적: Pleos 내비로 경로를 시작한다. 다시 요청하지 않는다.
      * 인자: destination — 목적지
-     * 반환: 경로 요약. 두 번 다 실패하면 null
-     * 근거: 측정 — `requestRoute` 뒤 `onRouteStarted`까지 1~10초 걸린다
-     *       (docs/api-spike.md 앱 얼림 대응 절). 2026-11-11 에뮬레이터를 켠 뒤
-     *       첫 요청은 `PleosNavi`의 대기 시간(15초) 안에 시작되지 않았고, 바로
-     *       다시 보낸 요청은 1초 안에 시작됐다(경로 382km, 통행료 16,010원)
+     * 반환: 경로 요약. 실패하면 null
+     * 근거: 측정 — 에뮬레이터를 켠 직후 첫 경로는 시작까지 24.5초 걸렸고,
+     *       기다리다 다시 요청하면 내비가 앞 계산을 취소(`onRouteCancelled`)하고
+     *       처음부터 다시 해 더 늦어졌다. 그래서 `PleosNavi`가 길게(45초)
+     *       기다리게 하고 한 번만 요청한다
      */
-    override suspend fun startRoute(destination: RoutinePlaceHit): RoutineRouteSummary? {
-        val place = destination.toNavi() // Pleos 내비 장소
-        // → 로직 이동: PleosNavi.startRoute()
-        return (navi.startRoute(place) ?: navi.startRoute(place))?.toRoutine()
-    }
+    override suspend fun startRoute(destination: RoutinePlaceHit): RoutineRouteSummary? =
+        navi.startRoute(destination.toNavi())?.toRoutine() // → 로직 이동: PleosNavi.startRoute()
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정

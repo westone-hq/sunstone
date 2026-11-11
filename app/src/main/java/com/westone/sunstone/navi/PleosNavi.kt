@@ -57,15 +57,18 @@ class PleosNavi(context: Context, private val proximity: Proximity) : AutoClosea
 
         /**
          * 작성: 2026-11-11 12:08:00 · 박건준
+         * 수정: 2026-11-11 17:06:00 · 박희정
          * 변수: CONNECT_MS, ROUTE_MS, INFO_MS
          * 목적: 서비스 연결, 경로 찾기(경로 시작·경유지), 정보 읽기를 기다리는
          *       시간(밀리초).
          * 근거: 측정 — 연결은 10밀리초 안, 경로 찾기는 1초 안, 정보 읽기는
          *       30밀리초 안에 왔다(relay/files/20261110-1428-내비실측.csv).
-         *       넉넉히 잡았다
+         *       넉넉히 잡았다. 2026-11-11 에뮬레이터를 켠 직후 첫 경로는
+         *       요청 뒤 24.5초에 시작돼 15초에서 45초로 늘렸다. 기다리다
+         *       다시 요청하면 내비가 앞 계산을 취소하고 처음부터 다시 한다
          */
         const val CONNECT_MS = 5_000L // 서비스 연결
-        const val ROUTE_MS = 15_000L // 경로 찾기
+        const val ROUTE_MS = 45_000L // 경로 찾기
         const val INFO_MS = 3_000L // 정보 읽기
 
         /**

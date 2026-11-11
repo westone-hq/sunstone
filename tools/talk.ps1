@@ -58,8 +58,8 @@ function Send-Console([string]$path) {
 <#
 함수: Show-Replies
 목적: 보낸 뒤 앱이 한 말을 기다렸다 보여 준다. 마지막 말 뒤 2초 동안 더 없으면
-      끝낸다. 아무 말도 없으면 최대 40초 기다린다(경로 시작은 다시 요청까지 30초 넘게
-      걸릴 수 있다). 로그를 지우지 않고 보내기 직전 시각 뒤의 줄만 본다. 문제가 생기면
+      끝낸다. 아무 말도 없으면 최대 50초 기다린다(에뮬레이터를 켠 직후 첫 경로는
+      시작까지 25초 안팎 걸리고 앱은 45초까지 기다린다). 로그를 지우지 않고 보내기 직전 시각 뒤의 줄만 본다. 문제가 생기면
       logcat에 기록이 남아 있어야 원인을 볼 수 있어서다.
 인자: since — 보내기 직전 에뮬레이터 시각("MM-dd HH:mm:ss.000")
 #>
@@ -77,7 +77,7 @@ function Show-Replies([string]$since) {
         $shown = $lines.Count
         $quiet = ((Get-Date) - $quietSince).TotalSeconds   # 새 말 없이 지난 초
         $waited = ((Get-Date) - $start).TotalSeconds       # 기다린 초
-        if (($shown -gt 0 -and $quiet -ge 2) -or $waited -ge 40) { break }
+        if (($shown -gt 0 -and $quiet -ge 2) -or $waited -ge 50) { break }
     }
 }
 

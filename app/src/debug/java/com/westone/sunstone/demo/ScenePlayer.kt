@@ -60,10 +60,10 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
          * 작성: 2026-11-11 16:42:25 · 박희정
          * 변수: REPLY_WAIT_MS
          * 목적: 건너뛸 때 대사 하나에 앱이 답하기를 기다리는 최대 시간(밀리초).
-         * 근거: 측정 — 경로 시작은 다시 요청까지 30초 넘게 걸릴 수 있다
-         *       (`PleosNaviPort.startRoute`)
+         * 근거: 측정 — 에뮬레이터를 켠 직후 첫 경로는 시작까지 24.5초 걸렸고,
+         *       `PleosNavi`는 45초까지 기다린다. 그보다 조금 길게 잡았다
          */
-        const val REPLY_WAIT_MS = 40_000L
+        const val REPLY_WAIT_MS = 50_000L
 
         /**
          * 작성: 2026-11-11 16:42:25 · 박희정
