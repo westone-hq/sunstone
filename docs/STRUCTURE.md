@@ -35,6 +35,8 @@ sunstone/
 ├─ apk/                    (예정) 심사용 release APK
 ├─ tools/api-explorer/     Pleos 공식 Vehicle 샘플 (실측용, 출품 제외)
 ├─ tools/scene-move.ps1    시연 이동: geo fix 1초마다 + 콘솔 속도·기어 (시나리오 ①·②)
+├─ tools/talk.ps1          터미널에서 말·장면(/ready1 /move1 /leave1)을 넣고 앱 대답 보기
+├─ tools/make-voice.ps1    대사집 문장 → 녹음본(app assets/voice, Windows 한국어 음성)
 │
 ├─ routines/               ① 기능 구현 ─ 박희정
 │  └─ src/main/kotlin/com/westone/sunstone/routines/
@@ -42,12 +44,12 @@ sunstone/
 │     ├─ port/             창구: CarPort, Speaker, SeatProfiles, NaviPort, InfoPort, MemoryPort
 │     ├─ engine/           루틴 정의 틀, 실행 엔진(저장→실행→확인→되돌리기→권하기)
 │     ├─ library/          루틴들 (초안: 세차·차일드락·시트 메모리)
-│     ├─ understand/       말 알아듣기 (말 → 할 일, "응"·"괜찮아" 대답)
-│     ├─ speech/           문장 틀 (루틴이 하는 말, 조사 붙이기)
+│     ├─ understand/       말 알아듣기 (대사집 먼저 → 규칙: 길안내·질문·대답·루틴)
+│     ├─ speech/           문장 틀 (세차·길안내·기능 카드 답, 조사 붙이기)
 │     ├─ dialog/           대화 흐름: 길안내 → 주유 제안 → 주유소 경유지 → 세차 예약(TripDialog, WashBooking)
+│     ├─ knowledge/        AI 참고 문서: 기능 카드(지금은 세차 모드 하나), 별칭 검색 상위 3개
+│     ├─ script/           대사집(ScriptBook: 시나리오 ① S1~S5). 자동 테스트·scene·[다음 장면]이 함께 쓴다
 │     └─ fake/             가짜 차·내비·바깥 정보 (테스트·시연)
-│     (예정) knowledge/    AI 참고 문서 읽기·찾기
-│     (예정) script/       대사집 실행기
 │
 └─ app/                    ② 앱 연결 ─ 박건준
    └─ src/
@@ -61,13 +63,15 @@ sunstone/
       │  │                 PlaceWatcher(시연 장소 도착 → 장소), NaviModels(좌표·경로 값),
       │  │                 PleosNaviPort(기능 쪽 내비 창구를 PleosNavi로 채움)
       │  ├─ info/          FixedInfo(주유소·날씨 고정 응답). 바깥 API(카카오·오피넷·기상청·에어코리아)는 예정
-      │  ├─ ui/            MainActivity, SunstoneScreen
-      │  └─ SunstoneApp.kt AppGraph: 두 영역 조립, 모든 입력의 입구
+      │  ├─ ui/            MainActivity, SunstoneScreen(대화 기록·말 입력칸·시연 모드 줄),
+      │  │                 SceneControls(시연 모드 창구. 구현은 debug)
+      │  └─ SunstoneApp.kt AppGraph: 두 영역 조립, 모든 입력의 입구(hear·handle), 대화 기록
       ├─ main/res/values/  strings.xml (앱 문구. 루틴 문장은 routines/)
       ├─ main/assets/      schema.json(Gleo), places.json(시연 장소 고정 목록),
-      │                    (예정) 참고 문서 카드·대사집·녹음본
+      │                    voice/(대사집 녹음본 <문장 MD5>.wav, tools/make-voice.ps1이 만든다)
       ├─ debug/            출시 빌드에는 없음
-      │  ├─ DemoReceiver   adb 장면 주입·실측 명령 입구
+      │  ├─ DemoReceiver   adb 장면 주입·실측 명령 입구(scene, washed 포함)
+      │  ├─ ScenePlayer    시연 모드: [다음 장면]·scene S3, 콘솔 연결 신호 1초마다
       │  ├─ VirtualConsole 앱 안에서 콘솔 HTTP API 읽기·쓰기
       │  ├─ CarProbe       probe: 제어 대상별 바꾸기·되돌리기 실측
       │  ├─ CarAreas       areas: 차가 받는 area 목록
@@ -79,6 +83,7 @@ sunstone/
       │  ├─ LocationProbe  location: FusedLocation 위치·근접 알림
       │  ├─ BeltProbe      beltprobe: 좌석별 벨트·미착용 경고·벨트 경고등
       │  └─ ChildLockProbe childlock: 뒷문 차일드락(AAOS 속성) 읽기·쓰기
+      ├─ release/          DemoSetup(시연 모드 없음, debug의 installDemo와 짝)
       (예정) sim/, pleos/  빌드 2종: 시연 빌드(가짜 차·고정 응답) / Pleos 빌드(실제 SDK)
 ```
 
@@ -124,7 +129,7 @@ sunstone/
 |---|---|---|
 | 기능 테스트 | `.\gradlew :routines:test` | 박희정 |
 | 앱 설치 | `.\gradlew :app:installDebug` | 박건준 |
-| 대사집 자동 테스트 | (예정) `:routines:test` 안에서 장면 S0~ 전부 | 박희정 |
+| 대사집 자동 테스트 | `.\gradlew :routines:test` 안의 `ScriptTest`(지금은 시나리오 ① S1~S5) | 박희정 |
 | 실제 경로 확인 | 에뮬레이터 + Virtual Console | 박건준 |
 
 (예정) 빌드 2종: **시연 빌드**(가짜 차·고정 응답, 아무 에뮬레이터·폰에서 동작) / **Pleos 빌드**(실제 SDK).
@@ -144,5 +149,5 @@ sunstone/
 | 되돌리기 | 저장해 둔 원래 값으로 돌리는 것 | `undo` |
 | 권하기 | 상황을 보고 앱이 먼저 묻는 것 | `Suggestion` |
 | 창구 | 두 영역이 만나는 인터페이스 | `*Port` |
-| 대사집 | 시연·테스트용 장면별 대사 | (예정) `script` |
-| 고정 응답 | 키·네트워크 없을 때 바깥 API 대신 쓰는 값 | (예정) |
+| 대사집 | 시연·테스트용 장면별 대사 | `ScriptBook`, `Scene` |
+| 고정 응답 | 키·네트워크 없을 때 바깥 API 대신 쓰는 값 | `FixedInfo`(앱), `FakeInfo`(테스트) |

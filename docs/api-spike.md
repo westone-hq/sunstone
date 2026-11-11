@@ -148,3 +148,17 @@ NaviHelper 3.0.5(`ai.pleos.playground:NaviHelper:3.0.5`, navi-data 3.0.4 함께 
 - **시연 이동 스크립트:** `tools/scene-move.ps1 -Scenario 1|2`. geo fix를 1초마다 직선으로 옮기고(기본 17m = 60km/h), 출발하면 콘솔로 D·60km/h, 도착하면 0km/h·P. 장소 좌표는 앱과 같은 `assets/places.json`. 시나리오 ① 1,585m 94초, ② 913m씩 왕복.
 - **권하기 대기:** 같은 루틴은 10분에 한 번만 권한다(routines `suggestCooldownMs`). 리허설을 이어서 하면 두 번째는 권하지 않으니 앱을 다시 켠다.
 - 원본: `relay/files/20261111-1217-시나리오1-logcat.txt`, 캡처 `20261111-1217-시나리오1-세차권하기.png`, `20261111-1208-주유소도착-세차권하기.png`
+
+## 시나리오 ① 세차 실측 (2026-11-11, routine/wash)
+
+시나리오 ① 출장 가는 길(대사집 S1~S5)을 Pleos 에뮬레이터에서 처음부터 끝까지 돌리며 잰 것. 실제 경로(Pleos 차)와 안전 경로(가짜 차, 데모 `fake on`) 모두 S1~S5가 대사집 문장 그대로 나왔다(시연 모드 [다음 장면], adb `scene S5`, `tools/talk.ps1`).
+
+| 무엇 | 결과 | 시연 표기 | 메모 |
+|---|---|---|---|
+| 첫 경로 시작 시간 | 에뮬레이터를 켠 직후 첫 `requestRoute` → `onRouteStarted` 24.5초. 그다음부터는 1초 안 | 실제 | 기다리다 다시 `requestRoute`를 보내면 내비가 앞 계산을 취소(`onRouteCancelled`)하고 처음부터 다시 해서 더 늦어졌다. `PleosNavi.ROUTE_MS`를 15초 → 45초로 늘리고 다시 요청하지 않는다 |
+| 경로가 없을 때 `cancelRoute` | 지도 앱이 앞으로 나와 앱 화면을 가림 | — | 시연을 처음으로 돌릴 때는 길안내 중일 때만 취소한다(`AppGraph.restartTrip`) |
+| 콘솔 세션 신호가 끊긴 뒤 제어 | 창문·와이퍼는 Done, 내기 순환 Failed, 문 잠금 3초 응답 없음 | 실제(신호 유지) | 신호(`POST /browser/session`)를 1초마다 보내는 동안은 넷 다 Done. debug 빌드 시연 모드(`ScenePlayer`)와 `tools/talk.ps1`이 신호를 보낸다 |
+| 앱 얼림 | 지도 앱이 앞에 있고 길안내·루틴이 없을 때 앱이 얼어(`isFrozen=true`) 주유소 근접 알림을 못 받음 | 조작(에뮬레이터 설정) | 리허설 에뮬레이터는 `adb shell settings put global cached_apps_freezer disabled` 뒤 재부팅했다. 실제 차에서는 `KeepAwakeService` 범위를 다시 정해야 한다(미정) |
+| TTS | 엔진은 `ai.pleos.playground.caas` SpeechService 하나. 앱 `TextToSpeech` 초기화가 -1로 실패해 소리 없음 | 조작(녹음본) | `tools/make-voice.ps1`이 대사집 문장을 Windows 한국어 음성(Microsoft Heami)으로 `assets/voice/<문장 MD5>.wav`에 만들고, `AndroidSpeaker`가 녹음본을 `MediaPlayer`(USAGE_ASSISTANT)로 재생한다. 재생 중 `dumpsys audio`에 `state:started` 확인. 녹음본이 없는 문장은 소리가 없다 |
+| 문 열기(콘솔) | `PUT /vehicle/body?door_rl=true\|false`가 앱 `doorOpen`에 바로 반영 | 실제(콘솔로 장면 준비) | 세차 모드는 문이 열려 있으면 시작하지 않는다("문을 모두 닫으시면 시작할게요.", 세차 모드 기능 카드 조건) |
+| 화면 읽기(uiautomator) | 화면 전환 중에는 `null root node`로 실패 | — | 자동 버튼 누르기는 실패하면 1초 뒤 다시 읽는다. 그래픽 오류(`Failed to find ColorBuffer`) 뒤 화면이 검게 멈추면 에뮬레이터를 다시 켠다 |
