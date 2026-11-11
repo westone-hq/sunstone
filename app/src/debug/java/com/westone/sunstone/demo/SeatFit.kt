@@ -9,14 +9,22 @@ import com.westone.sunstone.routines.port.Target
 
 /**
  * 작성: 2026-11-09 19:14:00 · 박건준
+ * 수정: 2026-11-11 11:58:00 · 박건준
  * 클래스: SeatFit
  * 목적: 차 창구(`PleosCarPort`)의 시간 기반 시트 이동이 목표에 얼마나
  *       가깝게 가는지 콘솔 값으로 잰다. 운전석 축마다 목표 `TARGETS`를
  *       `ROUNDS`번씩 맞추고 `seatfit,축,목표,회차,결과,콘솔,오차` 줄을
  *       logcat에 남긴다. 실측용이라 debug 빌드에만 있다.
  * 인자: car — 실측할 차 창구. 루틴이 쓰는 것과 같은 `PleosCarPort`를 넘긴다
+ *       passenger — true면 조수석, false면 운전석
  */
-internal class SeatFit(private val car: CarPort) {
+internal class SeatFit(private val car: CarPort, passenger: Boolean = false) {
+
+    /** 잴 좌석 */
+    private val seat = if (passenger) Seat.PASSENGER else Seat.DRIVER
+
+    /** 콘솔 좌석 이름. 결과 줄에도 쓴다 */
+    private val consoleSeat = if (passenger) "passenger" else "driver"
 
     private companion object {
         /**
@@ -65,14 +73,15 @@ internal class SeatFit(private val car: CarPort) {
             TARGETS.forEach { goal ->
                 repeat(ROUNDS) { round ->
                     // → 로직 이동: PleosCarPort.apply()
-                    val result = car.apply(Command(Target.SeatPosition(Seat.DRIVER, axis), goal)) // 이동 결과
-                    val console = VirtualConsole.read("seat.positions.$control.driver") // 움직인 뒤 콘솔 값
+                    val result = car.apply(Command(Target.SeatPosition(seat, axis), goal)) // 이동 결과
+                    val console = VirtualConsole.read("seat.positions.$control.$consoleSeat") // 움직인 뒤 콘솔 값
                     val error = console.toDoubleOrNull()?.let { (it - goal).toInt().toString() } ?: "" // 오차(콘솔 − 목표)
-                    Log.i(TAG, "seatfit,$axis,$goal,${round + 1},${result.javaClass.simpleName},$console,$error")
+                    val kind = result.javaClass.simpleName // 결과 종류
+                    Log.i(TAG, "seatfit,$consoleSeat,$axis,$goal,${round + 1},$kind,$console,$error")
                     count++
                 }
             }
-            VirtualConsole.setSeat(control, "driver", 0)
+            VirtualConsole.setSeat(control, consoleSeat, 0)
         }
         Log.i(TAG, "seatfit 끝: ${count}회")
         return count

@@ -18,13 +18,13 @@ import kotlinx.coroutines.launch
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-10 14:40:00 · 박건준
+ * 수정: 2026-11-11 12:30:00 · 박건준
  * 클래스: DemoReceiver
  * 목적: 시연용 장면 넣기. 에뮬레이터가 못 만드는 상황(장소, 속도, 마이크
  *       입력)을 adb 한 줄로 넣는다. debug 빌드에만 있다.
  *       `adb shell am broadcast -a com.westone.sunstone.DEMO
  *       -p com.westone.sunstone --es cmd "place carwash"`
- *       - `place carwash|gas|kids|none` — 장소
+ *       - `place carwash|gas|kids|none` — 장소(예비. 평소엔 근접 알림이 바꾼다)
  *       - `speed 30` | `speed off` — 속도 덮어쓰기
  *       - `fuel 15` | `fuel off` — 연료(%) 덮어쓰기(Pleos 차만)
  *       - `say 세차할게` — 말 한마디(음성 인식 대신)
@@ -36,15 +36,19 @@ import kotlinx.coroutines.launch
  *       - Pleos 차일 때만: `probe`(제어 API 실측, logcat `probe,` 줄),
  *         `areas`(지원 area 목록, logcat `areas,` 줄),
  *         `seatread`(AAOS 속성으로 시트 위치 읽기, logcat `seatread,` 줄),
- *         `seattime`(시트 축 이동 시간, logcat `seattime` 줄),
- *         `seatfit`(시간 기반 시트 이동 오차, logcat `seatfit,` 줄)
- *       - `navi` — 내비 실측(경로·경유지·남은 거리·도착, logcat `navi,` 줄)
+ *         `seattime [passenger]`(시트 축 이동 시간, logcat `seattime` 줄),
+ *         `seatfit [passenger]`(시간 기반 시트 이동 오차, logcat `seatfit,` 줄)
+ *       - `navi` | `navi start` | `navi cancel` — 내비 실측(logcat `navi,` 줄),
+ *         시연 안내 시작, 안내 취소
  *       - `location` — 위치 실측(FusedLocation 위치·근접 알림, logcat
  *         `location,` 줄)
- *       - `belt` — 벨트 실측(좌석별 착용·미착용 경고·경고등, logcat `belt,` 줄)
- * 미구현: 프로토타입이라 에뮬레이터가 못 만드는 상황(장소, 연료, 콘솔이 없을 때
- *       속도, 마이크 입력)을 이 명령으로 넣는다. debug 빌드에만 있어 실제
- *       차 빌드에는 들어가지 않는다
+ *       - `belt 좌석 on|off` | `belt clear` — 벨트 덮어쓰기(Pleos·가짜 차)
+ *       - `beltprobe` — 벨트 실측(좌석별 착용·미착용 경고·경고등, logcat
+ *         `belt,` 줄)
+ *       - `childlock` — 뒷문 차일드락 실측(AAOS 속성, logcat `childlock,` 줄)
+ * 미구현: 프로토타입이라 에뮬레이터가 못 만드는 상황(연료, 콘솔이 없을 때 속도,
+ *       마이크 입력, 좌석별 벨트, 예비 장소)을 이 명령으로 넣는다. debug
+ *       빌드에만 있어 실제 차 빌드에는 들어가지 않는다
  */
 class DemoReceiver : BroadcastReceiver() {
 
@@ -229,16 +233,17 @@ class DemoReceiver : BroadcastReceiver() {
             "seatread" -> CarSeatRead(context).run() // → 로직 이동: CarSeatRead.run()
             /**
              * 작성: 2026-11-09 18:53:00 · 박건준
+             * 수정: 2026-11-11 11:50:00 · 박건준
              * 함수: seattime
              * 목적: 운전석 시트 축마다 0→100, 100→0 시간을 잰다(`SeatTimer`).
              *       몇 분 걸려서 앱 범위에서 돌리고, 따로 만든 `Vehicle`은
-             *       끝나면 놓는다.
+             *       끝나면 놓는다. `seattime passenger`면 조수석을 잰다.
              */
             "seattime" -> g.scope.launch {
                 val vehicle = Vehicle(context.applicationContext).also { it.initialize() } // 실측용 차 연결
                 delay(AREAS_CONNECT_MS)
                 try {
-                    SeatTimer(vehicle).run() // → 로직 이동: SeatTimer.run()
+                    SeatTimer(vehicle, arg == "passenger").run() // → 로직 이동: SeatTimer.run()
                 } finally {
                     vehicle.release()
                 }
@@ -260,25 +265,39 @@ class DemoReceiver : BroadcastReceiver() {
             }
             /**
              * 작성: 2026-11-09 19:14:00 · 박건준
+             * 수정: 2026-11-11 11:58:00 · 박건준
              * 함수: seatfit
              * 목적: 시간 기반 시트 이동이 목표 30·70에 얼마나 가깝게 가는지
              *       잰다(`SeatFit`). Pleos 차가 아니면 하지 않는다.
+             *       `seatfit passenger`면 조수석을 잰다.
              */
             "seatfit" -> {
                 val pleos = g.pleos // 실측할 차, 가짜 차를 쓰는 중이면 null
                 if (pleos == null) Log.w("SunstoneDemo", "seatfit: Pleos 차가 아니라서 실측하지 않음")
-                else g.scope.launch { SeatFit(pleos).run() } // → 로직 이동: SeatFit.run()
+                else g.scope.launch { SeatFit(pleos, arg == "passenger").run() } // → 로직 이동: SeatFit.run()
             }
             /**
              * 작성: 2026-11-10 14:16:00 · 박건준
+             * 수정: 2026-11-11 12:30:00 · 박건준
              * 함수: navi
-             * 목적: 내비 실측(`NaviProbe`)을 앱 범위에서 돌린다. 2분쯤 걸린다.
-             *       이미 돌고 있으면 시작하지 않는다.
+             * 목적: 내비 창구(`PleosNavi`)를 부른다. Pleos 차가 아니면 하지 않는다.
+             *       - `navi` — 단계별 실측(`NaviProbe`), 1분 30초쯤. 이미 돌고 있으면
+             *         시작하지 않는다
+             *       - `navi start` — 해운대 안내 시작 + 시연 주유소 경유지
+             *       - `navi cancel` — 안내 취소
              */
-            "navi" -> if (probeJob?.isActive == true) {
-                Log.w("SunstoneDemo", "navi: 이미 실측 중")
-            } else {
-                probeJob = g.scope.launch { NaviProbe(context).run() } // → 로직 이동: NaviProbe.run()
+            "navi" -> {
+                val navi = g.navi // 내비 창구, 가짜 차면 null
+                val places = g.places // 시연 장소 목록, 가짜 차면 null
+                when {
+                    navi == null || places == null -> Log.w("SunstoneDemo", "navi: Pleos 차가 아니라서 하지 않음")
+                    // → 로직 이동: NaviProbe.startDemo()
+                    arg == "start" -> g.scope.launch { NaviProbe.startDemo(navi, places) }
+                    arg == "cancel" -> g.scope.launch { navi.cancelRoute() } // → 로직 이동: PleosNavi.cancelRoute()
+                    probeJob?.isActive == true -> Log.w("SunstoneDemo", "navi: 이미 실측 중")
+                    // → 로직 이동: NaviProbe.run()
+                    else -> probeJob = g.scope.launch { NaviProbe(navi, places).run() }
+                }
             }
             /**
              * 작성: 2026-11-10 14:35:00 · 박건준
@@ -287,12 +306,37 @@ class DemoReceiver : BroadcastReceiver() {
              */
             "location" -> g.scope.launch { LocationProbe(context).run() } // → 로직 이동: LocationProbe.run()
             /**
-             * 작성: 2026-11-10 14:40:00 · 박건준
+             * 작성: 2026-11-11 12:30:00 · 박건준
              * 함수: belt
-             * 목적: 벨트 실측(`BeltProbe`)을 앱 범위에서 돌린다. 따로 만든
-             *       `Vehicle`은 끝나면 놓는다.
+             * 목적: 좌석 하나의 벨트를 덮어쓴다. `belt 좌석 on|off`, 좌석은
+             *       `driver`·`passenger`·`rear_left`·`rear_right`. `belt clear`면 모두
+             *       차 값으로 돌아간다. Pleos 차와 가짜 차 모두 들어간다.
+             * 미구현: 프로토타입이라 에뮬레이터에 좌석별 벨트 값이 없어 데모로 넣는다
              */
-            "belt" -> g.scope.launch {
+            "belt" -> {
+                val (who, how) = arg.substringBefore(' ') to arg.substringAfter(' ', "") // 좌석, on|off
+                val seat = when (who) { // 덮어쓸 좌석, 모르면 null
+                    "driver" -> Seat.DRIVER
+                    "passenger" -> Seat.PASSENGER
+                    "rear_left" -> Seat.REAR_LEFT
+                    "rear_right" -> Seat.REAR_RIGHT
+                    else -> null
+                }
+                when {
+                    // → 로직 이동: AppGraph.overrideBelt()
+                    who == "clear" -> Seat.entries.forEach { g.overrideBelt(it, null) }
+                    seat == null || how !in setOf("on", "off") -> Log.w("SunstoneDemo", "모르는 명령: $cmd")
+                    else -> g.overrideBelt(seat, how == "on")
+                }
+            }
+            /**
+             * 작성: 2026-11-10 14:40:00 · 박건준
+             * 수정: 2026-11-11 12:30:00 · 박건준
+             * 함수: beltprobe
+             * 목적: 벨트 실측(`BeltProbe`)을 앱 범위에서 돌린다. 따로 만든
+             *       `Vehicle`은 끝나면 놓는다. 이전 이름은 `belt`.
+             */
+            "beltprobe" -> g.scope.launch {
                 val vehicle = Vehicle(context.applicationContext).also { it.initialize() } // 실측용 차 연결
                 delay(AREAS_CONNECT_MS)
                 try {
@@ -301,6 +345,12 @@ class DemoReceiver : BroadcastReceiver() {
                     vehicle.release()
                 }
             }
+            /**
+             * 작성: 2026-11-11 11:52:00 · 박건준
+             * 함수: childlock
+             * 목적: 뒷문 차일드락을 AAOS 속성으로 읽고 써 본다(`ChildLockProbe`).
+             */
+            "childlock" -> ChildLockProbe(context).run() // → 로직 이동: ChildLockProbe.run()
             else -> Log.w("SunstoneDemo", "모르는 명령: $cmd")
         }
     }
