@@ -49,12 +49,12 @@ import kotlinx.coroutines.flow.update
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 20:18:22 · 박건준
+ * 수정: 2026-11-11 12:18:00 · 박건준
  * 클래스: PleosCarPort
  * 목적: Pleos Vehicle SDK로 만든 `CarPort`(기능 구현이 차에 요청하는 창구).
  *       - 차에서 오는 값(기어·문·탑승·벨트)은 리스너로 받아 `sensed`에 모은다
- *       - 차가 모르는 값(장소, 에뮬레이터에서 못 넣는 속도)은 앱이 `manual`에
- *         넣는다
+ *       - 차가 모르는 값(장소, 에뮬레이터에서 못 넣는 속도·좌석별 벨트)은 앱이
+ *         `manual`에 넣는다
  *       - 연료·배터리·주행 가능 거리는 `CarState`에 칸이 없어 `fuel`에 따로
  *         모은다
  *       - 제어는 "실행 → 다시 읽어 확인". 확인되면 `Done`, 확인할 수 없으면
@@ -120,24 +120,30 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
         /**
          * 작성: 2026-11-09 19:09:00 · 박건준
+         * 수정: 2026-11-11 11:58:00 · 박건준
          * 변수: SEAT_FULL_MS
-         * 목적: 축마다 0→`SEAT_MAX`에 걸리는 시간(밀리초). 목표까지 FORWARD로
-         *       보낼 시간을 이 값에 비례해 정한다.
-         * 근거: 측정 — api-spike.md 시트 이동 시간 행(에뮬레이터, 0→100 5번
-         *       평균). 실차 속도 미확인
+         * 목적: 좌석·축마다 0→`SEAT_MAX`에 걸리는 시간(밀리초). 목표까지
+         *       FORWARD로 보낼 시간을 이 값에 비례해 정한다. 운전석과 조수석만
+         *       잰 값이 있다.
+         * 근거: 측정 — api-spike.md 시트 이동 시간 표(에뮬레이터, 0→100 5번
+         *       평균, 조수석은 2026-11-11). 실차 속도 미확인
          */
         val SEAT_FULL_MS = mapOf(
-            SeatAxis.FORE_AFT to 2_075L,
-            SeatAxis.HEIGHT to 2_049L,
-            SeatAxis.BACKREST_ANGLE to 2_045L,
-            SeatAxis.TILT to 2_052L,
+            (Seat.DRIVER to SeatAxis.FORE_AFT) to 2_075L,
+            (Seat.DRIVER to SeatAxis.HEIGHT) to 2_049L,
+            (Seat.DRIVER to SeatAxis.BACKREST_ANGLE) to 2_045L,
+            (Seat.DRIVER to SeatAxis.TILT) to 2_052L,
+            (Seat.PASSENGER to SeatAxis.FORE_AFT) to 2_039L,
+            (Seat.PASSENGER to SeatAxis.HEIGHT) to 2_136L,
+            (Seat.PASSENGER to SeatAxis.BACKREST_ANGLE) to 2_074L,
+            (Seat.PASSENGER to SeatAxis.TILT) to 2_095L,
         )
 
         /**
          * 작성: 2026-11-09 19:09:00 · 박건준
          * 변수: SEAT_FULL_DEFAULT_MS
-         * 목적: 시간을 재지 못한 축(쿠션 길이, 머리받이)의 0→`SEAT_MAX` 시간
-         *       (밀리초).
+         * 목적: 시간을 재지 못한 좌석·축(뒷좌석, 쿠션 길이, 머리받이)의
+         *       0→`SEAT_MAX` 시간(밀리초).
          * 근거: 미확인 — 콘솔에 칸이 없어 재지 못했다. 잰 축과 같은 1단위
          *       21밀리초로 둔다
          */
@@ -240,7 +246,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
     /** 차에서 받은 값. 리스너가 채우고, 장소·속도는 늘 기본값이다 */
     private val sensed = MutableStateFlow(CarState())
 
-    /** 앱이 넣는 값(장소, 속도). 장소·속도 함수 셋이 바꾼다 */
+    /** 앱이 넣는 값(장소, 속도, 데모 벨트). 장소·속도·벨트 함수가 바꾼다 */
     private val manual = MutableStateFlow(Manual())
 
     /** 구독을 끊는 함수 목록. 구독할 때 더하고 `close()`에서 모두 부른다 */
@@ -266,22 +272,24 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-11 12:18:00 · 박건준
      * 클래스: Manual
      * 목적: 차가 모르는 값 묶음.
-     * 인자: place — 지금 장소. 장소 검색 결과나 데모 입력
+     * 인자: place — 지금 장소. 근접 알림이나 데모 입력
      *       speedKmh — 데모가 덮어쓴 속도(km/h). null이면 센서 값을 쓴다
      *       sensorSpeedKmh — AAOS 속도 센서 값(km/h)
+     *       belt — 데모가 덮어쓴 좌석별 벨트(맸으면 true). 없는 좌석은 차 값을 쓴다
      */
     private data class Manual(
         val place: Place = Place.NONE,
         val speedKmh: Float? = null,
         val sensorSpeedKmh: Float = 0f,
+        val belt: Map<Seat, Boolean> = emptyMap(),
     )
 
-    /** 루틴이 보는 차 상태(값이 바뀌면 알려주는 상태). 차에서 받은 값에 장소·속도를 덮어 만든다 */
+    /** 루틴이 보는 차 상태(값이 바뀌면 알려주는 상태). 차에서 받은 값에 장소·속도·데모 벨트를 덮어 만든다 */
     override val state: StateFlow<CarState> = combine(sensed, manual) { s, m ->
-        s.copy(place = m.place, speedKmh = m.speedKmh ?: m.sensorSpeedKmh)
+        s.copy(place = m.place, speedKmh = m.speedKmh ?: m.sensorSpeedKmh, beltBuckled = s.beltBuckled + m.belt)
     }.stateIn(scope, SharingStarted.Eagerly, CarState())
 
     init {
@@ -294,12 +302,11 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-10 12:56:20 · 박건준
+     * 수정: 2026-11-11 12:18:00 · 박건준
      * 함수: setPlace
-     * 목적: 지금 장소를 넣는다. 장소 검색 결과나 데모 입력이 부른다.
+     * 목적: 지금 장소를 넣는다. 장소 근접 알림(`PlaceWatcher`)이 부르고,
+     *       예비로 데모 `place`도 부른다.
      * 인자: place — 지금 장소
-     * 미구현: 프로토타입이라 장소 검색이 아직 없어 데모 `place`가 장소를 넣는다.
-     *       실제 차에서는 내비 위치·장소 검색 결과가 부른다
      */
     fun setPlace(place: Place) = manual.update { it.copy(place = place) }
 
@@ -336,6 +343,21 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      *       `getFuelPercent` 값을 쓴다(실차 미확인)
      */
     fun overrideFuel(percent: Int?) = putFuel("override", percent) { it.copy(overridePercent = percent) }
+
+    /**
+     * 작성: 2026-11-11 12:18:00 · 박건준
+     * 함수: overrideBelt
+     * 목적: 데모용 벨트 덮어쓰기. 좌석 하나의 벨트를 맨 것·푼 것으로 넣는다.
+     * 인자: seat — 좌석
+     *       buckled — 맸으면 true, 풀었으면 false. null이면 차 값으로 돌아간다
+     * 근거: 측정 — 에뮬레이터 좌석별 벨트는 늘 false이고 콘솔에 좌석별 칸이
+     *       없다. 미착용 경고 속성도 없다(docs/api-spike.md 벨트 행)
+     * 미구현: 프로토타입이라 에뮬레이터에 좌석별 벨트 값이 없어 데모로 넣는다.
+     *       실제 차에서는 쓰지 않고 SDK 벨트 리스너 값만 쓴다
+     */
+    fun overrideBelt(seat: Seat, buckled: Boolean?) = manual.update {
+        it.copy(belt = if (buckled == null) it.belt - seat else it.belt + (seat to buckled))
+    }
 
     /**
      * 작성: 2026-11-09 20:58:00 · 박건준
@@ -707,7 +729,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-10 12:56:20 · 박건준
+     * 수정: 2026-11-11 11:58:00 · 박건준
      * 함수: moveSeatTo
      * 목적: 시트 축 하나를 목표 위치로 움직인다. 차에서 위치를 읽을 수 없어
      *       시간으로 맞춘다.
@@ -722,7 +744,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      * 반환: 다 움직이면 `Sent`(위치를 확인할 수 없어서), 기어 때문에 멈추면
      *       `Failed`
      * 식: t = goal × T_full / SEAT_MAX
-     *     (t = FORWARD 시간(밀리초), T_full = 축의 `SEAT_FULL_MS`)
+     *     (t = FORWARD 시간(밀리초), T_full = 좌석·축의 `SEAT_FULL_MS`)
      * 근거: 측정 — api-spike.md 시트 이동 시간 행(에뮬레이터), 실차 속도
      *       미확인. 목표 30·70 맞추기 오차는 같은 문서 시간 맞추기 표
      * 미구현: 프로토타입이라 위치를 읽으며 멈추지 않고 시간으로 맞춘다.
@@ -736,7 +758,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         val area = target.seat.area() // 움직일 좌석의 area
         val axis = target.axis // 움직일 축
         val aim = goal.coerceIn(0, SEAT_MAX) // 자른 목표 위치
-        val forwardMs = aim * (SEAT_FULL_MS[axis] ?: SEAT_FULL_DEFAULT_MS) / SEAT_MAX // FORWARD 보낼 시간(밀리초)
+        val forwardMs = aim * (SEAT_FULL_MS[key] ?: SEAT_FULL_DEFAULT_MS) / SEAT_MAX // FORWARD 보낼 시간(밀리초)
         seatEstimate.remove(key)
         if (!runSeat(axis, area, MoveControl.BACKWARD, SEAT_HOME_MS)) return seatStopped()
         if (forwardMs > 0 && !runSeat(axis, area, MoveControl.FORWARD, forwardMs)) return seatStopped()
