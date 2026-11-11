@@ -10,6 +10,14 @@ sealed interface VoiceAction {
     /** [id]가 null이면 가장 최근에 켠 루틴을 되돌린다. */
     data class Undo(val id: RoutineId?) : VoiceAction
     data class SaveSeat(val name: String) : VoiceAction
+
+    /**
+     * 작성: 2026-11-11 14:28:46 · 박희정
+     * 클래스: Answer
+     * 목적: 앱이 권한 것에 대한 대답("응", "괜찮아").
+     * 인자: yes — 받아들이면 true, 거절이면 false
+     */
+    data class Answer(val yes: Boolean) : VoiceAction
 }
 
 /**
@@ -36,11 +44,13 @@ object PhraseMatcher {
 
         undoOf(compact)?.let { return it }
 
+        if (NO_WORDS.any { it in compact }) return VoiceAction.Answer(yes = false)
+
         val id = when {
             "세차" in compact -> RoutineId.WASH
             CHILD_WORDS.any { it in compact } -> RoutineId.CHILD_LOCK
             SEAT_WORDS.any { it in compact } -> RoutineId.SEAT_MEMORY
-            else -> return null
+            else -> return if (isYes(compact)) VoiceAction.Answer(yes = true) else null
         }
         val profile = if (id == RoutineId.SEAT_MEMORY) {
             profilePattern.find(text)?.groupValues?.get(1)?.let(::dropParticle)?.takeUnless { it in GENERIC_WORDS }
@@ -57,6 +67,19 @@ object PhraseMatcher {
         else -> null
     }
 
+    /**
+     * 작성: 2026-11-11 14:28:46 · 박희정
+     * 함수: isYes
+     * 목적: 짧은 긍정 대답인지 본다. 대답 낱말로 시작하고 뒤에 "요", "해줘"
+     *       같은 끝맺음만 붙은 말만 받는다. "어디야"처럼 "어"로 시작하는 다른
+     *       말을 긍정으로 잘못 보지 않으려고 끝맺음 목록을 둔다.
+     * 인자: compact — 띄어쓰기·문장부호를 뺀 말
+     * 반환: 긍정 대답이면 true
+     */
+    private fun isYes(compact: String): Boolean = YES_WORDS.any { word ->
+        compact.startsWith(word) && compact.removePrefix(word) in YES_ENDINGS
+    }
+
     /** "아빠가 운전할게"의 "가"처럼 이름 뒤 조사를 뗀다. */
     private fun dropParticle(name: String): String =
         if (name.length > 1 && name.last() in "가는은이") name.dropLast(1) else name
@@ -64,5 +87,32 @@ object PhraseMatcher {
     private val CHILD_WORDS = listOf("애태웠", "아이태웠", "애탔", "아이탔", "차일드락", "아이탑승")
     private val SEAT_WORDS = listOf("운전바꿀", "운전교대", "자세로", "시트메모리", "운전할게")
     private val GENERIC_WORDS = setOf("지금", "이", "내", "현재", "자세")
+
+    /**
+     * 작성: 2026-11-11 14:28:46 · 박희정
+     * 변수: NO_WORDS
+     * 목적: 거절로 보는 말. 루틴 이름보다 먼저 본다("세차 안 해"는 거절).
+     *       "됐어"는 시트 맞추기에서 "다 맞췄다"는 뜻이라 넣지 않는다.
+     * 근거: 인용 — Tab 1 6.1 옆자리 팀: 부정어 먼저, "괜찮아요"는 거절
+     */
+    private val NO_WORDS = listOf("아니", "괜찮", "안해", "안할", "싫어", "하지마", "나중에", "필요없")
+
+    /**
+     * 작성: 2026-11-11 14:28:46 · 박희정
+     * 변수: YES_WORDS
+     * 목적: 긍정 대답이 시작하는 낱말. 긴 것부터 둬서 "그래요"가 "그래"로 먼저
+     *       걸리게 한다.
+     * 근거: 인용 — Tab 1 4.3 시나리오 ① #2 "그래", #4 "응"
+     */
+    private val YES_WORDS = listOf("그렇게", "오케이", "그래", "좋아", "부탁", "ㅇㅇ", "응", "웅", "어", "네", "예")
+
+    /**
+     * 작성: 2026-11-11 14:28:46 · 박희정
+     * 변수: YES_ENDINGS
+     * 목적: 긍정 낱말 뒤에 붙어도 되는 끝맺음. 이 밖의 말이 붙으면 대답으로
+     *       보지 않는다.
+     * 근거: 미정 — 시연 대사와 흔한 변형만 넣었다
+     */
+    private val YES_ENDINGS = setOf("", "요", "해", "해요", "해줘", "해주세요", "해줘요", "그래", "좋아", "맞춰줘", "할게")
     private const val DEFAULT_NAME = "나"
 }
