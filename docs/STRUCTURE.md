@@ -34,6 +34,7 @@ sunstone/
 │  └─ api-spike.md         Pleos API 실측 기록
 ├─ apk/                    (예정) 심사용 release APK
 ├─ tools/api-explorer/     Pleos 공식 Vehicle 샘플 (실측용, 출품 제외)
+├─ tools/scene-move.ps1    시연 이동: geo fix 1초마다 + 콘솔 속도·기어 (시나리오 ①·②)
 │
 ├─ routines/               ① 기능 구현 ─ 박희정
 │  └─ src/main/kotlin/com/westone/sunstone/routines/
@@ -53,13 +54,16 @@ sunstone/
       │  ├─ car/           PleosCarPort(차량 SDK·제어), Callbacks(SDK 콜백 기다리기),
       │  │                 AaosSpeedSource(속도), AaosEnergySource(주행 가능 거리·배터리·연료 종류),
       │  │                 FuelState(연료·배터리·차 종류 값 묶음)
-      │  ├─ connect/       GleoEntry, AndroidSpeaker, PrefsSeatProfiles
+      │  ├─ connect/       GleoEntry, AndroidSpeaker, PrefsSeatProfiles,
+      │  │                 KeepAwakeService(길안내·루틴 중 앱을 깨어 있게 하는 알림)
+      │  ├─ navi/          PleosNavi(내비 경로·경유지·남은 거리·도착), Proximity(근접 알림),
+      │  │                 PlaceWatcher(시연 장소 도착 → 장소), NaviModels(좌표·경로 값)
       │  ├─ ui/            MainActivity, SunstoneScreen
       │  └─ SunstoneApp.kt AppGraph: 두 영역 조립, 모든 입력의 입구
-      │  (예정) navi/      내비 SDK(경로·경유지·도착)
       │  (예정) info/      바깥 API(카카오·오피넷·기상청·에어코리아) + 고정 응답
       ├─ main/res/values/  strings.xml (앱 문구. 루틴 문장은 routines/)
-      ├─ main/assets/      schema.json(Gleo), (예정) 참고 문서 카드·대사집·녹음본
+      ├─ main/assets/      schema.json(Gleo), places.json(시연 장소 고정 목록),
+      │                    (예정) 참고 문서 카드·대사집·녹음본
       ├─ debug/            출시 빌드에는 없음
       │  ├─ DemoReceiver   adb 장면 주입·실측 명령 입구
       │  ├─ VirtualConsole 앱 안에서 콘솔 HTTP API 읽기·쓰기
@@ -71,7 +75,8 @@ sunstone/
       │  ├─ SeatReadCheck  seatcheck: 시트 위치 지원 목록·리스너 재확인
       │  ├─ NaviProbe      navi: 내비 경로·경유지·남은 거리·통행료·도착
       │  ├─ LocationProbe  location: FusedLocation 위치·근접 알림
-      │  └─ BeltProbe      belt: 좌석별 벨트·미착용 경고·벨트 경고등
+      │  ├─ BeltProbe      beltprobe: 좌석별 벨트·미착용 경고·벨트 경고등
+      │  └─ ChildLockProbe childlock: 뒷문 차일드락(AAOS 속성) 읽기·쓰기
       (예정) sim/, pleos/  빌드 2종: 시연 빌드(가짜 차·고정 응답) / Pleos 빌드(실제 SDK)
 ```
 

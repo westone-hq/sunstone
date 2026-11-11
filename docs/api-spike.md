@@ -24,12 +24,15 @@ Virtual Console은 브라우저 세션이 열려 있을 때만 차량 쪽과 연
 | 차일드락 | moveWindowBlind (REAR_WINDSHIELD) / getCurrentWindowBlindPosition | 직접 | 실패 | 실제(지원 안 함 → 안내) | 2026-11-09 probe 측정. `area ID: 0x2 not supported for property ID: 0x23400532`. 지원 area는 옆 창문 네 곳(ROW_1/2 LEFT/RIGHT)뿐이고 뒷유리는 없다. 수정 후에는 지원 목록을 먼저 보고 Unsupported로 안내. 콘솔에도 항목 없음 |
 | 차일드락 | getHvacPowerState / setHvacPower (다섯 좌석 합친 area 117) | 직접 | 반영 | 조작(좌석별 요청을 차 전체 공조로) | 2026-11-09 수정 후 probe. 좌석별 전원은 없고 차 전체 전원 하나다. 어느 좌석 요청이든 전체 전원으로 부르면 false→true→false, 앱·콘솔(`hvac.power_on`) 일치, 0.4초. 처음엔 좌석마다 불러 `not supported` 실패. "뒷좌석 공조 켜기"가 차 전체 공조를 켠다 |
 | 차일드락 | getCurrentSeatOccupancy / registerSeatOccupancy | 직접 | 실패 | 조작(에뮬레이터에서만 값 반전) | 2026-11-09 측정. 값은 오지만 반대로 읽힌다. 에뮬레이터는 AAOS 기준 1=빈자리, 2=탑승(`SEAT_OCCUPANCY` area 1/4/16/64)을 보내는데 SDK 2.3.2는 `값 == 1`을 탑승(true)으로 바꾼다. 운전석·조수석·뒷좌석 좌우 4곳 모두 콘솔 탑승→앱 빈자리, 콘솔 빈자리→앱 탑승. 뒷좌석 가운데는 콘솔에 없고 앱은 늘 탑승. 2026-11-09 `PleosCarPort.INVERT_OCCUPANCY`로 뒤집고 가운데는 읽지 않게 바꾼 뒤, 콘솔 4자리 탑승/빈자리가 앱 상태 줄과 일치. car/upgrade부터 `Build.HARDWARE`가 에뮬레이터(`ranchu`)일 때만 뒤집는다. 다른 팀도 에뮬레이터에서 같은 현상. 실차 미확인 |
-| 차일드락 | getCurrentSeatBeltBuckledState / registerSeatBeltBuckledState (ROW_2_*) | 직접 | 읽기값만 | 조작 필요(좌석별 벨트를 바꿀 수단 없음, 수단 미정) | 2026-11-10 데모 `belt`. 운전석·뒷좌석 좌우 모두 읽기·리스너가 늘 false. 콘솔에 좌석별 벨트 칸이 없고, 차 경고등 `SeatBelt`를 켜거나 뒷좌석 탑승을 바꿔도 그대로 false. 원본 `relay/files/20261110-1442-벨트실측.csv` |
+| 차일드락 | getCurrentSeatBeltBuckledState / registerSeatBeltBuckledState (ROW_2_*) | 직접 | 읽기값만 | 조작(데모 `belt 좌석 on\|off`) | 2026-11-10 데모 `belt`. 운전석·뒷좌석 좌우 모두 읽기·리스너가 늘 false. 콘솔에 좌석별 벨트 칸이 없고, 차 경고등 `SeatBelt`를 켜거나 뒷좌석 탑승을 바꿔도 그대로 false. 원본 `relay/files/20261110-1442-벨트실측.csv` 2026-11-11 navi/live: 데모 `belt`로 좌석별 벨트를 덮어쓴다(`PleosCarPort.overrideBelt`). 차일드락을 켜고 콘솔로 D·30km/h에서 `belt rear_left off`를 넣자 같은 순간 "뒷좌석 왼쪽 안전벨트가 풀렸어요." 안내(`relay/files/20261111-1210-벨트풀림-주행중.png`) |
 | 차일드락 | Safety.hasSeatBeltNotBuckledWarning / registerSeatBeltNotBuckledWarning / checkSeatNotBuckledWarningCapabilities | 직접(데모 `belt`) | 실패 | 쓰지 않음 | 2026-11-10 측정. `pleos.car.permission.CAR_SAFETY`(normal)를 넣은 뒤에도 `ERROR_NOT_SUPPORTED_PROPERTY`, 속성 0x25200709가 에뮬레이터에 없다 |
-| 차일드락 | Safety.getTelltalesInfo / registerTelltales (경고등 SEAT_BELT) | 직접(데모 `belt`) | 반영 | 쓰지 않음(벨트 대신 쓸지 결정 필요) | 2026-11-10 측정. 콘솔 `PUT /vehicle/telltales/simulator?type=SeatBelt&state=On\|Blink\|Off&color=Red`(차량 속성 `TELLTALES` 0x21410900, area 0)가 1초 안에 리스너로 왔다: ON/4 → 없음 → BLINK/4. 차 전체 경고등 하나라 좌석을 모른다. `pleos.car.permission.PRIVATE_CAR_SAFETY`가 있어야 읽혀서(CAR_SAFETY만으로는 `need Permission`) debug 매니페스트에만 넣었다. 실차에서 이 권한을 받을 수 있는지 미확인 |
+| 차일드락 | Safety.getTelltalesInfo / registerTelltales (경고등 SEAT_BELT) | 직접(데모 `belt`) | 반영 | 쓰지 않음 | 2026-11-10 측정. 콘솔 `PUT /vehicle/telltales/simulator?type=SeatBelt&state=On\|Blink\|Off&color=Red`(차량 속성 `TELLTALES` 0x21410900, area 0)가 1초 안에 리스너로 왔다: ON/4 → 없음 → BLINK/4. 차 전체 경고등 하나라 좌석을 모른다. `pleos.car.permission.PRIVATE_CAR_SAFETY`가 있어야 읽혀서(CAR_SAFETY만으로는 `need Permission`) debug 매니페스트에만 넣었다. 실차에서 이 권한을 받을 수 있는지 미확인 2026-11-11: 좌석을 모르고 PRIVATE 권한이라 쓰지 않기로 하고 `PRIVATE_CAR_SAFETY`를 debug 매니페스트에서도 뺐다. 실측 명령 이름은 `beltprobe`로 바꿨다 |
+| 차일드락 | Pleos SDK Door 차일드락 | 없음 | 실패 | 쓰지 않음(안내 문장) | 2026-11-11 확인. SDK 2.3.2 `Door` 공개 함수는 문 잠금·문 위치·글러브박스뿐이고 차일드락이 없다(javap) |
+| 차일드락 | AAOS DOOR_CHILD_LOCK_ENABLED (0x16200b03, 뒷문 area 0x10·0x40) | 직접(데모 `childlock`) | 실패 | 쓰지 않음(안내 문장) | 2026-11-11 측정. 에뮬레이터 차 서비스에 속성은 있다(`dumpsys car_service --hal`: access 0x3 읽기·쓰기). 그러나 읽기·쓰기 모두 `SecurityException: requires android.car.permission.CONTROL_CAR_DOORS`. 이 권한은 `signature\|privileged`라 debug 매니페스트에 선언해도 `granted=false`. 콘솔 카탈로그에도 차일드락 항목이 없다. 코드에 넣지 않고, 시나리오 ②는 "뒷문 차일드락은 문 안쪽 스위치로 걸어 주세요." 안내로 간다. 원본 `relay/files/20261111-1151-문차일드락.csv` |
 | 시트 | getCurrentSeat{ForeAft,Height,BackrestAngle,Tilt,Depth,HeadrestHeight}Position | 직접 | 실패 | 조작(시간 기반 추정값) | 2026-11-09 probe 측정. **불일치**: 앞뒤·높이·등받이·쿠션 각도·쿠션 길이는 함수가 있으나 늘 0을 돌려준다(콘솔 100일 때도 0). 머리받이 읽기 함수는 SDK 이름이 `getCurrentSeatHeadrestHeightAftPosition`이라 리플렉션이 못 찾았다. 직접 호출로 바꾼 뒤에도 늘 0. 2026-11-09 데모 `seatcheck`: `check…PositionCapabilities`는 앞뒤·높이·등받이·쿠션 각도 READ_WRITE(1/4/16/64, 0~100), 머리받이 READ_WRITE(앞좌석, -10~10)로 지원한다고 나온다. 그러나 지원 목록이 준 area 그대로 읽어도 0(콘솔 40), 위치 리스너 다섯 개를 20초 등록하고 콘솔을 80·20·60으로 바꿔도 처음 0 한 번만 왔다. Pleos 서비스가 보내는 `SEAT_FORE_AFT_POS` 등도 모든 area에서 0이라, 콘솔 시트 값이 차량 속성까지 가지 않는 것으로 보인다(에뮬레이터 쪽). 시트 코드는 시간 방식 그대로 둔다(보류) |
 | 시트 | CarPropertyManager SEAT_FORE_AFT_POS·SEAT_HEIGHT_POS·SEAT_BACKREST_ANGLE_1_POS·SEAT_TILT_POS·SEAT_DEPTH_POS·SEAT_LUMBAR_FORE_AFT_POS·SEAT_LUMBAR_SIDE_SUPPORT_POS·SEAT_HEADREST_HEIGHT_POS_V2 (운전석) | 직접(데모 `seatread`) | 실패 | 쓰지 않음 | 2026-11-09 측정. 콘솔 0일 때와 100일 때 모두 `SecurityException: requires android.car.permission.CONTROL_CAR_SEATS`. 이 권한은 `signature\|privileged`라 debug 매니페스트에 선언해도 `granted=false`. SEAT_BACKREST_ANGLE_2_POS·SEAT_CUSHION_SIDE_SUPPORT_POS는 에뮬레이터에 속성이 없다. `cmd car_service get-property-value`도 user 빌드라 막힌다 |
 | 시트 | moveSeat{…}(area, FORWARD/BACKWARD/STOP) | 직접 | 반영 | 실제(시간만큼 보냄) | 2026-11-09 probe 측정. 앞뒤·높이·등받이·쿠션 각도 모두 FORWARD로 콘솔 값이 0→100 증가. 읽기가 0에 고정돼 목표에서 못 멈추고 10초 제한 후 STOP. 되돌리기도 "이미 0"으로 판단해 움직이지 않아 콘솔 API로 0에 복구했다. 쿠션 길이는 콘솔에 항목 없음 |
+| 시트 | 조수석 moveSeat{ForeAft,Height,BackrestAngle,Tilt}(ROW_1_RIGHT) | 직접(데모 `seattime passenger`·`seatfit passenger`) | 반영 | 실제(시간만큼 보냄) | 2026-11-11 측정. 네 축 모두 콘솔 `seat.positions.<축>.passenger`가 0→100·100→0으로 움직인다. 끝에서 끝 2.03~2.14초(아래 이동 시간 표). `PleosCarPort.SEAT_FULL_MS`를 좌석·축별로 넓혀 조수석 값을 넣었고, 목표 30·70 × 3번 × 4축 24번 모두 콘솔 오차 0. 원본 `relay/files/20261111-1153-조수석시트이동시간.csv`, `20261111-1155-조수석시트맞추기.csv` |
 | 시트 | selectSeatMemory(area, n) | 직접 |  | 실제(보냄, 확인 못 함) | 2026-11-09 probe 측정. 1번 호출, 실패 콜백 없이 1초 후 Sent. 콘솔 앞뒤 위치 변화 없음(100→100). 지원은 운전석 1~2번, 쓰기만(`checkSeatMemoryCapabilities`). SDK 2.3.2에 메모리 저장 API(save·set·store 계열)가 없고 콘솔 카탈로그에도 메모리 항목이 없어 "저장 → 움직임 → 불러오기" 확인은 못 했다 |
 | 공통 | getGear().registerGearSelection | 직접 | 반영 | 실제(콘솔로 장면 준비) | 2026-11-09 측정. P→D→R→P 모두 전달(`VENDOR_GEAR_SELECTION` 4/8/2/4), 앱 상태 PARK/DRIVE/PARK 확인. R에서는 후방 카메라가 앱을 가려 화면 확인은 못 함. deprecated, GEAR_SELECTION 속성 권장 – 실측 때 비교 |
 | 공통 | getCurrentDoorPosition / registerDoorPosition | 직접 | 반영 | 실제(콘솔로 장면 준비) | 2026-11-09 측정. ROW_2_LEFT/RIGHT 열기·닫기 모두 전달(`DOOR_POS` area 16/64, 1/0), 앱 상태 줄 일치 |
@@ -40,15 +43,15 @@ Virtual Console은 브라우저 세션이 열려 있을 때만 차량 쪽과 연
 | 주유 | AAOS RANGE_REMAINING·EV_BATTERY_LEVEL·INFO_EV_BATTERY_CAPACITY | 직접 | 반영 | 실제(콘솔로 장면 준비) | 2026-11-09 측정. `android.car.permission.CAR_ENERGY`(dangerous)를 MainActivity에서 요청해 허가받음. 주행 가능 거리 m, 배터리 Wh(콘솔 30kWh → 30000). 같은 값도 1초마다 다시 온다 |
 | 주유 | AAOS FUEL_LEVEL·INFO_FUEL_CAPACITY | 직접 | 읽기값만 | 쓰지 않음(고정값) | 2026-11-09 측정. 둘 다 15000ml로 고정. 콘솔에 연료 칸이 없어 바꿀 수 없다. 에뮬레이터 기본값으로 보인다(미확인) |
 | 공통 | PERF_VEHICLE_SPEED (AAOS) | 직접 | 반영 | 실제(콘솔 `controls.speed`) / 콘솔 없으면 조작(데모 `speed`) | 2026-11-09 측정. 콘솔 카탈로그에는 속도 항목이 없지만 `controls.speed_kph`가 있고 `PUT /vehicle/controls?speed=N`으로 바뀐다. 30·55·7·0km/h 모두 앱 상태 줄에 같은 값(`AaosSpeedSource`, 2초 안). 데모 `speed`는 이제 콘솔이 없을 때만 필요 |
-| 공통 | 위치(위도·경도) |  | 실패 | 조작(데모 `place`) | 2026-11-09 측정. 콘솔 카탈로그 63개 항목에 위치·GPS 항목이 없다. 장소는 데모 `place`로 넣는다. 2026-11-10: 아래 FusedLocation 행처럼 `adb emu geo fix`로 바꿀 수 있어 실제로 바꿀 수 있다(앱 연결은 아직) |
-| 공통 | FusedLocation 1.1.3 registerFusedLocationCallback / getLastKnownLocation | 직접(데모 `location`) | 반영 | 실제(`adb emu geo fix`로 장면 준비), 앱 연결은 예정 | 2026-11-10 측정. `geo fix` 서울 → 해운대 → 서울 → 해운대 350m 밖 → 100m 안을 1초 안에 모두 따라왔다(1초마다 콜백, confidence 5.0). `pleos.car.permission.FUSED_LOCATION`(dangerous)을 MainActivity에서 요청한다. 권한 창 제목이 "알 수 없는 작업"으로 나온다. 원본 `relay/files/20261110-1437-위치실측.csv` |
-| 세차·주유 | FusedLocation addProximityAlert / removeProximityAlert (ENTER·EXIT) | 직접(데모 `location`) | 반영 | 실제(`adb emu geo fix`로 장면 준비), 앱 연결은 예정 | 2026-11-10 측정. 해운대해수욕장 반경 200m: 들어가면 ENTER, 서울로 옮기면 EXIT, 350m 밖은 알림 없음, 100m 안은 ENTER. 위치가 바뀐 그 콜백과 같은 순간에 왔다. 세차장 도착 감지를 데모 `place` 대신 이것으로 할 수 있다 |
+| 공통 | 위치(위도·경도) |  | 반영 | 실제(`tools/scene-move.ps1`로 장면 준비), 예비로 데모 `place` | 2026-11-09 측정. 콘솔 카탈로그 63개 항목에 위치·GPS 항목이 없다. 장소는 데모 `place`로 넣는다. 2026-11-10: 아래 FusedLocation 행처럼 `adb emu geo fix`로 바꿀 수 있어 실제로 바꿀 수 있다(앱 연결은 아직) 2026-11-11 navi/live: 시연 장소(`assets/places.json`)마다 근접 알림을 걸어(`PlaceWatcher`) 들어가면 그 장소, 나가면 장소 없음으로 바꾼다. 장소 목록은 바깥 API 대신 고정 목록(주유소·유치원·집) |
+| 공통 | FusedLocation 1.1.3 registerFusedLocationCallback / getLastKnownLocation | 직접(데모 `location`) | 반영 | 실제(`adb emu geo fix`로 장면 준비) | 2026-11-10 측정. `geo fix` 서울 → 해운대 → 서울 → 해운대 350m 밖 → 100m 안을 1초 안에 모두 따라왔다(1초마다 콜백, confidence 5.0). `pleos.car.permission.FUSED_LOCATION`(dangerous)을 MainActivity에서 요청한다. 권한 창 제목이 "알 수 없는 작업"으로 나온다. 원본 `relay/files/20261110-1437-위치실측.csv` |
+| 세차·주유 | FusedLocation addProximityAlert / removeProximityAlert (ENTER·EXIT) | 직접(데모 `location`) | 반영 | 실제(`tools/scene-move.ps1`로 장면 준비) | 2026-11-10 측정. 해운대해수욕장 반경 200m: 들어가면 ENTER, 서울로 옮기면 EXIT, 350m 밖은 알림 없음, 100m 안은 ENTER. 위치가 바뀐 그 콜백과 같은 순간에 왔다. 세차장 도착 감지를 데모 `place` 대신 이것으로 할 수 있다 2026-11-11 navi/live: 시나리오 ① 스크립트로 서울 → 주유소를 1초마다 옮기니 반경 200m에 들어간 순간 장소 = 주유소, 정차·P가 된 1초 뒤 "세차하시나요? 준비해 드릴까요?"(데모 명령 없음). 시나리오 ②는 집 → 유치원 → 집 순서로 들어감·나감이 왔다 |
 | 길안내 | NaviHelper 3.0.5 requestRoute(RouteInfo 좌표) | 직접(데모 `navi`) | 반영 | 실제 | 2026-11-10 측정. 해운대해수욕장 좌표로 요청하면 지도 앱이 앞으로 나와 경로를 그린다(382km, 4시간 57분). `onRouteStarted(duration 17820초, distance 382000m, tollFare 16010원)`. `NAVI_ROUTE`·`NAVI_ROUTE_SEARCH`·`NAVI_NOTIFY`(모두 normal)가 없으면 `SecurityException`. `RouteInfo`는 poiId·address·poiSubId를 꼭 넘겨야 해서 빈 글자로 넘긴다 |
 | 길안내 | addWaypoint(FIRST·SECOND) | 직접(데모 `navi`) | 반영 | 실제 | 2026-11-10 측정. 주유소 지점(서울 양재 부근)·대전을 더하면 그때마다 경로를 다시 찾는다(`onRouteCancelled` → `onWaypointChanged(ADD, 그 경유지까지 RouteStartInfo)` → `onRouteEnded`·`ROUTE_DRIVE`). 화면에 "경유지 2개 포함, 429km, 6시간 14분, 19,120원". `WaypointIndex`가 FIRST·SECOND·ALL뿐이라 이 함수로는 2개까지 |
 | 길안내 | requestRouteWithWaypoints(경유지 3개) | 직접(데모 `navi`) | 반영 | 쓰지 않음 | 2026-11-10 측정. 2개 제한을 확인하려고 3개(주유소·대전·대구)를 넣었더니 그대로 받았다. `onWayPointInfo` 3개, `onDrivingInfo` 경유지 3개, 화면 진행 막대에도 3곳(13·163·312km). 2개 제한은 `addWaypoint` 쪽만이다. 실차 동작 미확인이라 기능은 2개까지만 쓴다 |
 | 길안내 | getDestinationInfo / getWaypointInfo / onDrivingInfo (남은 거리·시간) | 직접(데모 `navi`) | 반영 | 실제 | 2026-11-10 측정. 목적지 남은 거리 429000m·시간 22440초(경유지 2개 포함), 경유지마다 남은 거리·시간도 온다. 위치·좌표는 경유지에서 0.0으로 온다(목적지는 좌표가 온다). 차가 움직이지 않아(아래 내비 현재 위치) 남은 거리가 줄어드는지는 못 봤다 |
 | 길안내 | 통행료 (RouteStartInfo.tollFare / DestinationInfo.tollFare) | 직접(데모 `navi`) | 읽기값만 | 실제(경로 시작·경유지 변경 때 값) | 2026-11-10 측정. `onRouteStarted`·`onWaypointChanged`의 `tollFare`는 16010·16710·19120원으로 화면과 같다. `getDestinationInfo().tollFare`는 늘 0. 통행료는 경로 시작 이벤트에서 읽는다 |
-| 길안내 | onDestinationArrived / onWayPointArrived | 직접(데모 `navi`) | 실패 | 조작(데모 `arrive` 예정) | 2026-11-10 측정. 리스너를 60초 등록하고 `geo fix`로 해운대에 옮겼지만 오지 않았다. 내비 현재 위치가 움직이지 않아서다(아래 "내비 현재 위치"). 에뮬레이터에서는 도착을 만들 수 없다 |
+| 길안내 | onDestinationArrived / onWayPointArrived | 직접(데모 `navi`) | 실패 | 실제(근접 알림으로 대신) | 2026-11-10 측정. 리스너를 60초 등록하고 `geo fix`로 해운대에 옮겼지만 오지 않았다. 내비 현재 위치가 움직이지 않아서다(아래 "내비 현재 위치"). 에뮬레이터에서는 도착을 만들 수 없다 2026-11-11 navi/live: `PleosNavi`가 경로 시작·경유지 추가 때 그 좌표에 근접 알림(200m)을 걸어 도착을 만든다. 내비 도착 이벤트가 오면 같이 흘리고 60초 안 같은 곳은 한 번만. 경유지 주유소로 geo fix를 옮기자 "도착,OO주유소(세차 가능),경유지" |
 | 길안내 | cancelRoute | 직접(데모 `navi`) | 반영 | 실제 | 2026-11-10 측정. `onRouteCancelled`, `FREE_DRIVE`, 목적지·경유지 비워짐 |
 | 길안내 | 장소 검색(이름·분류) | 없음 | 실패 | 쓰지 않음 | 2026-11-10 확인. NaviHelper 3.0.5 공개 함수(javap)에 이름·분류 검색이 없다(경로·경유지·즐겨찾기·최근 목적지·현재 위치·TBT·충전 사업자·화면·Trip뿐). 지도 앱이 Gleo용 `ai.umos.maps.android.navigation.app.SEARCH_PLACE` 액션을 받지만 Gleo 전용 통로라 시험하지 않았다. 장소 검색은 바깥 API(카카오 로컬)로 한다 |
 | 주유 | AAOS INFO_FUEL_TYPE (차 종류) | 직접 | 반영 | 실제 | 2026-11-09 측정. `[10]`(ELECTRIC) → 상태 줄 "전기차". `CAR_INFO`(설치 때 허가). SDK `CarInfo`에는 VIN·CRN·지원 목록만 있고 연료 종류가 없다 |
@@ -77,16 +80,17 @@ SDK `check…Capabilities`가 돌려준 값. 괄호 안 번호는 Pleos 서비�
 시트 위치를 앱이 읽을 수 없어서(SDK는 늘 0, AAOS 속성은 권한 없음) 움직인 시간으로 위치를 맞출 수 있는지 잰다.
 운전석, SDK `moveSeat…`로 FORWARD/BACKWARD를 보내고 콘솔 `seat.positions.<축>.driver`가 100(또는 0)에 닿을 때까지 0.1초마다 읽었다. 축·방향마다 5번. 원본: `relay/files/20261109-1855-시트이동시간.csv`.
 
-| 축 (콘솔 이름) | 0→100 평균 (최소~최대) | 100→0 평균 (최소~최대) |
-|---|---|---|
-| 앞뒤 (slide) | 2.08초 (2.06~2.09) | 2.09초 (2.06~2.13) |
-| 높이 (height) | 2.05초 (2.04~2.06) | 2.04초 (2.04~2.05) |
-| 등받이 (recline) | 2.05초 (2.04~2.05) | 2.05초 (2.04~2.07) |
-| 쿠션 각도 (tilt) | 2.05초 (2.03~2.13) | 2.06초 (2.04~2.14) |
+| 축 (콘솔 이름) | 운전석 0→100 평균 (최소~최대) | 운전석 100→0 | 조수석 0→100 | 조수석 100→0 |
+|---|---|---|---|---|
+| 앞뒤 (slide) | 2.08초 (2.06~2.09) | 2.09초 (2.06~2.13) | 2.04초 (2.03~2.05) | 2.03초 (2.03~2.04) |
+| 높이 (height) | 2.05초 (2.04~2.06) | 2.04초 (2.04~2.05) | 2.14초 (2.13~2.14) | 2.10초 (2.03~2.14) |
+| 등받이 (recline) | 2.05초 (2.04~2.05) | 2.05초 (2.04~2.07) | 2.07초 (2.03~2.14) | 2.11초 (2.03~2.14) |
+| 쿠션 각도 (tilt) | 2.05초 (2.03~2.13) | 2.06초 (2.04~2.14) | 2.10초 (2.03~2.14) | 2.07초 (2.03~2.13) |
 
 - 네 축 모두 끝에서 끝까지 약 2.05초, 방향 차이 없음. 1단위(콘솔 %)에 약 20밀리초. 읽기 간격 때문에 ±0.1초 오차가 있다.
 - 쿠션 길이·머리받이는 콘솔에 칸이 없어 재지 못했다.
-- 에뮬레이터 값이라 실제 차 속도와 다를 수 있다(미확인). 아직 코드에 넣지 않았다.
+- 에뮬레이터 값이라 실제 차 속도와 다를 수 있다(미확인). 0→100 평균을 `PleosCarPort.SEAT_FULL_MS`에 좌석·축별로 넣었다.
+- 조수석은 2026-11-11 데모 `seattime passenger`로 쟀다. 같은 날 운전석을 다시 재니 2.05~2.09초로 이전과 같았다(`relay/files/20261111-1151-운전석시트재확인-logcat.txt`).
 
 ## 시트 시간 맞추기 (2026-11-09, car/seat-timing, 데모 `seatfit`)
 
@@ -133,3 +137,14 @@ NaviHelper 3.0.5(`ai.pleos.playground:NaviHelper:3.0.5`, navi-data 3.0.4 함께 
 - 미착용 경고(`hasSeatBeltNotBuckledWarning`): 속성 없음.
 - 경고등(`getTelltalesInfo`·`registerTelltales`): 콘솔을 그대로 따라온다. 단 `PRIVATE_CAR_SAFETY` 권한이 필요하다.
 - 차일드락의 "주행 중 뒷좌석 벨트 풀림" 시연 수단은 정해야 한다. ① 콘솔 벨트 경고등을 "뒷좌석 벨트 풀림"으로 읽기(실제 SDK 값이지만 좌석을 모르고 PRIVATE 권한) ② Pleos 차에도 데모 `belt` 입력을 만들기(조작) 중 하나.
+
+## 앱 얼림 대응과 시연 이동 (2026-11-11, navi/live)
+
+- **깨어 있기 서비스:** 길안내 중이거나 루틴이 진행 중이면 `KeepAwakeService`(포그라운드 서비스, 종류 `specialUse`, 알림 하나)를 켠다. 에뮬레이터 `cached_apps_freezer`를 기본값으로 되돌리고 재부팅한 뒤 시험했다.
+  - 서비스 켜짐: 내비 화면이 앞에 있어도 앱이 얼지 않고(`isFrozen=false`, `isForeground=true`), 경로 시작·경유지 이벤트와 근접 알림이 바로 왔다. 주유소로 geo fix를 옮기고 약 2초 안에 장소 도착·경유지 도착
+  - 서비스 꺼짐(안내 취소 뒤 내비 화면을 앞에 둠): 앱이 얼어 있어(`isFrozen=true`) 유치원 도착이 20초 넘게 오지 않다가, 앱을 앞으로 가져온 순간 왔다
+  - 경유지를 더하면 내비가 경로를 취소했다 다시 시작해서 길안내 상태가 1초 남짓 꺼진다. 그때 서비스를 끄니 앱이 뒤에 있어 다시 켜지 못했다(`startForegroundService() not allowed due to mAllowStartForeground false`). 그래서 이유가 사라져도 15초 기다렸다 끄고, 경로 요청 전에(앱이 아직 앞에 있을 때) 길안내 중으로 먼저 올린다
+- **경로 시작 시간:** 이번에는 `requestRoute` 뒤 `onRouteStarted`까지 약 10초 걸렸다(어제 실측은 1초 안). 원인은 확인하지 못했다.
+- **시연 이동 스크립트:** `tools/scene-move.ps1 -Scenario 1|2`. geo fix를 1초마다 직선으로 옮기고(기본 17m = 60km/h), 출발하면 콘솔로 D·60km/h, 도착하면 0km/h·P. 장소 좌표는 앱과 같은 `assets/places.json`. 시나리오 ① 1,585m 94초, ② 913m씩 왕복.
+- **권하기 대기:** 같은 루틴은 10분에 한 번만 권한다(routines `suggestCooldownMs`). 리허설을 이어서 하면 두 번째는 권하지 않으니 앱을 다시 켠다.
+- 원본: `relay/files/20261111-1217-시나리오1-logcat.txt`, 캡처 `20261111-1217-시나리오1-세차권하기.png`, `20261111-1208-주유소도착-세차권하기.png`
