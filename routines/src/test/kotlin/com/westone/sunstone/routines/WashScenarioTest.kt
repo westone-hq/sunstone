@@ -8,6 +8,7 @@ import com.westone.sunstone.routines.library.ChildLockRoutine
 import com.westone.sunstone.routines.library.SeatMemoryRoutine
 import com.westone.sunstone.routines.library.WashRoutine
 import com.westone.sunstone.routines.model.CarState
+import com.westone.sunstone.routines.model.Door
 import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.routines.model.Window
@@ -137,6 +138,23 @@ class WashScenarioTest {
         assertEquals(false, car.value(Target.Recirculation))
         assertEquals(0, car.value(Target.WindowPosition(Window.FRONT_LEFT))) // 창문은 다시 열지 않는다
         assertEquals(true, car.value(Target.DoorLock)) // 문 잠금은 풀지 않는다
+    }
+
+    /**
+     * 작성: 2026-11-11 17:40:00 · 박희정
+     * 함수: 문이 열려 있으면 시작하지 않는다
+     * 목적: 세차 모드 기능 카드 조건(문 닫힘)대로, 문이 하나라도 열려 있으면
+     *       차를 바꾸지 않고 문을 닫아 달라고 하는지 본다.
+     */
+    @Test
+    fun `문이 열려 있으면 시작하지 않는다`() = runTest {
+        val car = FakeCar(CarState(gear = Gear.PARK, doorOpen = mapOf(Door.REAR_LEFT to true)))
+        val runner = runner(car)
+
+        runner.request(RunRequest(RoutineId.WASH)); runCurrent()
+
+        assertEquals(listOf("문을 모두 닫으시면 시작할게요."), said)
+        assertTrue(car.applied.isEmpty())
     }
 
     /**

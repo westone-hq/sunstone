@@ -79,9 +79,25 @@ class WashRoutine(
     override val reportsAtEnd = true
     override val afterUndo = listOf(WashLines.FINISHED)
 
+    /**
+     * 작성: 2026-11-08 18:03:56 · 박건준
+     * 수정: 2026-11-11 17:40:00 · 박희정
+     * 함수: blockedReason
+     * 목적: 지금 세차 모드를 하면 안 되는 이유를 돌려준다. 단계마다 다시 본다.
+     *       - 달리는 중 → 멈춘 뒤에
+     *       - P·N이 아님 → P나 N에 두면
+     *       - 문(트렁크 포함)이 열림 → 문을 모두 닫으면
+     * 인자: state — 지금 차 상태
+     * 반환: 이유 문장. 해도 되면 null
+     * 근거: 인용 — 세차 모드 기능 카드(Tab 1 3.2) 조건: 시동 ON, 20km/h 이하,
+     *       문 닫힘. 속도는 CLAUDE.md "차를 바꾸는 일은 정차 중에만"을 따라 더
+     *       좁게 멈춤으로 본다
+     * 미구현: 시동 ON 여부는 차 상태에 없어서 보지 않는다
+     */
     override fun blockedReason(state: CarState): String? = when {
-        !state.stopped -> "차가 멈춘 뒤에 할게요."
-        state.gear != Gear.PARK && state.gear != Gear.NEUTRAL -> "P나 N에 두시면 시작할게요."
+        !state.stopped -> WashLines.BLOCKED_MOVING
+        state.gear != Gear.PARK && state.gear != Gear.NEUTRAL -> WashLines.BLOCKED_GEAR
+        state.doorOpen.any { it.value } -> WashLines.BLOCKED_DOOR
         else -> null
     }
 

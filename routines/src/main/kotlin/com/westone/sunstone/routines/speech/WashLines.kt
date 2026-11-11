@@ -48,6 +48,18 @@ object WashLines {
     const val ARRIVED_CAR_WASH = "세차장에 도착했어요. 세차 모드로 맞춰 드릴까요?"
 
     /**
+     * 작성: 2026-11-11 17:40:00 · 박희정
+     * 변수: BLOCKED_MOVING, BLOCKED_GEAR, BLOCKED_DOOR
+     * 목적: 세차 모드를 시작하지 않을 때(또는 하다가 멈출 때) 그 이유를 말한다.
+     *       달리는 중, P·N이 아님, 문이 열림.
+     * 근거: 인용 — 세차 모드 기능 카드(Tab 1 3.2) 조건. 앞의 두 문장은
+     *       2026-11-08 박건준 초안 그대로
+     */
+    const val BLOCKED_MOVING = "차가 멈춘 뒤에 할게요."
+    const val BLOCKED_GEAR = "P나 N에 두시면 시작할게요."
+    const val BLOCKED_DOOR = "문을 모두 닫으시면 시작할게요."
+
+    /**
      * 작성: 2026-11-11 14:28:46 · 박희정
      * 변수: N_HOLD
      * 목적: 자동 세차기에서 N 유지를 켜 달라는 안내. 세차장에서만 한다.
