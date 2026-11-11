@@ -72,6 +72,7 @@
     <string name="gleo_run">%1$s 실행</string>
     <string name="gleo_undo">되돌리기</string>
     <string name="gleo_save">%1$s 자세 저장</string>
+    <string name="gleo_answer">대답</string>
 
     <!-- 차 제어 단계가 안내로 바뀐 이유(실행 기록에 보인다) -->
     <string name="car_unsupported">이 차에서는 지원하지 않아요</string>

@@ -206,12 +206,14 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 19:11:42 · 박건준
+     * 수정: 2026-11-11 14:28:46 · 박희정
      * 함수: handle
      * 목적: 말·Gleo·화면·데모 입력을 처리한다.
      *       - `Run` — 루틴 실행을 요청한다
      *       - `Undo` — 이름이 없으면 가장 최근에 켜진 루틴을 되돌린다
      *       - `SaveSeat` — 지금 시트 자세를 이름으로 저장한다
+     *       - `Answer` — 떠 있는 권하기에 답한다. 권하기가 없으면 못 알아들은
+     *         것으로 본다
      * 인자: action — 알아들은 요청
      */
     fun handle(action: VoiceAction) {
@@ -233,6 +235,8 @@ class AppGraph(private val app: Context) {
                     else app.getString(R.string.voice_seat_unreadable),
                 )
             }
+            // → 로직 이동: RoutineRunner.answer(), AppGraph.notUnderstood()
+            is VoiceAction.Answer -> if (!runner.answer(action.yes)) notUnderstood()
         }
     }
 
