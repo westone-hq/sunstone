@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.westone.sunstone.routines.understand.PhraseMatcher
 import com.westone.sunstone.graph
 import com.westone.sunstone.routines.engine.Source
 import com.westone.sunstone.routines.model.Door
@@ -125,16 +124,12 @@ class DemoReceiver : BroadcastReceiver() {
             }
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
-             * 수정: 2026-11-09 18:49:00 · 박건준
+             * 수정: 2026-11-11 16:02:00 · 박희정
              * 함수: say
-             * 목적: 말 한마디를 음성 인식 대신 넣는다. 못 알아들으면 그렇다고
-             *       말한다.
+             * 목적: 말 한마디를 음성 인식 대신 넣는다. 화면 대화 기록에도 남고,
+             *       못 알아들으면 그렇다고 말한다.
              */
-            "say" -> {
-                val action = PhraseMatcher.match(arg, Source.DEMO) // 알아들은 요청, 못 알아들으면 null
-                // → 로직 이동: AppGraph.handle(), AppGraph.notUnderstood()
-                if (action != null) g.handle(action) else g.notUnderstood()
-            }
+            "say" -> g.hear(arg, Source.DEMO) // → 로직 이동: AppGraph.hear()
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
              * 수정: 2026-11-09 18:49:00 · 박건준

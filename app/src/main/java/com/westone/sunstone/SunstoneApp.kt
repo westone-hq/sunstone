@@ -34,7 +34,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import com.westone.sunstone.routines.engine.Source
+import com.westone.sunstone.routines.port.Speaker
+import com.westone.sunstone.routines.understand.PhraseMatcher
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -71,6 +76,15 @@ class SunstoneApp : Application() {
  * 목적: 화면·수신기에서 조립부를 꺼낸다.
  */
 val Context.graph: AppGraph get() = (applicationContext as SunstoneApp).graph
+
+/**
+ * 작성: 2026-11-11 16:02:00 · 박희정
+ * 클래스: ChatLine
+ * 목적: 대화 기록 한 줄. 화면이 말풍선처럼 보여준다.
+ * 인자: fromDriver — 운전자가 한 말이면 true, Sunstone이 한 말이면 false
+ *       text — 말
+ */
+data class ChatLine(val fromDriver: Boolean, val text: String)
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
@@ -120,6 +134,14 @@ class AppGraph(private val app: Context) {
          *       있어 다시 켜지 못했다(`mAllowStartForeground false`)
          */
         const val AWAKE_GRACE_MS = 15_000L
+
+        /**
+         * 작성: 2026-11-11 16:02:00 · 박희정
+         * 변수: CHAT_KEEP
+         * 목적: 대화 기록에 남길 최근 줄 수.
+         * 근거: 미정 — 시나리오 하나(10줄 안팎)가 다 보이게 넉넉히 잡았다
+         */
+        const val CHAT_KEEP = 30
     }
 
     /** 앱이 살아 있는 동안 도는 작업 범위. 화면 스레드에서 돈다 */
@@ -142,8 +164,20 @@ class AppGraph(private val app: Context) {
     /** 루틴이 쓰는 차. Pleos, 데모 가짜 차, 연결 실패 때의 가짜 차 순서로 고른다 */
     val car: CarPort = pleos ?: fake ?: FakeCar()
 
-    /** 음성 안내 */
-    val speaker = AndroidSpeaker(app)
+    /** 음성 안내(TTS) */
+    private val voice = AndroidSpeaker(app)
+
+    /** 대화 기록. 운전자 말과 Sunstone 말을 차례로 쌓고, 화면이 보여준다. 최근 `CHAT_KEEP`줄만 둔다 */
+    private val chatLines = MutableStateFlow<List<ChatLine>>(emptyList())
+
+    /** 화면이 보는 대화 기록(값이 바뀌면 알려주는 상태) */
+    val chat: StateFlow<List<ChatLine>> = chatLines
+
+    /** 말하기. 대화 기록에 남기고 음성으로 말한다. 루틴·길안내 대화가 모두 이것으로 말한다 */
+    val speaker = Speaker { text ->
+        addChat(ChatLine(fromDriver = false, text = text))
+        voice.say(text) // → 로직 이동: AndroidSpeaker.say()
+    }
 
     /** 사람별 시트 자세 저장소 */
     val profiles = PrefsSeatProfiles(app)
@@ -275,12 +309,39 @@ class AppGraph(private val app: Context) {
     }
 
     /**
+     * 작성: 2026-11-11 16:02:00 · 박희정
+     * 함수: hear
+     * 목적: 운전자가 한 말 한마디를 받는다. 대화 기록에 남기고, 알아들으면
+     *       `handle()`로, 못 알아들으면 그렇다고 말한다. 화면 입력칸과 데모
+     *       `say`(talk.ps1)가 함께 쓴다.
+     * 인자: text — 운전자가 한 말
+     *       source — 어디서 들어온 말인지(화면, 데모)
+     */
+    fun hear(text: String, source: Source) {
+        val said = text.trim() // 앞뒤 빈칸을 뺀 말
+        if (said.isEmpty()) return
+        addChat(ChatLine(fromDriver = true, text = said))
+        val action = PhraseMatcher.match(said, source) // 알아들은 요청, 못 알아들으면 null
+        // → 로직 이동: AppGraph.handle(), AppGraph.notUnderstood()
+        if (action != null) handle(action) else notUnderstood()
+    }
+
+    /**
      * 작성: 2026-11-09 19:11:42 · 박건준
+     * 수정: 2026-11-11 16:02:00 · 박희정
      * 함수: notUnderstood
-     * 목적: 말을 알아듣지 못했다고 말한다. 화면 입력칸과 데모 `say`가 함께
+     * 목적: 말을 알아듣지 못했다고 말한다. `hear()`와 대답할 것이 없는 대답이
      *       쓴다.
      */
-    fun notUnderstood() = speaker.say(app.getString(R.string.voice_not_understood)) // → 로직 이동: Speaker.say()
+    private fun notUnderstood() = speaker.say(app.getString(R.string.voice_not_understood)) // → 로직 이동: Speaker.say()
+
+    /**
+     * 작성: 2026-11-11 16:02:00 · 박희정
+     * 함수: addChat
+     * 목적: 대화 기록에 한 줄을 더하고 최근 `CHAT_KEEP`줄만 남긴다.
+     * 인자: line — 더할 줄
+     */
+    private fun addChat(line: ChatLine) = chatLines.update { (it + line).takeLast(CHAT_KEEP) }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
