@@ -54,6 +54,16 @@ class RoutineRunner(
     private val clock: () -> Long = System::currentTimeMillis,
     private val suggestCooldownMs: Long = 10 * 60_000L,
 ) {
+    private companion object {
+        /**
+         * 작성: 2026-11-11 14:28:46 · 박희정
+         * 변수: DECLINED
+         * 목적: 권하기를 거절했을 때 하는 말.
+         * 근거: 미정 — Tab 1 대사집에 거절 문장이 없어 짧게 정했다
+         */
+        const val DECLINED = "알겠어요."
+    }
+
     private val routines = routines.associateBy { it.id }
     private val mutex = Mutex()
     private val active = mutableMapOf<RoutineId, ActiveRun>()
@@ -87,6 +97,26 @@ class RoutineRunner(
         _ui.update { it.copy(suggestion = null) }
     }
 
+    /**
+     * 작성: 2026-11-11 14:28:46 · 박희정
+     * 함수: answer
+     * 목적: 권하기에 말로 한 대답("응", "괜찮아")을 처리한다. "네"면 권한
+     *       루틴을 실행하고, "아니요"면 권하기를 지우고 알았다고 말한다.
+     * 인자: yes — 받아들이면 true, 거절이면 false
+     * 반환: 권하기가 떠 있어서 대답으로 처리했으면 true. 권하기가 없으면
+     *       아무것도 하지 않고 false(부르는 쪽이 "못 알아들었어요"로 처리)
+     */
+    fun answer(yes: Boolean): Boolean {
+        if (_ui.value.suggestion == null) return false
+        if (yes) {
+            acceptSuggestion()
+        } else {
+            dismissSuggestion()
+            say(DECLINED)
+        }
+        return true
+    }
+
     // ---------------------------------------------------------------- 실행
 
     private suspend fun run(request: RunRequest) {
@@ -109,7 +139,9 @@ class RoutineRunner(
         val run = ActiveRun(routine, start, steps, clock(), request.source)
         active[request.id] = run
         publish(run)
-        say(routine.intro)
+        val atEnd = routine.reportsAtEnd // 끝에 한 번에 말하는 루틴인지
+        if (!atEnd) say(routine.intro)
+        val outcomes = mutableListOf<StepOutcome>() // 단계마다의 결과, `Routine.report()`에 넘긴다
 
         for (i in steps.indices) {
             routine.blockedReason(car.state.value)?.let { reason ->
@@ -123,19 +155,33 @@ class RoutineRunner(
             run.mark(i, StepStatus.RUNNING)
             publish(run)
             when (val step = steps[i]) {
-                is Step.Control -> runControl(run, i, step)
+                is Step.Control -> outcomes += StepOutcome(step, runControl(run, i, step, sayFallback = !atEnd))
                 is Step.Guide -> {
                     run.mark(i, StepStatus.GUIDED)
-                    say(step.say)
+                    if (!atEnd) say(step.say)
+                    outcomes += StepOutcome(step, null)
                 }
             }
             publish(run)
         }
         run.phase = Phase.ACTIVE
         publish(run)
+        if (atEnd) routine.report(outcomes).forEach(::say) // → 로직 이동: Routine.report()
     }
 
-    private suspend fun runControl(run: ActiveRun, index: Int, step: Step.Control) {
+    /**
+     * 수정: 2026-11-11 14:28:46 · 박희정
+     * 함수: runControl
+     * 목적: 제어 단계 하나를 처리한다. 원래 값을 읽어 두고, 실행한 뒤,
+     *       실패하면 그 단계를 안내로 표시한다.
+     * 인자: run — 지금 실행 중인 루틴의 기록
+     *       index — 처리할 단계 번호 (0부터)
+     *       step — 처리할 제어 단계
+     *       sayFallback — 실패했을 때 [Step.Control.fallback]을 바로 말할지.
+     *       끝에 한 번에 말하는 루틴은 false
+     * 반환: 차에 보낸 결과. 성공하면 되돌리기 목록에 원래 값을 더한다
+     */
+    private suspend fun runControl(run: ActiveRun, index: Int, step: Step.Control, sayFallback: Boolean): ControlResult {
         val before = runCatching { car.read(step.command.target) }.getOrNull()
         val result = runCatching { car.apply(step.command) }
             .getOrElse { ControlResult.Failed(it.message ?: it.javaClass.simpleName) }
@@ -151,8 +197,9 @@ class RoutineRunner(
                 else -> null
             }
             run.mark(index, StepStatus.GUIDED, why)
-            say(step.fallback)
+            if (sayFallback) say(step.fallback)
         }
+        return result
     }
 
     // ---------------------------------------------------------------- 되돌리기
