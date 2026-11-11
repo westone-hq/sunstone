@@ -34,3 +34,12 @@ fun withTopic(word: String): String = word + if (hasFinalConsonant(word)) "은" 
  * 반환: 조사를 붙인 낱말
  */
 fun withObject(word: String): String = word + if (hasFinalConsonant(word)) "을" else "를"
+
+/**
+ * 작성: 2026-11-11 17:40:00 · 박희정
+ * 함수: withCopula
+ * 목적: 낱말에 이에요/예요를 붙인다. "현대차 기능이에요", "세차 모드예요".
+ * 인자: word — 낱말
+ * 반환: 맺음을 붙인 낱말
+ */
+fun withCopula(word: String): String = word + if (hasFinalConsonant(word)) "이에요" else "예요"

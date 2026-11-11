@@ -1,5 +1,6 @@
 package com.westone.sunstone.routines
 
+import com.westone.sunstone.routines.speech.withCopula
 import com.westone.sunstone.routines.speech.withObject
 import com.westone.sunstone.routines.speech.withTopic
 import org.junit.Assert.assertEquals
@@ -24,4 +25,9 @@ class ParticleTest {
     }
 
     @Test fun `한글이 아니면 받침 없음으로 본다`() = assertEquals("ABC는", withTopic("ABC"))
+
+    @Test fun `이에요 예요`() {
+        assertEquals("현대차 기능이에요", withCopula("현대차 기능"))
+        assertEquals("세차 모드예요", withCopula("세차 모드"))
+    }
 }

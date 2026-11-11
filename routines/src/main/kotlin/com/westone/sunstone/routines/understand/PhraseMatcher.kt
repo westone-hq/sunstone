@@ -3,6 +3,7 @@ package com.westone.sunstone.routines.understand
 import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RunRequest
 import com.westone.sunstone.routines.engine.Source
+import com.westone.sunstone.routines.knowledge.CardBook
 import com.westone.sunstone.routines.script.ScriptBook
 
 /** 말 한마디를 앱이 할 일로 바꾼 결과. */
@@ -27,6 +28,15 @@ sealed interface VoiceAction {
      * 인자: destination — 말에서 뽑은 목적지("부산 OO리조트")
      */
     data class Navigate(val destination: String) : VoiceAction
+
+    /**
+     * 작성: 2026-11-11 17:40:00 · 박희정
+     * 클래스: Ask
+     * 목적: 기능을 묻는 질문("세차 모드가 뭐야?"). 차를 바꾸지 않고 기능 카드로
+     *       답한다.
+     * 인자: cardId — 가장 잘 맞는 기능 카드 ID. 맞는 카드가 없으면 null
+     */
+    data class Ask(val cardId: String?) : VoiceAction
 }
 
 /**
@@ -57,6 +67,11 @@ object PhraseMatcher {
         undoOf(compact)?.let { return it }
 
         navigateOf(text)?.let { return it }
+
+        // 질문은 루틴 낱말보다 먼저 본다. "세차 모드가 뭐야?"가 세차 모드를 켜면 안 된다
+        if (QUESTION_WORDS.any { it in compact }) {
+            return VoiceAction.Ask(CardBook.search(text).firstOrNull()?.id) // → 로직 이동: CardBook.search()
+        }
 
         if (NO_WORDS.any { it in compact }) return VoiceAction.Answer(yes = false)
 
@@ -114,6 +129,16 @@ object PhraseMatcher {
     private val CHILD_WORDS = listOf("애태웠", "아이태웠", "애탔", "아이탔", "차일드락", "아이탑승")
     private val SEAT_WORDS = listOf("운전바꿀", "운전교대", "자세로", "시트메모리", "운전할게")
     private val GENERIC_WORDS = setOf("지금", "이", "내", "현재", "자세")
+
+    /**
+     * 작성: 2026-11-11 17:40:00 · 박희정
+     * 변수: QUESTION_WORDS
+     * 목적: 기능을 묻는 말로 보는 낱말(띄어쓰기를 뺀 꼴). 이 낱말이 있으면 차를
+     *       바꾸지 않고 기능 카드로 답한다.
+     * 근거: 인용 — Tab 1 2장 참고 문서 단계 "세차 모드가 뭐야?" 같은 질문은 카드로
+     *       답한다. 5.1 의도 분석의 질문("이거 뭐야")
+     */
+    private val QUESTION_WORDS = listOf("뭐야", "뭐예요", "뭐에요", "뭔데", "뭔가요", "무슨기능", "설명해", "어떤기능")
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
