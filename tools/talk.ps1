@@ -8,7 +8,12 @@
         /gear p|r|n|d                 기어(Virtual Console)
         /speed 30                     속도 km/h(Virtual Console)
         /fuel 18                      연료 %(데모 `fuel`)
+        /washed 36                    마지막 세차를 N일 전으로(데모 `washed`)
         /accept, /dismiss             화면의 네·아니요 버튼과 같다
+        /ready1                       시나리오 ① 준비: P단, 연료 18%, 마지막 세차
+                                      36일 전, 현재 위치 서울(강남역)
+        /move1                        시나리오 ① 이동: 서울 → 경유지 주유소(약 95초)
+        /leave1                       시나리오 ① 세차 후 출발: D·30km/h로 주유소를 떠남
         /데모명령 …                     그 밖의 데모 명령을 그대로 보낸다
       - q 를 치면 끝낸다
       켜져 있는 동안 Virtual Console 연결 신호를 1초마다 보낸다. 끊기면 내기
@@ -24,6 +29,7 @@ $sdk = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { "$env:LOCALAPPDATA\An
 $adb = "$sdk\platform-tools\adb.exe"      # adb
 $console = "http://127.0.0.1:8088"        # Virtual Console
 $gears = @{ p = "Park"; r = "Reverse"; n = "Neutral"; d = "Drive" }   # 짧은 기어 이름 → 콘솔 이름
+$seoul = @{ lat = "37.4979"; lng = "127.0276" }   # 시나리오 ① 출발점(강남역). scene-move.ps1과 같다
 
 <#
 함수: Send-Demo
@@ -37,17 +43,22 @@ function Send-Demo([string]$cmd) {
 
 <#
 함수: Send-Console
-목적: Virtual Console API를 부른다. 콘솔이 없으면 알리고 넘어간다.
+목적: Virtual Console API를 부른다. 연결 신호를 먼저 보내 차량 쪽 연결을 살린다
+      (시작 직후에는 신호 작업이 아직 돌기 전이라 바로 보내면 실패한다).
+      콘솔이 없으면 알리고 넘어간다.
 #>
 function Send-Console([string]$path) {
-    try { Invoke-RestMethod -Method Put -Uri "$console$path" | Out-Null }
+    try {
+        Invoke-RestMethod -Method Post -Uri "$console/browser/session?client=talk" | Out-Null
+        Invoke-RestMethod -Method Put -Uri "$console$path" | Out-Null
+    }
     catch { Write-Host "  (콘솔에 보내지 못함: $path)" -ForegroundColor DarkYellow }
 }
 
 <#
 함수: Show-Replies
 목적: 보낸 뒤 앱이 한 말을 기다렸다 보여 준다. 마지막 말 뒤 2초 동안 더 없으면
-      끝낸다. 아무 말도 없으면 최대 15초 기다린다(세차 모드 실행에 10초 안팎 걸린다).
+      끝낸다. 아무 말도 없으면 최대 25초 기다린다(경로 시작·세차 모드 실행에 10초 안팎 걸린다).
 #>
 function Show-Replies {
     $shown = 0                                     # 이미 보여 준 줄 수
@@ -63,7 +74,7 @@ function Show-Replies {
         $shown = $lines.Count
         $quiet = ((Get-Date) - $quietSince).TotalSeconds   # 새 말 없이 지난 초
         $waited = ((Get-Date) - $start).TotalSeconds       # 기다린 초
-        if (($shown -gt 0 -and $quiet -ge 2) -or $waited -ge 15) { break }
+        if (($shown -gt 0 -and $quiet -ge 2) -or $waited -ge 25) { break }
     }
 }
 
@@ -91,6 +102,20 @@ try {
                     if ($g) { Send-Console "/vehicle/gear?gear=$g" } else { Write-Host "  기어는 p r n d 중 하나" }
                 }
                 "speed" { Send-Console "/vehicle/controls?speed=$arg" }
+                "ready1" {
+                    Send-Console "/vehicle/controls?speed=0"
+                    Send-Console "/vehicle/gear?gear=Park"
+                    Send-Demo "fuel 18"
+                    Send-Demo "washed 36"
+                    & $adb emu geo fix $seoul.lng $seoul.lat | Out-Null
+                    Write-Host "  준비: P단, 연료 18%, 마지막 세차 36일 전, 서울(강남역)" -ForegroundColor Gray
+                }
+                "move1" { & powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "scene-move.ps1") -Scenario 1 }
+                "leave1" {
+                    Send-Console "/vehicle/gear?gear=Drive"
+                    Send-Console "/vehicle/controls?speed=30"
+                    & $adb emu geo fix $seoul.lng $seoul.lat | Out-Null
+                }
                 default { Send-Demo $text.Substring(1) }
             }
         } else {
