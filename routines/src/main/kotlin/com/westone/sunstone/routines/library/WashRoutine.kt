@@ -1,5 +1,6 @@
 package com.westone.sunstone.routines.library
 
+import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.Routine
 import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RunRequest
@@ -13,26 +14,37 @@ import com.westone.sunstone.routines.model.WiperMode
 import com.westone.sunstone.routines.port.CarPort
 import com.westone.sunstone.routines.port.Command
 import com.westone.sunstone.routines.port.ControlResult
+import com.westone.sunstone.routines.port.MemoryPort
 import com.westone.sunstone.routines.port.Target
 import com.westone.sunstone.routines.speech.WashLines
 import com.westone.sunstone.routines.speech.WashPart
 import com.westone.sunstone.routines.speech.withObject
+import java.time.LocalDate
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-11 14:28:46 · 박희정
+ * 수정: 2026-11-11 15:14:38 · 박희정
  * 클래스: WashRoutine
  * 목적: 세차 모드. 현대 세차 모드가 하는 일(창문·선루프 닫기, 와이퍼 끄기,
  *       내기 순환, 문 잠금, 미러 접기)을 앱이 한 단계씩 직접 한다.
- *       - 주유소·세차장에 도착해 멈추면 먼저 권한다
- *       - 다 하고 나서 한 번에 말한다(Tab 1 시나리오 ① #4)
+ *       - 세차장에 도착해 멈추면 먼저 권한다. 주유소는 길안내 대화가 세차를
+ *         예약했을 때만 권한다
+ *       - 다 하고 나서 한 번에 말한다(Tab 1 시나리오 ① #4). 하나라도 했으면
+ *         오늘을 마지막 세차일로 남기고 예약을 지운다
  *       - 미러 접기와 N 유지는 API가 없어서 말로 안내한다. N 유지는 자동
  *         세차기가 있는 세차장에서만 말한다
  *       - 세차장·주유소를 벗어나 달리기 시작하면 와이퍼·내기 순환을
  *         원래대로 돌린다. 창문은 다시 열지 않고 문 잠금은 풀지 않는다
+ * 인자: booking — 길안내 대화가 한 세차 예약. `TripDialog`와 같은 것을 넘긴다
+ *       memory — 마지막 세차일을 남긴다
+ *       today — 오늘 날짜. 테스트에서 고정한다
  * 근거: 인용 — Tab 1 4.3 시나리오 ① #3~#5
  */
-class WashRoutine : Routine {
+class WashRoutine(
+    private val booking: WashBooking,
+    private val memory: MemoryPort,
+    private val today: () -> LocalDate,
+) : Routine {
 
     private companion object {
         /**
@@ -106,10 +118,12 @@ class WashRoutine : Routine {
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
+     * 수정: 2026-11-11 15:14:38 · 박희정
      * 함수: report
      * 목적: 다 하고 나서 한 번에 할 말을 만든다. 대상마다 단계 결과를 모아
      *       모두 됐으면 "했어요" 쪽, 하나라도 안 됐으면 "직접 해 주세요" 쪽에
      *       넣는다. 이 차에 없는 선루프(지원 안 함)는 말하지 않는다.
+     *       앱이 하나라도 했으면 세차한 것으로 보고 오늘을 남기고 예약을 지운다.
      * 인자: outcomes — 단계마다의 결과
      * 반환: 말할 문장 하나
      * 근거: 측정 — Pleos 에뮬레이터에는 선루프가 없어 `Unsupported`가 온다
@@ -136,23 +150,27 @@ class WashRoutine : Routine {
                 else -> manual += part
             }
         }
+        if (done.isNotEmpty()) {
+            memory.recordWash(today()) // → 로직 이동: MemoryPort.recordWash()
+            booking.clear()
+        }
         return listOf(WashLines.report(done, manual, extra)).filter { it.isNotEmpty() }
     }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-11 14:28:46 · 박희정
+     * 수정: 2026-11-11 15:14:38 · 박희정
      * 함수: suggestion
-     * 목적: 주유소나 세차장에 도착해 P·N으로 멈추면 세차 모드를 권한다.
-     *       같은 장소에서 이미 멈춰 있던 상태면 다시 권하지 않는다.
+     * 목적: 세차장이나 세차를 예약한 주유소에 도착해 P·N으로 멈추면 세차
+     *       모드를 권한다. 같은 장소에서 이미 멈춰 있던 상태면 다시 권하지 않는다.
      * 인자: before — 바뀌기 전 차 상태
      *       now — 지금 차 상태
      * 반환: 권할 말. 권하지 않으면 null
-     * 근거: 인용 — Tab 1 4.3 시나리오 ① #3
+     * 근거: 인용 — Tab 1 4.3 시나리오 ① #3, 5.1 장소에 루틴 예약 → 도착 시 권하기
      */
     override fun suggestion(before: CarState, now: CarState): String? {
         val line = when (now.place) { // 장소별 권하는 말
-            Place.GAS_STATION -> WashLines.ARRIVED_GAS_STATION
+            Place.GAS_STATION -> if (booking.atGasStation) WashLines.ARRIVED_GAS_STATION else return null
             Place.CAR_WASH -> WashLines.ARRIVED_CAR_WASH
             else -> return null
         }

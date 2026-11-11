@@ -17,7 +17,10 @@ import com.westone.sunstone.routines.model.Seat
 import com.westone.sunstone.routines.model.SeatAxis
 import com.westone.sunstone.routines.model.Window
 import com.westone.sunstone.routines.model.WiperMode
+import com.westone.sunstone.routines.dialog.WashBooking
+import com.westone.sunstone.routines.port.InMemoryMemory
 import com.westone.sunstone.routines.port.InMemorySeatProfiles
+import java.time.LocalDate
 import com.westone.sunstone.routines.port.Target
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -38,7 +41,11 @@ class RoutineRunnerTest {
 
     private fun TestScope.runner(car: FakeCar) = RoutineRunner(
         car = car,
-        routines = listOf(WashRoutine(), ChildLockRoutine(), seatRoutine),
+        routines = listOf(
+            WashRoutine(WashBooking(), InMemoryMemory(), { LocalDate.of(2026, 11, 11) }),
+            ChildLockRoutine(),
+            seatRoutine,
+        ),
         speaker = { said += it },
         scope = backgroundScope,
         clock = { testScheduler.currentTime },

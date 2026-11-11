@@ -12,7 +12,10 @@ import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.routines.model.Window
 import com.westone.sunstone.routines.model.WiperMode
+import com.westone.sunstone.routines.dialog.WashBooking
+import com.westone.sunstone.routines.port.InMemoryMemory
 import com.westone.sunstone.routines.port.InMemorySeatProfiles
+import java.time.LocalDate
 import com.westone.sunstone.routines.port.Target
 import com.westone.sunstone.routines.understand.PhraseMatcher
 import com.westone.sunstone.routines.understand.VoiceAction
@@ -37,8 +40,23 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class WashScenarioTest {
 
+    private companion object {
+        /**
+         * 작성: 2026-11-11 15:14:38 · 박희정
+         * 변수: TODAY
+         * 목적: 테스트의 오늘 날짜. 마지막 세차일 기록을 확인할 때 쓴다.
+         */
+        val TODAY: LocalDate = LocalDate.of(2026, 11, 11)
+    }
+
     /** 앱이 한 말, 말한 순서대로. 장면마다 비우고 그 장면 말만 본다 */
     private val said = mutableListOf<String>()
+
+    /** 세차 예약. 시나리오 ①은 #2에서 길안내 대화가 예약한 상태로 #3을 시작한다 */
+    private val booking = WashBooking().apply { reserve() }
+
+    /** 마지막 세차일 기억 */
+    private val memory = InMemoryMemory(lastWash = TODAY.minusDays(36))
 
     /** 선루프 두 개. Pleos 에뮬레이터 차처럼 지원하지 않게 둔다 */
     private val roofs = setOf(Target.WindowPosition(Window.ROOF_1), Target.WindowPosition(Window.ROOF_2))
@@ -55,7 +73,11 @@ class WashScenarioTest {
      */
     private fun TestScope.runner(car: FakeCar) = RoutineRunner(
         car = car,
-        routines = listOf(WashRoutine(), ChildLockRoutine(), SeatMemoryRoutine(InMemorySeatProfiles())),
+        routines = listOf(
+            WashRoutine(booking, memory, { TODAY }),
+            ChildLockRoutine(),
+            SeatMemoryRoutine(InMemorySeatProfiles()),
+        ),
         speaker = { said += it },
         scope = backgroundScope,
         clock = { testScheduler.currentTime },
@@ -104,6 +126,8 @@ class WashScenarioTest {
         assertEquals(WiperMode.OFF, car.value(Target.Wiper))
         assertEquals(true, car.value(Target.Recirculation))
         assertEquals(true, car.value(Target.DoorLock))
+        assertEquals(TODAY, memory.lastWashDate()) // 오늘 세차한 것으로 남긴다
+        assertFalse(booking.atGasStation) // 예약은 썼으니 지운다
 
         said.clear()
         car.update { it.copy(gear = Gear.DRIVE) }; runCurrent()
@@ -113,6 +137,24 @@ class WashScenarioTest {
         assertEquals(false, car.value(Target.Recirculation))
         assertEquals(0, car.value(Target.WindowPosition(Window.FRONT_LEFT))) // 창문은 다시 열지 않는다
         assertEquals(true, car.value(Target.DoorLock)) // 문 잠금은 풀지 않는다
+    }
+
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: 세차를 예약하지 않은 주유소에서는 권하지 않는다
+     * 목적: 주유만 하러 들른 주유소에서 매번 세차를 묻지 않는지 본다.
+     */
+    @Test
+    fun `세차를 예약하지 않은 주유소에서는 권하지 않는다`() = runTest {
+        booking.clear()
+        val car = FakeCar(CarState(gear = Gear.DRIVE, speedKmh = 20f))
+        val runner = runner(car)
+        runCurrent()
+
+        car.update { it.copy(gear = Gear.PARK, speedKmh = 0f, place = Place.GAS_STATION) }; runCurrent()
+
+        assertNull(runner.ui.value.suggestion)
+        assertTrue(said.isEmpty())
     }
 
     /**

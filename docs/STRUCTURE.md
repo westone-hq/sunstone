@@ -39,13 +39,13 @@ sunstone/
 ├─ routines/               ① 기능 구현 ─ 박희정
 │  └─ src/main/kotlin/com/westone/sunstone/routines/
 │     ├─ model/            차 상태와 기본 값(기어·창문·문·좌석·장소)
-│     ├─ port/             창구: CarPort, Speaker, SeatProfiles
+│     ├─ port/             창구: CarPort, Speaker, SeatProfiles, NaviPort, InfoPort, MemoryPort
 │     ├─ engine/           루틴 정의 틀, 실행 엔진(저장→실행→확인→되돌리기→권하기)
 │     ├─ library/          루틴들 (초안: 세차·차일드락·시트 메모리)
 │     ├─ understand/       말 알아듣기 (말 → 할 일, "응"·"괜찮아" 대답)
 │     ├─ speech/           문장 틀 (루틴이 하는 말, 조사 붙이기)
-│     └─ fake/             가짜 차 (테스트·시연)
-│     (예정) dialog/       대화 흐름: 길안내 → 주유 제안 → 세차 추천 → 도착 시 권하기
+│     ├─ dialog/           대화 흐름: 길안내 → 주유 제안 → 주유소 경유지 → 세차 예약(TripDialog, WashBooking)
+│     └─ fake/             가짜 차·내비·바깥 정보 (테스트·시연)
 │     (예정) knowledge/    AI 참고 문서 읽기·찾기
 │     (예정) script/       대사집 실행기
 │
@@ -55,13 +55,14 @@ sunstone/
       │  ├─ car/           PleosCarPort(차량 SDK·제어), Callbacks(SDK 콜백 기다리기),
       │  │                 AaosSpeedSource(속도), AaosEnergySource(주행 가능 거리·배터리·연료 종류),
       │  │                 FuelState(연료·배터리·차 종류 값 묶음)
-      │  ├─ connect/       GleoEntry, AndroidSpeaker, PrefsSeatProfiles,
+      │  ├─ connect/       GleoEntry, AndroidSpeaker, PrefsSeatProfiles, PrefsMemory(마지막 세차일),
       │  │                 KeepAwakeService(길안내·루틴 중 앱을 깨어 있게 하는 알림)
       │  ├─ navi/          PleosNavi(내비 경로·경유지·남은 거리·도착), Proximity(근접 알림),
-      │  │                 PlaceWatcher(시연 장소 도착 → 장소), NaviModels(좌표·경로 값)
+      │  │                 PlaceWatcher(시연 장소 도착 → 장소), NaviModels(좌표·경로 값),
+      │  │                 PleosNaviPort(기능 쪽 내비 창구를 PleosNavi로 채움)
+      │  ├─ info/          FixedInfo(주유소·날씨 고정 응답). 바깥 API(카카오·오피넷·기상청·에어코리아)는 예정
       │  ├─ ui/            MainActivity, SunstoneScreen
       │  └─ SunstoneApp.kt AppGraph: 두 영역 조립, 모든 입력의 입구
-      │  (예정) info/      바깥 API(카카오·오피넷·기상청·에어코리아) + 고정 응답
       ├─ main/res/values/  strings.xml (앱 문구. 루틴 문장은 routines/)
       ├─ main/assets/      schema.json(Gleo), places.json(시연 장소 고정 목록),
       │                    (예정) 참고 문서 카드·대사집·녹음본
@@ -89,12 +90,12 @@ sunstone/
 
 | 창구 | 방향 | 지금 | 예정 |
 |---|---|---|---|
-| `CarPort` | 기능 → 차 | 상태 읽기, 값 읽기, 바꾸기 | 연료·주행 가능 거리 |
+| `CarPort` | 기능 → 차 | 상태 읽기(연료 % 포함), 값 읽기, 바꾸기 | 주행 가능 거리 |
 | `Speaker` | 기능 → 사람 | 말하기 | |
 | `SeatProfiles` | 기능 → 저장소 | 자세 저장·조회 | |
-| 내비 창구 | 기능 → 내비 | | 목적지 찾기, 경로, 경유지, 남은 거리·통행료, 도착 알림 |
-| 정보 창구 | 기능 → 바깥 | | 주변 주유소(가격·세차), 날씨(7일 비), 미세먼지 |
-| 기억 창구 | 기능 → 저장소 | | 방문 기록, 마지막 세차일 |
+| `NaviPort` | 기능 → 내비 | 목적지 찾기(시연 장소 목록), 경로 시작, 경유지 1개, 통행료 | 남은 거리, 도착 알림 |
+| `InfoPort` | 기능 → 바깥 | 주변 주유소(가격·세차), 날씨(N일 비). 지금은 고정 응답 | 실제 API, 미세먼지 |
+| `MemoryPort` | 기능 → 저장소 | 마지막 세차일 | 방문 기록 |
 
 - 창구는 `routines/.../port/`에 두고, 구현은 `app/`이 한다.
 - 창구 함수를 더하거나 바꾸려면 GitHub 이슈로 제안 → 상대 확인 → 박건준 결정.

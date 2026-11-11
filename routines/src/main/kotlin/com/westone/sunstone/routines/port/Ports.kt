@@ -1,6 +1,10 @@
 package com.westone.sunstone.routines.port
 
 import com.westone.sunstone.routines.model.CarState
+import com.westone.sunstone.routines.model.GasStation
+import com.westone.sunstone.routines.model.PlaceHit
+import com.westone.sunstone.routines.model.RouteSummary
+import java.time.LocalDate
 import com.westone.sunstone.routines.model.Seat
 import com.westone.sunstone.routines.model.SeatAxis
 import com.westone.sunstone.routines.model.Window
@@ -90,6 +94,61 @@ data class SeatProfile(
     val positions: Map<SeatAxis, Int>,
     val memorySlot: Int? = null,
 )
+
+/**
+ * 작성: 2026-11-11 15:14:38 · 박희정
+ * 클래스: NaviPort
+ * 목적: 기능 → 내비 창구. 목적지를 찾고 경로·경유지를 정한다. Pleos 구현은
+ *       app 모듈의 `PleosNaviPort`, 테스트는 `FakeNavi`.
+ */
+interface NaviPort {
+    /** 이름으로 장소를 찾는다. 못 찾으면 null */
+    suspend fun findPlace(query: String): PlaceHit?
+
+    /** 목적지로 경로를 시작한다. 실패하면 null */
+    suspend fun startRoute(destination: PlaceHit): RouteSummary?
+
+    /** 지금 경로에 첫 번째 경유지를 넣는다. 실패하면 null */
+    suspend fun addWaypoint(place: PlaceHit): RouteSummary?
+}
+
+/**
+ * 작성: 2026-11-11 15:14:38 · 박희정
+ * 클래스: InfoPort
+ * 목적: 기능 → 바깥 정보 창구(주유소, 날씨). 키가 없으면 앱이 고정 응답으로
+ *       채운다.
+ */
+interface InfoPort {
+    /** 지금 위치 근처 주유소들. 못 찾으면 빈 목록 */
+    suspend fun gasStations(): List<GasStation>
+
+    /** 앞으로 [days]일 안에 비 소식이 있으면 true, 없으면 false, 모르면 null */
+    suspend fun rainWithin(days: Int): Boolean?
+}
+
+/**
+ * 작성: 2026-11-11 15:14:38 · 박희정
+ * 클래스: MemoryPort
+ * 목적: 기능 → 기억 창구. 앱을 다시 켜도 남아야 하는 사용 기록을 둔다.
+ */
+interface MemoryPort {
+    /** 마지막으로 세차 모드를 쓴 날. 기록이 없으면 null */
+    fun lastWashDate(): LocalDate?
+
+    /** 세차한 날을 남긴다 */
+    fun recordWash(date: LocalDate)
+}
+
+/**
+ * 작성: 2026-11-11 15:14:38 · 박희정
+ * 클래스: InMemoryMemory
+ * 목적: 메모리에만 두는 기억. 테스트와 가짜 차 시연에 쓴다.
+ * 인자: lastWash — 처음 마지막 세차일. 없으면 null
+ */
+class InMemoryMemory(private var lastWash: LocalDate? = null) : MemoryPort {
+    override fun lastWashDate() = lastWash
+    override fun recordWash(date: LocalDate) { lastWash = date }
+}
 
 class InMemorySeatProfiles : SeatProfiles {
     private val map = linkedMapOf<String, SeatProfile>()

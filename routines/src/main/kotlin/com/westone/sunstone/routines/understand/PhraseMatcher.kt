@@ -18,6 +18,14 @@ sealed interface VoiceAction {
      * 인자: yes — 받아들이면 true, 거절이면 false
      */
     data class Answer(val yes: Boolean) : VoiceAction
+
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 클래스: Navigate
+     * 목적: 길안내 요청("부산 OO리조트까지 길안내 해줘").
+     * 인자: destination — 말에서 뽑은 목적지("부산 OO리조트")
+     */
+    data class Navigate(val destination: String) : VoiceAction
 }
 
 /**
@@ -44,6 +52,8 @@ object PhraseMatcher {
 
         undoOf(compact)?.let { return it }
 
+        navigateOf(text)?.let { return it }
+
         if (NO_WORDS.any { it in compact }) return VoiceAction.Answer(yes = false)
 
         val id = when {
@@ -68,6 +78,19 @@ object PhraseMatcher {
     }
 
     /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: navigateOf
+     * 목적: 길안내 요청이면 목적지를 뽑는다. 루틴 낱말보다 먼저 봐서
+     *       "세차장까지 안내해 줘"를 세차 모드가 아닌 길안내로 본다.
+     * 인자: text — 운전자가 한 말 그대로(띄어쓰기 포함)
+     * 반환: 길안내 요청. 아니면 null
+     */
+    private fun navigateOf(text: String): VoiceAction.Navigate? {
+        val destination = NAVIGATE_PATTERNS.firstNotNullOfOrNull { it.find(text.trim())?.groupValues?.get(1) } // 목적지
+        return destination?.trim()?.takeIf { it.isNotEmpty() }?.let(VoiceAction::Navigate)
+    }
+
+    /**
      * 작성: 2026-11-11 14:28:46 · 박희정
      * 함수: isYes
      * 목적: 짧은 긍정 대답인지 본다. 대답 낱말로 시작하고 뒤에 "요", "해줘"
@@ -87,6 +110,19 @@ object PhraseMatcher {
     private val CHILD_WORDS = listOf("애태웠", "아이태웠", "애탔", "아이탔", "차일드락", "아이탑승")
     private val SEAT_WORDS = listOf("운전바꿀", "운전교대", "자세로", "시트메모리", "운전할게")
     private val GENERIC_WORDS = setOf("지금", "이", "내", "현재", "자세")
+
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 변수: NAVIGATE_PATTERNS
+     * 목적: 길안내 요청 모양. 첫 묶음이 목적지다.
+     *       - "OO까지 길안내 해줘", "OO로 안내해 줘", "OO으로 데려다 줘"
+     *       - "OO 가자", "OO까지 가 줘"
+     * 근거: 인용 — Tab 1 4.3 시나리오 ① #1 "부산 OO리조트까지 길안내 해줘"
+     */
+    private val NAVIGATE_PATTERNS = listOf(
+        Regex("""^(.+?)\s*(?:까지|으로|로)\s*(?:길\s*안내|안내|데려다|가\s*줘|가\s*자)"""),
+        Regex("""^(.+?)\s*(?:가자|가\s*줘)\s*[.!?~]*$"""),
+    )
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
