@@ -13,6 +13,7 @@ import kotlinx.coroutines.delay
 
 /**
  * 작성: 2026-11-10 14:40:00 · 박건준
+ * 수정: 2026-11-11 12:30:00 · 박건준
  * 클래스: BeltProbe
  * 목적: 벨트 값을 에뮬레이터에서 바꿀 수 있는지 잰다. 콘솔에는 좌석별 벨트
  *       칸이 없고 차 전체 경고등 `SeatBelt`(telltales)만 있어서, 그 값이
@@ -24,7 +25,9 @@ import kotlinx.coroutines.delay
  *          경고등을 켜고 끈다
  * 인자: vehicle — 초기화된 Pleos `Vehicle`. 루틴이 쓰는 것과 따로 만든다
  * 근거: 측정 — 콘솔 카탈로그 63개 중 벨트 관련은 `safety.telltales`의
- *       `SeatBelt` 하나(차량 속성 `TELLTALES` 0x21410900, area 0)
+ *       `SeatBelt` 하나(차량 속성 `TELLTALES` 0x21410900, area 0).
+ *       경고등 읽기에 쓴 `PRIVATE_CAR_SAFETY`는 2026-11-11에 뺐다. 지금
+ *       돌리면 경고등 단계는 `need Permission`으로 끝난다
  */
 internal class BeltProbe(private val vehicle: Vehicle) {
 

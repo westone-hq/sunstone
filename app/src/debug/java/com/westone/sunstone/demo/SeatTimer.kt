@@ -12,17 +12,25 @@ import kotlinx.coroutines.delay
 
 /**
  * 작성: 2026-11-09 18:53:00 · 박건준
+ * 수정: 2026-11-11 11:50:00 · 박건준
  * 클래스: SeatTimer
- * 목적: 운전석 시트 축마다 SDK로 FORWARD·BACKWARD를 보내고, 콘솔 값이
+ * 목적: 운전석(또는 조수석) 시트 축마다 SDK로 FORWARD·BACKWARD를 보내고, 콘솔 값이
  *       0→100, 100→0에 닿는 시간을 잰다. 시트 위치를 앱이 읽을 수 없어서,
  *       "몇 초 움직이면 몇만큼 가는지"로 위치를 맞출 수 있을지 보려는 실측이라
  *       debug 빌드에만 있다. 결과는 `seattime,축,방향,회차,밀리초` 줄과 축·
  *       방향별 평균 줄로 logcat에 남긴다.
  * 인자: vehicle — 초기화된 Pleos `Vehicle`. 루틴이 쓰는 것과 따로 만든다
+ *       passenger — true면 조수석, false면 운전석
  * 근거: 측정 — SDK와 AAOS 속성 모두 시트 위치를 읽지 못했다
  *       (docs/api-spike.md 시트 위치 읽기 행)
  */
-internal class SeatTimer(private val vehicle: Vehicle) {
+internal class SeatTimer(private val vehicle: Vehicle, passenger: Boolean = false) {
+
+    /** 잴 좌석 area */
+    private val area = SeatArea(if (passenger) SeatValue.ROW_1_RIGHT else SeatValue.ROW_1_LEFT)
+
+    /** 콘솔 좌석 이름. 결과 줄에도 쓴다 */
+    private val seat = if (passenger) "passenger" else "driver"
 
     private companion object {
         /**
@@ -61,13 +69,6 @@ internal class SeatTimer(private val vehicle: Vehicle) {
 
         /**
          * 작성: 2026-11-09 18:53:00 · 박건준
-         * 변수: DRIVER
-         * 목적: 운전석 area.
-         */
-        val DRIVER = SeatArea(SeatValue.ROW_1_LEFT)
-
-        /**
-         * 작성: 2026-11-09 18:53:00 · 박건준
          * 변수: AXES
          * 목적: 잴 축과 콘솔 축 이름. 콘솔에 없는 축(쿠션 길이, 머리받이)은
          *       잴 수 없어 뺀다.
@@ -92,7 +93,7 @@ internal class SeatTimer(private val vehicle: Vehicle) {
     suspend fun run(): Int {
         var count = 0 // 잰 횟수
         AXES.forEach { (axis, control) ->
-            VirtualConsole.setSeat(control, "driver", 0)
+            VirtualConsole.setSeat(control, seat, 0)
             delay(POLL_MS)
             val up = mutableListOf<Long>() // 0→100 걸린 시간(밀리초), 실패한 회차는 빠진다
             val down = mutableListOf<Long>() // 100→0 걸린 시간(밀리초)
@@ -103,9 +104,9 @@ internal class SeatTimer(private val vehicle: Vehicle) {
             }
             summary(axis, "0→100", up)
             summary(axis, "100→0", down)
-            VirtualConsole.setSeat(control, "driver", 0)
+            VirtualConsole.setSeat(control, seat, 0)
         }
-        Log.i(TAG, "seattime 끝: ${count}회")
+        Log.i(TAG, "seattime 끝: $seat ${count}회")
         return count
     }
 
@@ -122,7 +123,7 @@ internal class SeatTimer(private val vehicle: Vehicle) {
      */
     private suspend fun time(axis: SeatAxis, control: String, direction: MoveControl, round: Int): Long? {
         val goal = if (direction == MoveControl.FORWARD) 100 else 0 // 닿아야 할 콘솔 값
-        val path = "seat.positions.$control.driver" // 콘솔 값 경로
+        val path = "seat.positions.$control.$seat" // 콘솔 값 경로
         val started = SystemClock.elapsedRealtime() // 움직이기 시작한 시각(밀리초)
         var took: Long? = null // 걸린 시간(밀리초), 못 닿으면 null
         try {
@@ -137,7 +138,7 @@ internal class SeatTimer(private val vehicle: Vehicle) {
         } finally {
             runCatching { move(axis, MoveControl.STOP) }
         }
-        Log.i(TAG, "seattime,$axis,${if (goal == 100) "0→100" else "100→0"},$round,${took ?: "제한 시간 넘김"}")
+        Log.i(TAG, "seattime,$seat,$axis,${if (goal == 100) "0→100" else "100→0"},$round,${took ?: "제한 시간 넘김"}")
         return took
     }
 
@@ -151,7 +152,7 @@ internal class SeatTimer(private val vehicle: Vehicle) {
      */
     private fun summary(axis: SeatAxis, label: String, times: List<Long>) {
         val avg = if (times.isEmpty()) "없음" else times.average().toLong().toString() // 평균(밀리초)
-        Log.i(TAG, "seattime평균,$axis,$label,${times.size}회,$avg,${times.minOrNull()},${times.maxOrNull()}")
+        Log.i(TAG, "seattime평균,$seat,$axis,$label,${times.size}회,$avg,${times.minOrNull()},${times.maxOrNull()}")
     }
 
     /**
@@ -167,12 +168,12 @@ internal class SeatTimer(private val vehicle: Vehicle) {
         val seat = vehicle.getSeat() // 시트 API
         val done: (SeatArea, MoveControl?) -> Unit = { _, _ -> ok(Unit) } // 차가 받았다는 콜백
         when (axis) {
-            SeatAxis.FORE_AFT -> seat.moveSeatForeAft(DRIVER, control, done, fail)
-            SeatAxis.HEIGHT -> seat.moveSeatHeight(DRIVER, control, done, fail)
-            SeatAxis.BACKREST_ANGLE -> seat.moveSeatBackrestAngle(DRIVER, control, done, fail)
-            SeatAxis.TILT -> seat.moveSeatTilt(DRIVER, control, done, fail)
-            SeatAxis.DEPTH -> seat.moveSeatDepth(DRIVER, control, done, fail)
-            SeatAxis.HEADREST_HEIGHT -> seat.moveSeatHeadrestHeight(DRIVER, control, done, fail)
+            SeatAxis.FORE_AFT -> seat.moveSeatForeAft(area, control, done, fail)
+            SeatAxis.HEIGHT -> seat.moveSeatHeight(area, control, done, fail)
+            SeatAxis.BACKREST_ANGLE -> seat.moveSeatBackrestAngle(area, control, done, fail)
+            SeatAxis.TILT -> seat.moveSeatTilt(area, control, done, fail)
+            SeatAxis.DEPTH -> seat.moveSeatDepth(area, control, done, fail)
+            SeatAxis.HEADREST_HEIGHT -> seat.moveSeatHeadrestHeight(area, control, done, fail)
         }
     }
 }
