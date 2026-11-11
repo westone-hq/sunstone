@@ -10,7 +10,9 @@ import com.westone.sunstone.connect.AndroidSpeaker
 import com.westone.sunstone.connect.KeepAwakeService
 import com.westone.sunstone.connect.PrefsMemory
 import com.westone.sunstone.connect.PrefsSeatProfiles
+import com.westone.sunstone.demo.installDemo
 import com.westone.sunstone.info.FixedInfo
+import com.westone.sunstone.ui.SceneControls
 import com.westone.sunstone.navi.PleosNaviPort
 import com.westone.sunstone.routines.dialog.TripDialog
 import com.westone.sunstone.routines.dialog.WashBooking
@@ -59,13 +61,15 @@ class SunstoneApp : Application() {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-11 16:42:25 · 박희정
      * 함수: onCreate
-     * 목적: 조립부를 만든다.
+     * 목적: 조립부를 만들고, debug 빌드면 시연 모드를 붙인다(출시 빌드의
+     *       `installDemo()`는 아무것도 하지 않는다).
      */
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph(this)
+        installDemo(graph) // → 로직 이동: installDemo()
     }
 }
 
@@ -172,6 +176,9 @@ class AppGraph(private val app: Context) {
 
     /** 화면이 보는 대화 기록(값이 바뀌면 알려주는 상태) */
     val chat: StateFlow<List<ChatLine>> = chatLines
+
+    /** 시연 모드 장면 실행기. debug 빌드의 `installDemo()`가 앱 시작 때 넣고, 출시 빌드에서는 null */
+    var scenes: SceneControls? = null
 
     /** 말하기. 대화 기록에 남기고 음성으로 말한다. 루틴·길안내 대화가 모두 이것으로 말한다 */
     val speaker = Speaker { text ->
@@ -342,6 +349,22 @@ class AppGraph(private val app: Context) {
      * 인자: line — 더할 줄
      */
     private fun addChat(line: ChatLine) = chatLines.update { (it + line).takeLast(CHAT_KEEP) }
+
+    /**
+     * 작성: 2026-11-11 16:42:25 · 박희정
+     * 함수: restartTrip
+     * 목적: 시연을 처음부터 다시 할 수 있게 지운다.
+     *       1. 켜진 루틴을 되돌린다(차 값을 원래대로)
+     *       2. 길안내 중이면 취소한다. 안내가 없을 때 취소를 보내면 지도 앱이
+     *          앞으로 나와 앱 화면을 가린다
+     *       3. 대화 기록과 권하기 기록(10분에 한 번)을 지운다
+     */
+    suspend fun restartTrip() {
+        runner.activeIds().forEach { runner.undo(it).join() } // → 로직 이동: RoutineRunner.undo()
+        if (navi?.routing?.value == true) navi.cancelRoute() // → 로직 이동: PleosNavi.cancelRoute()
+        runner.forgetSuggestions() // → 로직 이동: RoutineRunner.forgetSuggestions()
+        chatLines.value = emptyList()
+    }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준

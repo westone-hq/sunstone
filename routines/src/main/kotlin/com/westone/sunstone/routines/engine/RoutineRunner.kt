@@ -98,6 +98,25 @@ class RoutineRunner(
     }
 
     /**
+     * 작성: 2026-11-11 16:42:25 · 박희정
+     * 함수: forgetSuggestions
+     * 목적: 권하기 기록(같은 루틴 10분에 한 번)과 떠 있는 권하기를 지운다.
+     *       새 주행·시연 장면을 처음부터 다시 시작할 때 부른다.
+     */
+    fun forgetSuggestions() {
+        lastSuggestedAt.clear()
+        _ui.update { it.copy(suggestion = null) }
+    }
+
+    /**
+     * 작성: 2026-11-11 16:42:25 · 박희정
+     * 함수: activeIds
+     * 목적: 지금 켜져 있는(되돌릴 수 있는) 루틴들.
+     * 반환: 루틴 ID 목록
+     */
+    fun activeIds(): List<RoutineId> = _ui.value.runs.values.filter { it.phase == Phase.ACTIVE }.map { it.id }
+
+    /**
      * 작성: 2026-11-11 14:28:46 · 박희정
      * 함수: answer
      * 목적: 권하기에 말로 한 대답("응", "괜찮아")을 처리한다. "네"면 권한

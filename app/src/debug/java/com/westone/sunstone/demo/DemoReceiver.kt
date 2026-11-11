@@ -112,6 +112,24 @@ class DemoReceiver : BroadcastReceiver() {
              */
             "fuel" -> g.overrideFuel(arg.toIntOrNull()?.coerceIn(0, 100)) // → 로직 이동: AppGraph.overrideFuel()
             /**
+             * 작성: 2026-11-11 16:42:25 · 박희정
+             * 함수: scene
+             * 목적: 대사집 장면으로 건너뛰거나 되돌린다(Tab 1 4.2 실행 방식 2).
+             *       - `scene S3` — 처음부터 S3 앞까지 대사를 넣고 S3를 준비한다
+             *       - `scene next` — 다음 장면(화면 [다음 장면]과 같다)
+             *       - `scene restart` — 처음(S1 전)으로
+             */
+            "scene" -> {
+                val player = g.scenes as? ScenePlayer // 장면 실행기
+                when {
+                    player == null -> Log.w("SunstoneDemo", "scene: 시연 모드 없음")
+                    arg == "next" -> player.next() // → 로직 이동: ScenePlayer.next()
+                    arg == "restart" -> player.restart() // → 로직 이동: ScenePlayer.restart()
+                    // → 로직 이동: ScenePlayer.goTo()
+                    !player.goTo(arg) -> Log.w("SunstoneDemo", "scene: 모르는 장면이거나 진행 중: $arg")
+                }
+            }
+            /**
              * 작성: 2026-11-11 15:14:38 · 박희정
              * 함수: washed
              * 목적: 마지막 세차일을 오늘에서 N일 전으로 넣는다(`washed 36`).

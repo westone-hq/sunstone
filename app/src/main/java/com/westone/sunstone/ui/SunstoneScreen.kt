@@ -86,6 +86,7 @@ fun SunstoneScreen(graph: AppGraph) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             StatusLine(car, fuel, graph.usingFakeCar || graph.pleos == null)
+            graph.scenes?.let { SceneBar(graph, it) }
             ChatLog(chat)
             SayBox(graph)
 
@@ -365,6 +366,49 @@ private fun ChatLog(lines: List<ChatLine>) {
                     fontSize = 18.sp,
                 )
             }
+        }
+    }
+}
+
+/**
+ * 작성: 2026-11-11 16:42:25 · 박희정
+ * 함수: SceneBar
+ * 목적: 시연 모드 줄(Tab 1 4.2 실행 방식 1). 지금 장면, 그 장면 대사 버튼,
+ *       [다음 장면]·[처음] 버튼을 둔다. 대사 버튼을 누르면 그 말을 한 것으로
+ *       넣는다(음성 인식이 안 될 때 쓴다). 준비 상황을 넣는 동안은 버튼을 막는다.
+ * 인자: graph — 앱 조립부
+ *       scenes — 장면 실행기
+ */
+@Composable
+private fun SceneBar(graph: AppGraph, scenes: SceneControls) {
+    val scene by scenes.current.collectAsStateWithLifecycle() // 지금 장면, 시작 전이면 null
+    Row(
+        // 시연 모드: 장면 이름, 대사 버튼, 다음·처음 버튼
+        Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF1A1F2B), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        val s = scene // 화면에 그릴 장면
+        Text(
+            if (s == null) stringResource(R.string.scene_ready) else stringResource(R.string.scene_title, s.id, s.title),
+            Modifier.weight(1f),
+            color = Color(0xFF9AA0A6),
+            fontSize = 16.sp,
+        )
+        s?.line?.let { line ->
+            // → 로직 이동: AppGraph.hear()
+            Button(onClick = { graph.hear(line, Source.DEMO) }, enabled = !s.busy) { Text(line) }
+        }
+        // → 로직 이동: SceneControls.next()
+        Button(onClick = { scenes.next() }, enabled = s == null || (!s.busy && !s.last)) {
+            Text(stringResource(if (s == null) R.string.scene_start else R.string.scene_next))
+        }
+        // → 로직 이동: SceneControls.restart()
+        OutlinedButton(onClick = { scenes.restart() }, enabled = s?.busy != true) {
+            Text(stringResource(R.string.scene_restart))
         }
     }
 }

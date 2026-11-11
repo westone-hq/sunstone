@@ -17,7 +17,6 @@ import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.routines.model.PlaceHit
 import com.westone.sunstone.routines.model.RouteSummary
 import com.westone.sunstone.routines.model.Window
-import com.westone.sunstone.routines.model.WiperMode
 import com.westone.sunstone.routines.port.InMemoryMemory
 import com.westone.sunstone.routines.port.InMemorySeatProfiles
 import com.westone.sunstone.routines.port.Target
@@ -37,11 +36,10 @@ import java.time.LocalDate
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
  * 클래스: TripScenarioTest
- * 목적: Tab 1 4.3 시나리오 ① 출장 가는 길(#1 길안내 → #2 주유소 경유 → #3 도착
- *       권하기 → #4 세차 모드 → #5 출발 후 되돌리기)을 가짜 차·가짜 내비·고정
- *       정보로 처음부터 끝까지 돌린다. 대사집에 없는 경우(연료 넉넉, 거절, 최근
- *       세차, 비 소식 등)도 본다. 기대 문장은 대사집 문장을 글자 그대로 적는다.
- *       준비: P단, 연료 18%, 마지막 세차 36일 전, 현재 위치 서울
+ * 목적: 시나리오 ① 길안내 대화에서 대사집에 없는 경우(연료 넉넉, 거절, 최근
+ *       세차, 비 소식 등)를 가짜 차·가짜 내비·고정 정보로 본다. 대사집 장면
+ *       S1~S5 자체는 `ScriptTest`가 돌린다.
+ *       기본 준비: P단, 연료 18%, 마지막 세차 36일 전
  * 근거: 인용 — Tab 1 4.3 시나리오 ① 표와 준비 줄
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -82,22 +80,6 @@ class TripScenarioTest {
          * 목적: 세차는 되지만 더 비싼 주유소. 고르면 안 된다.
          */
         val PRICEY_WASH_STATION = GasStation(PlaceHit("□□주유소", GeoPoint(37.4800, 127.0400)), 1690, carWash = true)
-
-        /**
-         * 작성: 2026-11-11 15:14:38 · 박희정
-         * 변수: LINE_1
-         * 목적: 대사집 #1.
-         */
-        const val LINE_1 = "네, 길안내 시작할게요. 연료가 부족해서 고속도로 들어가기 전에 주유하시는 게 좋겠어요. " +
-            "근처 주유소 찾아 드릴까요?"
-
-        /**
-         * 작성: 2026-11-11 15:14:38 · 박희정
-         * 변수: LINE_2
-         * 목적: 대사집 #2.
-         */
-        const val LINE_2 = "가격이 괜찮고 세차도 되는 OO주유소를 경유지로 넣었어요. 세차 안 하신 지 36일 되셨습니다. " +
-            "일주일간 비 소식이 없어 세차 추천드려요."
     }
 
     /** 앱이 한 말, 말한 순서대로. 장면마다 비우고 그 장면 말만 본다 */
@@ -157,49 +139,6 @@ class TripScenarioTest {
             is VoiceAction.Answer -> trip.answer(action.yes) || runner.answer(action.yes)
             else -> false
         }
-
-    /**
-     * 작성: 2026-11-11 15:14:38 · 박희정
-     * 함수: 시나리오 1 전체 - 길안내부터 세차 후 출발까지
-     * 목적: 대사집 #1~#5를 차례로 돌려 말과 차·내비 변화가 대사집과 같은지 본다.
-     */
-    @Test
-    fun `시나리오 1 전체 - 길안내부터 세차 후 출발까지`() = runTest {
-        val runner = runner()
-        runCurrent()
-
-        assertTrue(say(runner, "부산 OO리조트까지 길안내 해줘"))
-        assertEquals(listOf(LINE_1), said)
-        assertEquals(RESORT, navi.destination)
-
-        said.clear()
-        assertTrue(say(runner, "그래"))
-        assertEquals(listOf(LINE_2), said)
-        assertEquals(listOf(WASH_STATION.place), navi.waypoints)
-        assertTrue(booking.atGasStation)
-
-        said.clear()
-        car.update { it.copy(gear = Gear.DRIVE, speedKmh = 60f) }; runCurrent()
-        car.update { it.copy(place = Place.GAS_STATION, speedKmh = 0f) }; runCurrent()
-        car.update { it.copy(gear = Gear.PARK) }; runCurrent()
-        assertEquals(listOf("세차하시나요? 세차하실 거면 세차 모드로 맞춰 드릴까요?"), said)
-
-        said.clear()
-        assertTrue(say(runner, "응")); runCurrent()
-        assertEquals(
-            listOf("창문 닫고, 와이퍼 끄고, 내기 순환으로 바꾸고, 문 잠갔어요. 사이드미러는 직접 접어 주세요."),
-            said,
-        )
-        assertEquals(WiperMode.OFF, car.value(Target.Wiper))
-        assertEquals(TODAY, memory.lastWashDate())
-
-        said.clear()
-        car.update { it.copy(gear = Gear.DRIVE) }; runCurrent()
-        car.update { it.copy(speedKmh = 30f, place = Place.NONE) }; runCurrent()
-        assertEquals(listOf("세차 모드 끝낼게요. 원래대로 돌려놨어요."), said)
-        assertEquals(WiperMode.AUTO, car.value(Target.Wiper))
-        assertEquals(false, car.value(Target.Recirculation))
-    }
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정

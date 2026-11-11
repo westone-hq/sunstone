@@ -3,6 +3,7 @@ package com.westone.sunstone.routines.understand
 import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RunRequest
 import com.westone.sunstone.routines.engine.Source
+import com.westone.sunstone.routines.script.ScriptBook
 
 /** 말 한마디를 앱이 할 일로 바꾼 결과. */
 sealed interface VoiceAction {
@@ -31,6 +32,7 @@ sealed interface VoiceAction {
 /**
  * "세차할게", "애 태웠어", "엄마 자세로" 같은 말을 루틴으로 바꾼다.
  * 음성 인식(STT·Gleo)이든 화면 입력이든 데모 브로드캐스트든 모두 여기를 지난다.
+ * 먼저 대사집(`ScriptBook`) 문장과 똑같은지 보고, 아니면 규칙으로 본다.
  * 규칙은 일부러 단순하게: 띄어쓰기를 빼고 핵심 단어가 들어 있는지 본다.
  */
 object PhraseMatcher {
@@ -44,6 +46,8 @@ object PhraseMatcher {
     fun match(text: String, source: Source = Source.VOICE): VoiceAction? {
         val compact = text.replace(Regex("""[\s.,!?~]"""), "")
         if (compact.isEmpty()) return null
+
+        ScriptBook.lookup(text)?.let { return it } // → 로직 이동: ScriptBook.lookup()
 
         if ("저장" in compact) {
             val name = savePatterns.firstNotNullOfOrNull { it.find(text)?.groupValues?.get(1) }
