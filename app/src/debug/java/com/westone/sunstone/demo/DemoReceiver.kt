@@ -15,6 +15,7 @@ import com.westone.sunstone.routines.model.Seat
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
@@ -111,6 +112,17 @@ class DemoReceiver : BroadcastReceiver() {
              *       (`fuel off`) 차 값으로 돌아간다. Pleos 차에만 들어간다.
              */
             "fuel" -> g.overrideFuel(arg.toIntOrNull()?.coerceIn(0, 100)) // → 로직 이동: AppGraph.overrideFuel()
+            /**
+             * 작성: 2026-11-11 15:14:38 · 박희정
+             * 함수: washed
+             * 목적: 마지막 세차일을 오늘에서 N일 전으로 넣는다(`washed 36`).
+             *       시나리오 ① 준비 "마지막 세차 36일 전"을 만든다. 숫자가
+             *       아니면 하지 않는다.
+             * 미구현: 프로토타입이라 실제 세차 기록 대신 데모로 넣는다
+             */
+            "washed" -> arg.toLongOrNull()?.let { days ->
+                g.memory.recordWash(LocalDate.now().minusDays(days)) // → 로직 이동: MemoryPort.recordWash()
+            }
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
              * 수정: 2026-11-09 18:49:00 · 박건준

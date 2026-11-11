@@ -8,7 +8,14 @@ import com.westone.sunstone.car.AaosSpeedSource
 import com.westone.sunstone.car.PleosCarPort
 import com.westone.sunstone.connect.AndroidSpeaker
 import com.westone.sunstone.connect.KeepAwakeService
+import com.westone.sunstone.connect.PrefsMemory
 import com.westone.sunstone.connect.PrefsSeatProfiles
+import com.westone.sunstone.info.FixedInfo
+import com.westone.sunstone.navi.PleosNaviPort
+import com.westone.sunstone.routines.dialog.TripDialog
+import com.westone.sunstone.routines.dialog.WashBooking
+import com.westone.sunstone.routines.fake.FakeNavi
+import java.time.LocalDate
 import com.westone.sunstone.navi.PlaceWatcher
 import com.westone.sunstone.navi.PleosNavi
 import com.westone.sunstone.navi.Proximity
@@ -67,7 +74,7 @@ val Context.graph: AppGraph get() = (applicationContext as SunstoneApp).graph
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-11 12:22:00 · 박건준
+ * 수정: 2026-11-11 15:14:38 · 박희정
  * 클래스: AppGraph
  * 목적: 기능 구현(routines)과 앱 연결을 한곳에서 잇는 조립부. 의존성 주입
  *       라이브러리 없이 손으로 만든다.
@@ -79,7 +86,9 @@ val Context.graph: AppGraph get() = (applicationContext as SunstoneApp).graph
  *       - 길안내 중이거나 루틴이 진행 중이면 `KeepAwakeService`를 켠다
  * 인자: app — 앱 Context
  * 미구현: 프로토타입이라 Pleos 연결에 실패하면 알리지 않고 가짜 차로 진행한다
- *       (상태 줄에 "가짜 차"). 실제 차에서는 연결 실패를 안내해야 한다
+ *       (상태 줄에 "가짜 차"). 실제 차에서는 연결 실패를 안내해야 한다.
+ *       가짜 차일 때 길안내 대화는 장소가 없는 가짜 내비를 써서 목적지를 늘
+ *       "찾지 못했어요"로 답한다(시연 빌드 분리 때 고정 장소를 넣는다)
  */
 class AppGraph(private val app: Context) {
 
@@ -142,10 +151,16 @@ class AppGraph(private val app: Context) {
     /** 시트 자세 루틴. 자세 저장(`capture`)에도 써서 따로 둔다 */
     private val seatRoutine = SeatMemoryRoutine(profiles)
 
+    /** 사용 기록(마지막 세차일). 데모 `washed N`으로 바꿀 수 있다 */
+    val memory = PrefsMemory(app)
+
+    /** 세차 예약. 길안내 대화가 주유소에 예약하고 세차 모드가 본다. 둘이 같은 것을 쓴다 */
+    private val booking = WashBooking()
+
     /** 루틴 실행기. 만들 때 상황 감지를 시작한다 */
     val runner = RoutineRunner(
         car = car,
-        routines = listOf(WashRoutine(), ChildLockRoutine(), seatRoutine),
+        routines = listOf(WashRoutine(booking, memory) { LocalDate.now() }, ChildLockRoutine(), seatRoutine),
         speaker = speaker,
         scope = scope,
     ).also { it.start() } // → 로직 이동: RoutineRunner.start()
@@ -161,6 +176,20 @@ class AppGraph(private val app: Context) {
 
     /** 시연 장소 근접 알림. 들어가고 나가면 Pleos 차 장소를 바꾼다. 위치 권한을 받은 뒤 시작한다 */
     val places: PlaceWatcher? = proximity?.let { p -> PlaceWatcher(app, p) { place -> setPlace(place) } }
+
+    /**
+     * 길안내 대화(시나리오 ① #1~#2). Pleos 차면 Pleos 내비, 가짜 차면 장소가 없는 가짜 내비를 쓴다.
+     * 주유소·날씨는 고정 응답이다(`FixedInfo`)
+     */
+    val trip = TripDialog(
+        car = car,
+        navi = navi?.let { n -> PleosNaviPort(n) { places?.spots?.map { it.hit }.orEmpty() } } ?: FakeNavi(emptyList()),
+        info = FixedInfo(),
+        memory = memory,
+        booking = booking,
+        speaker = speaker,
+        today = { LocalDate.now() },
+    )
 
     /** 앱을 깨어 있게 하는 중인지. 같은 값으로 서비스를 다시 켜고 끄지 않으려고 둔다 */
     private val awake = MutableStateFlow(false)
@@ -206,14 +235,15 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-11 14:28:46 · 박희정
+     * 수정: 2026-11-11 15:14:38 · 박희정
      * 함수: handle
      * 목적: 말·Gleo·화면·데모 입력을 처리한다.
      *       - `Run` — 루틴 실행을 요청한다
      *       - `Undo` — 이름이 없으면 가장 최근에 켜진 루틴을 되돌린다
      *       - `SaveSeat` — 지금 시트 자세를 이름으로 저장한다
-     *       - `Answer` — 떠 있는 권하기에 답한다. 권하기가 없으면 못 알아들은
-     *         것으로 본다
+     *       - `Navigate` — 길안내 대화로 목적지를 넘긴다
+     *       - `Answer` — 길안내 대화의 주유 제안, 그다음 루틴 권하기 순서로
+     *         답한다. 둘 다 없으면 못 알아들은 것으로 본다
      * 인자: action — 알아들은 요청
      */
     fun handle(action: VoiceAction) {
@@ -235,8 +265,12 @@ class AppGraph(private val app: Context) {
                     else app.getString(R.string.voice_seat_unreadable),
                 )
             }
-            // → 로직 이동: RoutineRunner.answer(), AppGraph.notUnderstood()
-            is VoiceAction.Answer -> if (!runner.answer(action.yes)) notUnderstood()
+            // → 로직 이동: TripDialog.navigate()
+            is VoiceAction.Navigate -> scope.launch { trip.navigate(action.destination) }
+            is VoiceAction.Answer -> scope.launch {
+                // → 로직 이동: TripDialog.answer(), RoutineRunner.answer(), AppGraph.notUnderstood()
+                if (!trip.answer(action.yes) && !runner.answer(action.yes)) notUnderstood()
+            }
         }
     }
 
@@ -276,16 +310,16 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-09 20:18:22 · 박건준
-     * 수정: 2026-11-10 12:56:20 · 박건준
+     * 수정: 2026-11-11 15:14:38 · 박희정
      * 함수: overrideFuel
-     * 목적: 데모 입력으로 연료(%)를 덮어쓴다. 가짜 차에는 연료 칸이 없어
-     *       Pleos 차에만 들어간다.
+     * 목적: 데모 입력으로 연료(%)를 덮어쓴다. 쓰고 있는 차에만 들어간다.
      * 인자: percent — 연료(0~100%). null이면 차 값으로 돌아간다
      * 미구현: 프로토타입이라 데모 `fuel N`이 부른다. 실제 차에서는 쓰지 않는다
      *       (`PleosCarPort.overrideFuel` 참고)
      */
     fun overrideFuel(percent: Int?) {
         pleos?.overrideFuel(percent) // → 로직 이동: PleosCarPort.overrideFuel()
+        fake?.update { it.copy(fuelPercent = percent) }
     }
 
     /**
