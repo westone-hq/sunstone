@@ -24,11 +24,21 @@ class FakeNavi(
     /** 넣은 경유지들, 넣은 순서대로 */
     val waypoints = mutableListOf<PlaceHit>()
 
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: findPlace
+     * 목적: 이름이 겹치는 장소를 찾는다. 띄어쓰기는 무시한다.
+     */
     override suspend fun findPlace(query: String): PlaceHit? {
         val key = query.replace(" ", "") // 띄어쓰기를 뺀 검색어
         return places.firstOrNull { it.name.replace(" ", "").contains(key) || key.contains(it.name.replace(" ", "")) }
     }
 
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: startRoute
+     * 목적: 목적지를 정하고 경유지를 비운다. [route]가 null이면 실패한다.
+     */
     override suspend fun startRoute(destination: PlaceHit): RouteSummary? {
         val r = route ?: return null // 돌려줄 경로, 실패면 null
         this.destination = destination
@@ -36,6 +46,11 @@ class FakeNavi(
         return r
     }
 
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: addWaypoint
+     * 목적: 경유지를 더한다. 경로가 없거나 [route]가 null이면 실패한다.
+     */
     override suspend fun addWaypoint(place: PlaceHit): RouteSummary? {
         if (destination == null) return null
         val r = route ?: return null // 돌려줄 경로, 실패면 null

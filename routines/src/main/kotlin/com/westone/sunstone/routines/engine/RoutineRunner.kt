@@ -200,7 +200,12 @@ class RoutineRunner(
      *       끝에 한 번에 말하는 루틴은 false
      * 반환: 차에 보낸 결과. 성공하면 되돌리기 목록에 원래 값을 더한다
      */
-    private suspend fun runControl(run: ActiveRun, index: Int, step: Step.Control, sayFallback: Boolean): ControlResult {
+    private suspend fun runControl(
+        run: ActiveRun,
+        index: Int,
+        step: Step.Control,
+        sayFallback: Boolean,
+    ): ControlResult {
         val before = runCatching { car.read(step.command.target) }.getOrNull()
         val result = runCatching { car.apply(step.command) }
             .getOrElse { ControlResult.Failed(it.message ?: it.javaClass.simpleName) }

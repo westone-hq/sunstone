@@ -146,8 +146,21 @@ interface MemoryPort {
  * 인자: lastWash — 처음 마지막 세차일. 없으면 null
  */
 class InMemoryMemory(private var lastWash: LocalDate? = null) : MemoryPort {
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: lastWashDate
+     * 목적: 마지막 세차일을 돌려준다.
+     */
     override fun lastWashDate() = lastWash
-    override fun recordWash(date: LocalDate) { lastWash = date }
+
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: recordWash
+     * 목적: 세차한 날을 남긴다.
+     */
+    override fun recordWash(date: LocalDate) {
+        lastWash = date
+    }
 }
 
 class InMemorySeatProfiles : SeatProfiles {

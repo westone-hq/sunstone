@@ -14,6 +14,17 @@ class FakeInfo(
     var stations: List<GasStation>,
     var rain: Boolean? = false,
 ) : InfoPort {
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: gasStations
+     * 목적: 넣어 둔 주유소 목록을 돌려준다.
+     */
     override suspend fun gasStations() = stations
+
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: rainWithin
+     * 목적: 넣어 둔 비 소식을 돌려준다. 기간은 보지 않는다.
+     */
     override suspend fun rainWithin(days: Int) = rain
 }
