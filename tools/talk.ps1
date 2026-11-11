@@ -58,15 +58,18 @@ function Send-Console([string]$path) {
 <#
 함수: Show-Replies
 목적: 보낸 뒤 앱이 한 말을 기다렸다 보여 준다. 마지막 말 뒤 2초 동안 더 없으면
-      끝낸다. 아무 말도 없으면 최대 25초 기다린다(경로 시작·세차 모드 실행에 10초 안팎 걸린다).
+      끝낸다. 아무 말도 없으면 최대 40초 기다린다(경로 시작은 다시 요청까지 30초 넘게
+      걸릴 수 있다). 로그를 지우지 않고 보내기 직전 시각 뒤의 줄만 본다. 문제가 생기면
+      logcat에 기록이 남아 있어야 원인을 볼 수 있어서다.
+인자: since — 보내기 직전 에뮬레이터 시각("MM-dd HH:mm:ss.000")
 #>
-function Show-Replies {
+function Show-Replies([string]$since) {
     $shown = 0                                     # 이미 보여 준 줄 수
     $quietSince = Get-Date                         # 마지막으로 새 말이 온 시각
     $start = Get-Date                              # 기다리기 시작한 시각
     while ($true) {
         Start-Sleep -Milliseconds 500
-        $lines = @(& $adb logcat -d -s SunstoneVoice:I | Where-Object { $_ -match "말: " })   # 지금까지 한 말
+        $lines = @(& $adb logcat -d -T $since -s SunstoneVoice:I | Where-Object { $_ -match "말: " })   # 그 뒤로 한 말
         for ($i = $shown; $i -lt $lines.Count; $i++) {
             Write-Host ("  Sunstone: " + ($lines[$i] -replace "^.*말: ", "")) -ForegroundColor Cyan
             $quietSince = Get-Date
@@ -74,7 +77,7 @@ function Show-Replies {
         $shown = $lines.Count
         $quiet = ((Get-Date) - $quietSince).TotalSeconds   # 새 말 없이 지난 초
         $waited = ((Get-Date) - $start).TotalSeconds       # 기다린 초
-        if (($shown -gt 0 -and $quiet -ge 2) -or $waited -ge 25) { break }
+        if (($shown -gt 0 -and $quiet -ge 2) -or $waited -ge 40) { break }
     }
 }
 
@@ -93,7 +96,7 @@ try {
         $text = (Read-Host "운전자").Trim()
         if ($text -eq "") { continue }
         if ($text -eq "q") { break }
-        & $adb logcat -c
+        $since = (& $adb shell date "+%m-%d_%H:%M:%S.000").Trim().Replace("_", " ")   # 보내기 직전 에뮬레이터 시각
         if ($text.StartsWith("/")) {
             $word, $arg = $text.Substring(1).Split(" ", 2)
             switch ($word) {
@@ -121,7 +124,7 @@ try {
         } else {
             Send-Demo "say $text"
         }
-        Show-Replies
+        Show-Replies $since
     }
 } finally {
     Stop-Job $heartbeat; Remove-Job $heartbeat -Force

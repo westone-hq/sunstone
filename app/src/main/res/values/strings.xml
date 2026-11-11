@@ -48,6 +48,10 @@
     <string name="say_hint">말 한마디</string>
     <string name="say_send">말하기</string>
     <string-array name="say_quick">
+        <item>부산 OO리조트까지 길안내 해줘</item>
+        <item>그래</item>
+        <item>응</item>
+        <item>괜찮아</item>
         <item>세차할게</item>
         <item>세차 끝났어</item>
         <item>애 태웠어</item>
