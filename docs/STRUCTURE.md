@@ -42,7 +42,8 @@ sunstone/
 │     ├─ port/             창구: CarPort, Speaker, SeatProfiles
 │     ├─ engine/           루틴 정의 틀, 실행 엔진(저장→실행→확인→되돌리기→권하기)
 │     ├─ library/          루틴들 (초안: 세차·차일드락·시트 메모리)
-│     ├─ understand/       말 알아듣기 (말 → 할 일)
+│     ├─ understand/       말 알아듣기 (말 → 할 일, "응"·"괜찮아" 대답)
+│     ├─ speech/           문장 틀 (루틴이 하는 말, 조사 붙이기)
 │     └─ fake/             가짜 차 (테스트·시연)
 │     (예정) dialog/       대화 흐름: 길안내 → 주유 제안 → 세차 추천 → 도착 시 권하기
 │     (예정) knowledge/    AI 참고 문서 읽기·찾기

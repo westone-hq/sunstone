@@ -92,7 +92,7 @@ class RoutineRunnerTest {
     }
 
     /**
-     * 수정: 2026-11-09 14:29:54 · 박건준
+     * 수정: 2026-11-11 14:28:46 · 박희정
      * 함수: 지원하지 않는 기능은 안내로 넘어가고 루틴은 끝까지 간다
      * 목적: 차가 와이퍼를 지원하지 않으면 그 단계만 음성 안내로 바뀌고 루틴은
      *       끝까지 가는지 본다.
@@ -108,7 +108,7 @@ class RoutineRunnerTest {
 
         val run = runner.ui.value.runs.getValue(RoutineId.WASH)
         assertEquals(StepStatus.GUIDED, run.steps.first { it.title == "와이퍼 끄기" }.status)
-        assertTrue(said.any { it.contains("와이퍼 레버") })
+        assertTrue(said.any { it.contains("와이퍼는 직접 꺼 주세요.") })
         assertEquals(Phase.ACTIVE, run.phase)
     }
 
