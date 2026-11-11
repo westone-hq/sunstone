@@ -386,17 +386,19 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
+     * 수정: 2026-11-11 19:10:34 · 박희정
      * 함수: restartTrip
      * 목적: 시연을 처음부터 다시 할 수 있게 지운다.
      *       1. 켜진 루틴을 되돌린다(차 값을 원래대로)
      *       2. 길안내 중이면 취소한다. 안내가 없을 때 취소를 보내면 지도 앱이
      *          앞으로 나와 앱 화면을 가린다
-     *       3. 대화 기록과 권하기 기록(10분에 한 번)을 지운다
+     *       3. 대화 기록, 권하기 기록(10분에 한 번), 끝난 실행 기록을 지운다
      */
     suspend fun restartTrip() {
         runner.activeIds().forEach { runner.undo(it).join() } // → 로직 이동: RoutineRunner.undo()
         if (navi?.routing?.value == true) navi.cancelRoute() // → 로직 이동: PleosNavi.cancelRoute()
         runner.forgetSuggestions() // → 로직 이동: RoutineRunner.forgetSuggestions()
+        runner.forgetFinished() // → 로직 이동: RoutineRunner.forgetFinished()
         chatLines.value = emptyList()
     }
 

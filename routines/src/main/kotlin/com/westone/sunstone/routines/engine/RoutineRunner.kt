@@ -109,6 +109,16 @@ class RoutineRunner(
     }
 
     /**
+     * 작성: 2026-11-11 19:10:34 · 박희정
+     * 함수: forgetFinished
+     * 목적: 끝난 실행 기록을 화면에서 지운다. 켜져 있거나 실행·되돌리는 중인
+     *       기록은 남긴다. 시연을 처음부터 다시 시작할 때 부른다.
+     */
+    fun forgetFinished() {
+        _ui.update { ui -> ui.copy(runs = ui.runs.filterValues { it.phase != Phase.FINISHED }) }
+    }
+
+    /**
      * 작성: 2026-11-11 16:42:25 · 박희정
      * 함수: activeIds
      * 목적: 지금 켜져 있는(되돌릴 수 있는) 루틴들.
