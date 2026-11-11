@@ -25,9 +25,19 @@ class PrefsMemory(context: Context) : MemoryPort {
     /** 기억 저장소. 세차일만 둔다 */
     private val prefs = context.getSharedPreferences("memory", Context.MODE_PRIVATE)
 
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: lastWashDate
+     * 목적: 저장한 마지막 세차일을 읽는다. 없거나 읽을 수 없으면 null.
+     */
     override fun lastWashDate(): LocalDate? =
         prefs.getString(KEY_LAST_WASH, null)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
 
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: recordWash
+     * 목적: 세차한 날을 저장한다.
+     */
     override fun recordWash(date: LocalDate) {
         prefs.edit().putString(KEY_LAST_WASH, date.toString()).apply()
     }

@@ -145,6 +145,7 @@ class MainActivity : ComponentActivity() {
             is VoiceAction.SaveSeat -> getString(R.string.gleo_save, action.name)
             is VoiceAction.Answer -> getString(R.string.gleo_answer)
             is VoiceAction.Navigate -> getString(R.string.gleo_navigate, action.destination)
+            is VoiceAction.Ask -> getString(R.string.gleo_ask)
         }
         GleoEntry.respond(this, intent?.action.orEmpty(), true, message) // → 로직 이동: GleoEntry.respond()
     }

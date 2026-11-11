@@ -17,6 +17,13 @@ import com.westone.sunstone.navi.PleosNaviPort
 import com.westone.sunstone.routines.dialog.TripDialog
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.fake.FakeNavi
+import com.westone.sunstone.routines.knowledge.CardBook
+import com.westone.sunstone.routines.model.GeoPoint
+import com.westone.sunstone.routines.model.PlaceHit
+import com.westone.sunstone.routines.model.Window
+import com.westone.sunstone.routines.port.Target
+import com.westone.sunstone.routines.speech.CardLines
+import org.json.JSONObject
 import java.time.LocalDate
 import com.westone.sunstone.navi.PlaceWatcher
 import com.westone.sunstone.navi.PleosNavi
@@ -105,8 +112,8 @@ data class ChatLine(val fromDriver: Boolean, val text: String)
  * 인자: app — 앱 Context
  * 미구현: 프로토타입이라 Pleos 연결에 실패하면 알리지 않고 가짜 차로 진행한다
  *       (상태 줄에 "가짜 차"). 실제 차에서는 연결 실패를 안내해야 한다.
- *       가짜 차일 때 길안내 대화는 장소가 없는 가짜 내비를 써서 목적지를 늘
- *       "찾지 못했어요"로 답한다(시연 빌드 분리 때 고정 장소를 넣는다)
+ *       가짜 차일 때 길안내 대화는 시연 장소 고정 목록만 찾는 가짜 내비를 쓴다
+ *       (지도 화면은 바뀌지 않는다)
  */
 class AppGraph(private val app: Context) {
 
@@ -146,6 +153,23 @@ class AppGraph(private val app: Context) {
          * 근거: 미정 — 시나리오 하나(10줄 안팎)가 다 보이게 넉넉히 잡았다
          */
         const val CHAT_KEEP = 30
+
+        /**
+         * 작성: 2026-11-11 17:40:00 · 박희정
+         * 변수: NO_SUNROOF
+         * 목적: 가짜 차가 지원하지 않는 대상(선루프 두 개).
+         * 근거: 측정 — Pleos 에뮬레이터 v2.1.0에는 선루프가 없다(docs/api-spike.md
+         *       세차 선루프 행). 안전 경로도 실제 경로와 같은 말을 해야 한다(Tab 1
+         *       1장 시연 통과 조건 1)
+         */
+        val NO_SUNROOF = setOf(Target.WindowPosition(Window.ROOF_1), Target.WindowPosition(Window.ROOF_2))
+
+        /**
+         * 작성: 2026-11-11 17:40:00 · 박희정
+         * 변수: PLACES_FILE
+         * 목적: 시연 장소 고정 목록 파일(assets). 가짜 내비가 목적지를 여기서 찾는다.
+         */
+        const val PLACES_FILE = "places.json"
     }
 
     /** 앱이 살아 있는 동안 도는 작업 범위. 화면 스레드에서 돈다 */
@@ -157,16 +181,19 @@ class AppGraph(private val app: Context) {
     /** 이번 실행에서 가짜 차를 쓰는지. 앱을 켤 때 한 번 정한다 */
     val usingFakeCar: Boolean = settings.getBoolean(KEY_FAKE, false)
 
-    /** 데모로 켠 가짜 차. Pleos를 쓰면 null */
-    val fake: FakeCar? = if (usingFakeCar) FakeCar() else null
-
     /** Pleos 차 창구. 가짜 차를 쓰거나 연결에 실패하면 null */
     val pleos: PleosCarPort? = if (usingFakeCar) null else runCatching { PleosCarPort(app, scope) }
         .onFailure { Log.w(TAG, "Pleos 연결 실패, 가짜 차로 진행: ${it.message}") }
         .getOrNull()
 
-    /** 루틴이 쓰는 차. Pleos, 데모 가짜 차, 연결 실패 때의 가짜 차 순서로 고른다 */
-    val car: CarPort = pleos ?: fake ?: FakeCar()
+    /**
+     * 가짜 차. 데모 설정(`fake on`)이거나 Pleos 연결에 실패하면 만든다(안전 경로). Pleos 에뮬레이터 차처럼
+     * 선루프가 없어서 대사집과 같은 말을 한다. Pleos를 쓰면 null
+     */
+    val fake: FakeCar? = if (pleos == null) FakeCar().apply { unsupported = NO_SUNROOF } else null
+
+    /** 루틴이 쓰는 차. Pleos 차, 없으면 가짜 차 */
+    val car: CarPort = pleos ?: fake!!
 
     /** 음성 안내(TTS) */
     private val voice = AndroidSpeaker(app)
@@ -224,7 +251,8 @@ class AppGraph(private val app: Context) {
      */
     val trip = TripDialog(
         car = car,
-        navi = navi?.let { n -> PleosNaviPort(n) { places?.spots?.map { it.hit }.orEmpty() } } ?: FakeNavi(emptyList()),
+        navi = navi?.let { n -> PleosNaviPort(n) { places?.spots?.map { it.hit }.orEmpty() } }
+            ?: FakeNavi(fixedPlaces()),
         info = FixedInfo(),
         memory = memory,
         booking = booking,
@@ -283,6 +311,7 @@ class AppGraph(private val app: Context) {
      *       - `Undo` — 이름이 없으면 가장 최근에 켜진 루틴을 되돌린다
      *       - `SaveSeat` — 지금 시트 자세를 이름으로 저장한다
      *       - `Navigate` — 길안내 대화로 목적지를 넘긴다
+     *       - `Ask` — 기능 카드로 답한다. 차는 바꾸지 않는다
      *       - `Answer` — 길안내 대화의 주유 제안, 그다음 루틴 권하기 순서로
      *         답한다. 둘 다 없으면 못 알아들은 것으로 본다
      * 인자: action — 알아들은 요청
@@ -308,8 +337,13 @@ class AppGraph(private val app: Context) {
             }
             // → 로직 이동: TripDialog.navigate()
             is VoiceAction.Navigate -> scope.launch { trip.navigate(action.destination) }
+            // → 로직 이동: CardBook.byId(), CardLines.answer(), Speaker.say()
+            is VoiceAction.Ask -> speaker.say(
+                action.cardId?.let(CardBook::byId)?.let(CardLines::answer) ?: CardLines.NO_CARD,
+            )
             is VoiceAction.Answer -> scope.launch {
-                // → 로직 이동: TripDialog.answer(), RoutineRunner.answer(), AppGraph.notUnderstood()
+                // → 로직 이동: TripDialog.answer(), RoutineRunner.answer(),
+                //   AppGraph.notUnderstood()
                 if (!trip.answer(action.yes) && !runner.answer(action.yes)) notUnderstood()
             }
         }
@@ -365,6 +399,24 @@ class AppGraph(private val app: Context) {
         runner.forgetSuggestions() // → 로직 이동: RoutineRunner.forgetSuggestions()
         chatLines.value = emptyList()
     }
+
+    /**
+     * 작성: 2026-11-11 17:40:00 · 박희정
+     * 함수: fixedPlaces
+     * 목적: 시연 장소 고정 목록(assets/places.json)을 읽어 가짜 내비가 찾을 장소로
+     *       만든다. 읽지 못하면 빈 목록(목적지를 "찾지 못했어요"로 답한다).
+     * 반환: 장소들
+     * 미구현: 프로토타입이라 장소 검색 API 대신 고정 목록을 쓴다. Pleos 차는 같은
+     *       파일을 `PlaceWatcher`가 읽는다
+     */
+    private fun fixedPlaces(): List<PlaceHit> = runCatching {
+        val json = JSONObject(app.assets.open(PLACES_FILE).bufferedReader().use { it.readText() }) // 파일 전체
+        val array = json.getJSONArray("places") // 장소 배열
+        (0 until array.length()).map { i ->
+            val o = array.getJSONObject(i) // 장소 하나
+            PlaceHit(o.getString("name"), GeoPoint(o.getDouble("lat"), o.getDouble("lng")))
+        }
+    }.onFailure { Log.w(TAG, "시연 장소 읽기 실패: ${it.message}") }.getOrDefault(emptyList())
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준

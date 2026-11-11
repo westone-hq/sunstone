@@ -33,7 +33,18 @@ class FixedInfo : InfoPort {
         )
     }
 
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: gasStations
+     * 목적: 고정 응답 주유소 세 곳을 돌려준다.
+     */
     override suspend fun gasStations(): List<GasStation> = STATIONS
 
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 함수: rainWithin
+     * 목적: 고정 응답 날씨. 늘 비 소식이 없다.
+     * 근거: 인용 — Tab 1 4.3 시나리오 ① #2 "일주일간 비 소식이 없어"
+     */
     override suspend fun rainWithin(days: Int): Boolean = false
 }

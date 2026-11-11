@@ -52,6 +52,7 @@
         <item>그래</item>
         <item>응</item>
         <item>괜찮아</item>
+        <item>세차 모드가 뭐야?</item>
         <item>세차할게</item>
         <item>세차 끝났어</item>
         <item>애 태웠어</item>
@@ -79,6 +80,7 @@
     <string name="scene_next">다음 장면</string>
     <string name="scene_restart">처음</string>
     <string name="gleo_navigate">%1$s 길안내</string>
+    <string name="gleo_ask">기능 설명</string>
 
     <!-- 차 제어 단계가 안내로 바뀐 이유(실행 기록에 보인다) -->
     <string name="car_unsupported">이 차에서는 지원하지 않아요</string>

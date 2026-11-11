@@ -76,6 +76,7 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
     /** 지금 장면 화면 값. 시작 전이면 null */
     private val view = MutableStateFlow<SceneView?>(null)
 
+    /** 화면이 보는 지금 장면(값이 바뀌면 알려주는 상태) */
     override val current: StateFlow<SceneView?> = view
 
     /** 지금 장면 번호(0부터). 시작 전이면 -1 */
@@ -95,11 +96,21 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
         }
     }
 
+    /**
+     * 작성: 2026-11-11 16:42:25 · 박희정
+     * 함수: next
+     * 목적: 다음 장면으로 간다. 준비 중이거나 마지막 장면이면 하지 않는다.
+     */
     override fun next() {
         if (job?.isActive == true || index + 1 >= scenes.size) return
-        job = g.scope.launch { enter(index + 1) }
+        job = g.scope.launch { enter(index + 1) } // → 로직 이동: ScenePlayer.enter()
     }
 
+    /**
+     * 작성: 2026-11-11 16:42:25 · 박희정
+     * 함수: restart
+     * 목적: 처음(S1 전)으로 돌린다. 켜진 루틴·길안내·대화 기록을 지운다.
+     */
     override fun restart() {
         if (job?.isActive == true) return
         job = g.scope.launch {

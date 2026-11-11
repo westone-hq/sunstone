@@ -356,11 +356,13 @@ private fun say(graph: AppGraph, text: String) = graph.hear(text, Source.VOICE) 
 private fun ChatLog(lines: List<ChatLine>) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         lines.takeLast(CHAT_SHOWN).forEach { line ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = if (line.fromDriver) Arrangement.End else Arrangement.Start) {
+            val side = if (line.fromDriver) Arrangement.End else Arrangement.Start // 운전자는 오른쪽
+            val bubble = if (line.fromDriver) Color(0xFF2A2D33) else Color(0xFF1C2541) // 말풍선 색
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = side) {
                 Text(
                     line.text,
                     Modifier
-                        .background(if (line.fromDriver) Color(0xFF2A2D33) else Color(0xFF1C2541), RoundedCornerShape(12.dp))
+                        .background(bubble, RoundedCornerShape(12.dp))
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                     color = if (line.fromDriver) Color(0xFFE0E0E0) else Color(0xFFB8C4FF),
                     fontSize = 18.sp,
@@ -393,7 +395,8 @@ private fun SceneBar(graph: AppGraph, scenes: SceneControls) {
     ) {
         val s = scene // 화면에 그릴 장면
         Text(
-            if (s == null) stringResource(R.string.scene_ready) else stringResource(R.string.scene_title, s.id, s.title),
+            if (s == null) stringResource(R.string.scene_ready)
+            else stringResource(R.string.scene_title, s.id, s.title),
             Modifier.weight(1f),
             color = Color(0xFF9AA0A6),
             fontSize = 16.sp,
