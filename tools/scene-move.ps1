@@ -22,7 +22,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$sdk = "$env:LOCALAPPDATA\Android\Sdk"   # Android SDK 위치
+$sdk = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { "$env:LOCALAPPDATA\Android\Sdk" }   # Android SDK 위치
 $adb = "$sdk\platform-tools\adb.exe"      # adb
 $console = "http://127.0.0.1:8088"        # Virtual Console
 $placesFile = Join-Path $PSScriptRoot "..\app\src\main\assets\places.json"  # 시연 장소 목록
