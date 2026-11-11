@@ -33,6 +33,10 @@
     <uses-permission android:name="pleos.car.permission.NAVI_NOTIFY" />
     <!-- 위치(FusedLocation): 현재 위치·근접 알림. dangerous, MainActivity에서 요청 -->
     <uses-permission android:name="pleos.car.permission.FUSED_LOCATION" />
+    <!-- 길안내·루틴 중 앱을 깨어 있게 하는 포그라운드 서비스(Android 14: 종류를 밝힌다)와 그 알림(런타임 권한) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".SunstoneApp"
@@ -59,6 +63,16 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- 길안내 중이거나 루틴이 진행 중일 때만 켠다. 위치·미디어 같은 정해진 종류에 맞지 않아 specialUse -->
+        <service
+            android:name=".connect.KeepAwakeService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="내비 화면이 앞에 있는 동안 길안내 도착·장소 근접 알림과 진행 중인 차 설정 루틴의 되돌리기 조건을 받아야 한다" />
+        </service>
     </application>
 
     <queries>

@@ -7,7 +7,11 @@ import com.westone.sunstone.car.AaosEnergySource
 import com.westone.sunstone.car.AaosSpeedSource
 import com.westone.sunstone.car.PleosCarPort
 import com.westone.sunstone.connect.AndroidSpeaker
+import com.westone.sunstone.connect.KeepAwakeService
 import com.westone.sunstone.connect.PrefsSeatProfiles
+import com.westone.sunstone.navi.PlaceWatcher
+import com.westone.sunstone.navi.PleosNavi
+import com.westone.sunstone.navi.Proximity
 import com.westone.sunstone.routines.understand.VoiceAction
 import com.westone.sunstone.routines.engine.Phase
 import com.westone.sunstone.routines.engine.RoutineRunner
@@ -17,10 +21,16 @@ import com.westone.sunstone.routines.library.SeatMemoryRoutine
 import com.westone.sunstone.routines.library.WashRoutine
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.model.Place
+import com.westone.sunstone.routines.model.Seat
 import com.westone.sunstone.routines.port.CarPort
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /**
@@ -57,13 +67,16 @@ val Context.graph: AppGraph get() = (applicationContext as SunstoneApp).graph
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-10 12:56:20 · 박건준
+ * 수정: 2026-11-11 12:22:00 · 박건준
  * 클래스: AppGraph
  * 목적: 기능 구현(routines)과 앱 연결을 한곳에서 잇는 조립부. 의존성 주입
  *       라이브러리 없이 손으로 만든다.
  *       - 차는 Pleos를 쓰고, 데모 설정(`fake on`)이거나 Pleos 연결에
  *         실패하면 가짜 차를 쓴다
  *       - 말·Gleo·화면·데모 입력은 모두 `handle()`로 들어온다
+ *       - 장소는 근접 알림(`PlaceWatcher`)이 바꾸고, 내비 도착은 logcat에만
+ *         남긴다(routines 창구에 아직 잇지 않음)
+ *       - 길안내 중이거나 루틴이 진행 중이면 `KeepAwakeService`를 켠다
  * 인자: app — 앱 Context
  * 미구현: 프로토타입이라 Pleos 연결에 실패하면 알리지 않고 가짜 차로 진행한다
  *       (상태 줄에 "가짜 차"). 실제 차에서는 연결 실패를 안내해야 한다
@@ -87,6 +100,17 @@ class AppGraph(private val app: Context) {
          * 목적: 가짜 차를 쓸지 저장하는 설정 키.
          */
         const val KEY_FAKE = "use_fake_car"
+
+        /**
+         * 작성: 2026-11-11 12:06:00 · 박건준
+         * 변수: AWAKE_GRACE_MS
+         * 목적: 깨어 있을 이유가 사라진 뒤 서비스를 끄기 전에 기다리는
+         *       시간(밀리초). 그 사이 다시 필요해지면 끄지 않는다.
+         * 근거: 측정 — 경유지를 더하면 내비가 경로를 취소했다 다시 시작해서
+         *       길안내 상태가 1초 남짓 꺼진다. 서비스를 한 번 끄면 앱이 뒤에
+         *       있어 다시 켜지 못했다(`mAllowStartForeground false`)
+         */
+        const val AWAKE_GRACE_MS = 15_000L
     }
 
     /** 앱이 살아 있는 동안 도는 작업 범위. 화면 스레드에서 돈다 */
@@ -129,12 +153,29 @@ class AppGraph(private val app: Context) {
     /** 속도 센서. 값을 Pleos 차 창구에 넣는다. 가짜 차일 때는 버린다 */
     private val speed = AaosSpeedSource(app) { kmh -> pleos?.onSensorSpeed(kmh) }
 
+    /** 근접 알림 창구. Pleos 차일 때만 만든다 */
+    private val proximity: Proximity? = pleos?.let { Proximity(app) }
+
+    /** 내비 창구. Pleos 차일 때만 만든다. 처음 쓸 때 내비 서비스에 연결한다 */
+    val navi: PleosNavi? = proximity?.let { PleosNavi(app, it) }
+
+    /** 시연 장소 근접 알림. 들어가고 나가면 Pleos 차 장소를 바꾼다. 위치 권한을 받은 뒤 시작한다 */
+    val places: PlaceWatcher? = proximity?.let { p -> PlaceWatcher(app, p) { place -> setPlace(place) } }
+
+    /** 앱을 깨어 있게 하는 중인지. 같은 값으로 서비스를 다시 켜고 끄지 않으려고 둔다 */
+    private val awake = MutableStateFlow(false)
+
     /** AAOS 에너지 속성과 연료 종류. 값을 Pleos 차 창구에 넣는다. 가짜 차일 때는 버린다 */
     private val energy = AaosEnergySource(
         app,
         onValue = { id, value -> pleos?.onAaosEnergy(id, value) }, // → 로직 이동: PleosCarPort.onAaosEnergy()
         onFuelTypes = { types -> pleos?.onFuelTypes(types) }, // → 로직 이동: PleosCarPort.onFuelTypes()
     )
+
+    init {
+        watchAwake()
+        watchArrivals()
+    }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
@@ -151,6 +192,17 @@ class AppGraph(private val app: Context) {
      *       부른다.
      */
     fun startEnergy() = energy.start() // → 로직 이동: AaosEnergySource.start()
+
+    /**
+     * 작성: 2026-11-11 12:22:00 · 박건준
+     * 함수: startPlaces
+     * 목적: 시연 장소 근접 알림을 건다. 위치 권한을 받은 뒤 `MainActivity`가
+     *       부른다. 가짜 차일 때는 하지 않는다.
+     */
+    fun startPlaces() {
+        val watcher = places ?: return // 장소 알림, 가짜 차면 null
+        scope.launch { Log.i(TAG, "장소 알림 ${watcher.start()}곳") } // → 로직 이동: PlaceWatcher.start()
+    }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
@@ -194,12 +246,11 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-10 12:56:20 · 박건준
+     * 수정: 2026-11-11 12:22:00 · 박건준
      * 함수: setPlace
-     * 목적: 데모 입력으로 지금 장소를 넣는다. 쓰고 있는 차에만 들어간다.
+     * 목적: 지금 장소를 넣는다. 쓰고 있는 차에만 들어간다. Pleos 차는 장소
+     *       근접 알림이 부르고, 데모 `place`는 예비로 남겨 둔다.
      * 인자: place — 지금 장소
-     * 미구현: 프로토타입이라 장소 검색 대신 데모 입력이 부른다(`PleosCarPort.setPlace`
-     *       참고)
      */
     fun setPlace(place: Place) {
         pleos?.setPlace(place) // → 로직 이동: PleosCarPort.setPlace()
@@ -234,6 +285,21 @@ class AppGraph(private val app: Context) {
     }
 
     /**
+     * 작성: 2026-11-11 12:22:00 · 박건준
+     * 함수: overrideBelt
+     * 목적: 데모 입력으로 좌석 하나의 벨트를 덮어쓴다.
+     * 인자: seat — 좌석
+     *       buckled — 맸으면 true, 풀었으면 false. null이면 차 값으로 돌아간다
+     *       (가짜 차는 바꾸지 않는다)
+     * 미구현: 프로토타입이라 에뮬레이터에 좌석별 벨트 값이 없어 데모로 넣는다
+     *       (`PleosCarPort.overrideBelt` 참고)
+     */
+    fun overrideBelt(seat: Seat, buckled: Boolean?) {
+        pleos?.overrideBelt(seat, buckled) // → 로직 이동: PleosCarPort.overrideBelt()
+        if (buckled != null) fake?.update { it.copy(beltBuckled = it.beltBuckled + (seat to buckled)) }
+    }
+
+    /**
      * 작성: 2026-11-08 18:03:56 · 박건준
      * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: editFakeCar
@@ -256,4 +322,38 @@ class AppGraph(private val app: Context) {
      * 인자: on — true면 가짜 차
      */
     fun setUseFakeCar(on: Boolean) = settings.edit().putBoolean(KEY_FAKE, on).apply()
+
+    /**
+     * 작성: 2026-11-11 12:22:00 · 박건준
+     * 함수: watchAwake
+     * 목적: 길안내 중이거나 루틴이 진행 중(실행·켜짐·되돌리는 중)이면
+     *       `KeepAwakeService`를 켜고, 둘 다 아닌 채로 `AWAKE_GRACE_MS`가
+     *       지나면 끈다.
+     */
+    private fun watchAwake() {
+        val routing = navi?.routing ?: MutableStateFlow(false) // 길안내 중인지
+        scope.launch {
+            combine(routing, runner.ui) { guiding, ui ->
+                guiding || ui.runs.values.any { it.phase != Phase.FINISHED }
+            }.distinctUntilChanged().collectLatest { need ->
+                if (!need) delay(AWAKE_GRACE_MS)
+                if (need == awake.value) return@collectLatest
+                awake.value = need
+                // → 로직 이동: KeepAwakeService.start(), KeepAwakeService.stop()
+                if (need) KeepAwakeService.start(app) else KeepAwakeService.stop(app)
+            }
+        }
+    }
+
+    /**
+     * 작성: 2026-11-11 12:22:00 · 박건준
+     * 함수: watchArrivals
+     * 목적: 내비 도착(목적지·경유지)을 logcat에 남긴다.
+     * 미구현: routines 창구에 아직 잇지 않아 도착으로 루틴을 권하지 않는다.
+     *       장소 도착(주유소·유치원)은 `PlaceWatcher`가 장소를 바꿔 루틴이 본다
+     */
+    private fun watchArrivals() {
+        val n = navi ?: return // 내비 창구, 가짜 차면 null
+        scope.launch { n.arrivals.collect { Log.i(TAG, "내비 도착: ${it.name}, 목적지 ${it.isDestination}") } }
+    }
 }
