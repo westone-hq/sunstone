@@ -23,6 +23,7 @@ enum class Phase { RUNNING, ACTIVE, UNDOING, FINISHED }
 
 /**
  * 작성: 2026-11-12 18:14:00 · 박건준
+ * 수정: 2026-11-12 19:40:00 · 박건준
  * 클래스: StepView
  * 목적: 화면에 보일 단계 하나.
  * 인자: title — 단계 이름
@@ -31,6 +32,7 @@ enum class Phase { RUNNING, ACTIVE, UNDOING, FINISHED }
  *       icon — 화면 줄 아이콘 이름(`Step.icon`). 없으면 null
  *       guide — 앱이 할 수 없어 처음부터 사람이 할 일(`Step.Guide`)이면 true.
  *       화면이 진행선 개수에서 뺀다
+ *       done — 끝난 뒤 화면 줄 글자(`Step.done`). 없으면 null(title 그대로)
  */
 data class StepView(
     val title: String,
@@ -38,6 +40,7 @@ data class StepView(
     val note: String? = null,
     val icon: String? = null,
     val guide: Boolean = false,
+    val done: String? = null,
 )
 
 data class RunView(
@@ -357,7 +360,9 @@ class RoutineRunner(
             id = routine.id,
             title = routine.title,
             phase = phase,
-            steps = steps.mapIndexed { i, s -> StepView(s.title, status[i], notes[i], s.icon, s is Step.Guide) },
+            steps = steps.mapIndexed { i, s ->
+                StepView(s.title, status[i], notes[i], s.icon, s is Step.Guide, s.done)
+            },
             startedAtMs = startedAtMs,
             source = source,
         )

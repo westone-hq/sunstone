@@ -77,6 +77,20 @@ object WashLines {
     const val STEP_SUNROOF = "선루프 닫기"
 
     /**
+     * 작성: 2026-11-12 19:40:00 · 박건준
+     * 변수: DONE_WINDOWS, DONE_WIPER, DONE_RECIRCULATION, DONE_DOOR_LOCK,
+     *       DONE_SUNROOF
+     * 목적: 단계를 마친 뒤 진행 패널 줄 글자(끝난 꼴, "~어요" 없이 짧게).
+     *       사이드미러는 사람이 할 일이라 이름 그대로 둔다.
+     * 근거: 인용 — 시안 sunstone-ui.html 준비됨 상태 줄("창문 닫음", "와이퍼 끔")
+     */
+    const val DONE_WINDOWS = "창문 닫음"
+    const val DONE_WIPER = "와이퍼 끔"
+    const val DONE_RECIRCULATION = "내기 순환"
+    const val DONE_DOOR_LOCK = "문 잠금"
+    const val DONE_SUNROOF = "선루프 닫음"
+
+    /**
      * 작성: 2026-11-12 18:18:00 · 박건준
      * 변수: MIRROR_HINT
      * 목적: 사이드미러 줄 오른쪽에 미리 보일 안내. 앱이 접을 수 없어 사람이

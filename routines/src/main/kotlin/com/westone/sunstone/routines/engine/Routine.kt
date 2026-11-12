@@ -25,6 +25,9 @@ sealed interface Step {
     /** 화면 줄 아이콘 이름(`QuestionRow.icon`과 같은 이름). 없으면 null */
     val icon: String?
 
+    /** 끝난 뒤 화면 줄 글자("창문 닫음"). 없으면 null(`title` 그대로) */
+    val done: String? get() = null
+
     /**
      * 작성: 2026-11-12 18:12:00 · 박건준
      * 클래스: Control
@@ -36,6 +39,7 @@ sealed interface Step {
      *       restoreOnUndo — false면 되돌릴 때 건드리지 않는다(창문은 다시 열지
      *       않는다)
      *       icon — 화면 줄 아이콘 이름. 없으면 null
+     *       done — 끝난 뒤 화면 줄 글자("창문 닫음"). 없으면 title 그대로
      */
     data class Control(
         override val title: String,
@@ -43,6 +47,7 @@ sealed interface Step {
         val fallback: String,
         val restoreOnUndo: Boolean = true,
         override val icon: String? = null,
+        override val done: String? = null,
     ) : Step
 
     /**

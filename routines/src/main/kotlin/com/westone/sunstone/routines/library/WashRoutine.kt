@@ -105,12 +105,13 @@ class WashRoutine(
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-12 18:22:00 · 박건준
+     * 수정: 2026-11-12 19:40:00 · 박건준
      * 함수: plan
      * 목적: 세차 단계를 만든다. 창문(선루프 포함) → 와이퍼 → 내기 순환 →
      *       문 잠금 → 사이드미러 안내 순서. 세차장에 있으면 N 유지 안내를
      *       더한다. 이 차에 없는 선루프(읽을 수 없음)는 넣지 않는다.
      *       옆 창문 네 개는 같은 이름("창문 닫기")이라 화면에서 한 줄로 보인다.
+     *       단계마다 끝난 뒤 줄 글자("창문 닫음")를 붙인다.
      * 인자: request — 실행 요청. 쓰지 않는다
      *       car — 지금 장소와 선루프가 있는지 보려고 읽는다
      * 반환: 실행할 단계들
@@ -126,21 +127,22 @@ class WashRoutine(
                 fallback = "${withObject(w.label)} 닫아 주세요.",
                 restoreOnUndo = false,
                 icon = "window",
+                done = if (w in ROOFS) WashLines.DONE_SUNROOF else WashLines.DONE_WINDOWS,
             )
         }
         val atCarWash = car.state.value.place == Place.CAR_WASH // 자동 세차기가 있는 곳인지
         return windows + listOfNotNull(
             Step.Control(
                 WashLines.STEP_WIPER, Command(Target.Wiper, WiperMode.OFF), "와이퍼 레버를 OFF로 내려 주세요.",
-                icon = "wiper",
+                icon = "wiper", done = WashLines.DONE_WIPER,
             ),
             Step.Control(
                 WashLines.STEP_RECIRCULATION, Command(Target.Recirculation, true), "내기 순환 버튼을 눌러 주세요.",
-                icon = "air",
+                icon = "air", done = WashLines.DONE_RECIRCULATION,
             ),
             Step.Control(
                 WashLines.STEP_DOOR_LOCK, Command(Target.DoorLock, true), "문을 잠가 주세요.",
-                restoreOnUndo = false, icon = "lock",
+                restoreOnUndo = false, icon = "lock", done = WashLines.DONE_DOOR_LOCK,
             ),
             Step.Guide(WashLines.STEP_MIRROR, "사이드미러 접기 버튼을 눌러 주세요.", "mirror", WashLines.MIRROR_HINT),
             if (atCarWash) Step.Guide("자동 세차기라면 N 유지", WashLines.N_HOLD) else null,

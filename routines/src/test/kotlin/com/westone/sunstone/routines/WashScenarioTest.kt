@@ -174,6 +174,7 @@ class WashScenarioTest {
         val steps = runner.ui.value.runs.getValue(RoutineId.WASH).steps // 진행 줄
         assertTrue(steps.none { it.title == "선루프 닫기" }) // 이 차에 없는 선루프는 넣지 않는다
         assertTrue(steps.all { it.icon != null })
+        assertEquals("창문 닫음", steps.first().done) // 끝난 줄 글자
         assertEquals(StepStatus.GUIDED, steps.last().status)
         assertEquals("직접 접어 주세요", steps.last().note)
 
