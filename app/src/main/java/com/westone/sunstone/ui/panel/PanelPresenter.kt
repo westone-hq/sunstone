@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -26,16 +27,18 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 작성: 2026-11-12 18:44:00 · 박건준
- * 수정: 2026-11-12 19:44:00 · 박건준
+ * 수정: 2026-11-12 20:10:00 · 박건준
  * 클래스: PanelPresenter
  * 목적: 왼쪽 구역에 그릴 값(`ScreenUi`)을 만든다. 판단은 하지 않고 routines가
  *       준 값을 화면 모양으로만 바꾼다.
  *       - `Asking.question`(질문, 값이 바뀌면 알려주는 상태) → 제안 패널.
- *         예·아니오 버튼과 닫기는 대답이 된다
+ *         그 질문의 말이 시작될 때 띄우고, 그 전까지는 앞 화면(토스트 포함)을
+ *         둔다. 예·아니오 버튼과 닫기는 대답이 된다
  *       - `RunnerUi.runs`의 세차 모드 → 맞추는 중·준비됨 패널. 단계 상태를
  *         WAITING=TODO, RUNNING=NOW, DONE=DONE, GUIDED=MANUAL로 옮긴다
  *       - `Asking.notices` → 토스트
- *       - 질문이 뜨면 듣는 중 막대(LISTENING), 들은 말(`heard()`)은 HEARD로
+ *       - 패널이 뜨면 듣는 중 막대(LISTENING, 안내는 질문의 `hint`), 들은
+ *         말(`heard()`)은 HEARD로
  *         1초 보인 뒤 내린다. 질문 말이 끝나고 8초 안에 대답이 없으면 막대만
  *         닫고 패널은 남긴다
  *       - 새 패널이 뜨거나 시연 장면이 바뀌면 남은 토스트를 바로 지운다
@@ -44,9 +47,11 @@ import kotlinx.coroutines.withTimeoutOrNull
  *       asking — 질문·토스트
  *       runner — 루틴 실행기 화면 상태
  *       speaking — 음성 안내가 말하는 중인지
+ *       starts — 말 하나가 시작될 때 그 말에 붙은 질문(`AndroidSpeaker.starts`)
  *       onAnswer — 패널 예·아니오 버튼(`AppGraph.answer()`)
  *       onFinish — 준비됨 패널 [지금 끝내기](`RoutineRunner.undo()`)
- * 근거: 인용 — docs/SCREEN.md 1장 상태 흐름, 5장 대답 기다리는 시간 8초
+ * 근거: 인용 — docs/SCREEN.md 1장 상태 흐름, 5장 대답 기다리는 시간 8초.
+ *       2026-11-12 박건준 검토: 패널은 그 패널의 말이 시작될 때 띄운다
  */
 class PanelPresenter(
     private val context: Context,
@@ -54,6 +59,7 @@ class PanelPresenter(
     private val asking: Asking,
     runner: StateFlow<RunnerUi>,
     private val speaking: StateFlow<Boolean>,
+    private val starts: SharedFlow<Any?>,
     private val onAnswer: (Boolean) -> Unit,
     private val onFinish: (RoutineId) -> Unit,
 ) {
@@ -94,7 +100,22 @@ class PanelPresenter(
          * 근거: 인용 — 시안 template.html `toast()` 3200
          */
         const val TOAST_MS = 3_200L
+
+        /**
+         * 작성: 2026-11-12 20:10:00 · 박건준
+         * 변수: SHOW_WAIT_MS
+         * 목적: 질문의 말이 시작되기를 기다리는 최대 시간(밀리초). 지나면 말이
+         *       없어도 패널을 띄운다(말이 줄에서 빠졌을 때).
+         * 근거: 미정 — 앞 말 두세 개(문장마다 3~6초)가 끝나기를 넉넉히 기다린다
+         */
+        const val SHOW_WAIT_MS = 20_000L
     }
+
+    /** 화면에 띄운 질문. 질문의 말이 시작되면 채우고, 대답이 오면 비운다. 없으면 null */
+    private val shown = MutableStateFlow<Question?>(null)
+
+    /** 질문의 말이 시작되기를 기다리는 작업. 없으면 null */
+    private var showJob: Job? = null
 
     /** 듣는 중 막대. 질문·들은 말·마이크 칸이 바꾼다 */
     private val listen = MutableStateFlow(ListenUi(ListenState.OFF))
@@ -115,7 +136,7 @@ class PanelPresenter(
     private var shownRun: RunView? = null
 
     /** 왼쪽 구역에 그릴 것 전부(값이 바뀌면 알려주는 상태) */
-    val ui: StateFlow<ScreenUi> = combine(asking.question, runner, listen, toast, hiddenRun) { q, r, l, t, h ->
+    val ui: StateFlow<ScreenUi> = combine(shown, runner, listen, toast, hiddenRun) { q, r, l, t, h ->
         ScreenUi(panelOf(q, r, h), l, t)
     }.stateIn(scope, SharingStarted.Eagerly, ScreenUi(null, ListenUi(ListenState.OFF), null))
 
@@ -143,7 +164,8 @@ class PanelPresenter(
         listen.value = ListenUi(ListenState.HEARD, context.getString(R.string.listen_heard, text), hint)
         listenJob = scope.launch {
             delay(HEARD_MS)
-            if (asking.question.value != null) startListening() else listen.value = ListenUi(ListenState.OFF)
+            val q = shown.value // 아직 떠 있는 질문(못 알아들었을 때), 없으면 null
+            if (q != null) startListening(q.hint) else listen.value = ListenUi(ListenState.OFF)
         }
     }
 
@@ -167,7 +189,7 @@ class PanelPresenter(
      *       에뮬레이터에 마이크 입력이 없어 말은 시연 버튼·adb `say`로 넣는다
      *       (docs/api-spike.md 음성 인식 행)
      */
-    fun tapMic() = startListening()
+    fun tapMic() = startListening(null)
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
@@ -186,34 +208,46 @@ class PanelPresenter(
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
+     * 수정: 2026-11-12 20:10:00 · 박건준
      * 함수: onQuestion
-     * 목적: 질문이 바뀌면 막대를 맞춘다. 새 질문이면 듣는 중으로, 질문이
-     *       없어지면 듣는 중 막대를 닫는다. 들은 말을 보여 주는 중이면
-     *       `heard()`의 타이머가 이어서 정한다.
+     * 목적: 질문이 바뀌면 패널과 막대를 맞춘다.
+     *       - 새 질문 — 그 질문의 말이 시작될 때(`starts`) 패널을 띄우고 듣는 중
+     *         막대를 켠다. 그 전까지는 앞 화면을 그대로 둔다
+     *       - 질문이 없어짐(대답함) — 패널을 내리고 듣는 중 막대를 닫는다
+     *       들은 말을 보여 주는 중이면 막대는 `heard()`의 타이머가 이어서 정한다.
      * 인자: q — 지금 질문. 없으면 null
      */
     private fun onQuestion(q: Question?) {
-        if (listen.value.state == ListenState.HEARD) return
-        if (q != null) {
-            startListening()
-        } else if (listen.value.state == ListenState.LISTENING) {
-            listenJob?.cancel()
-            listen.value = ListenUi(ListenState.OFF)
+        showJob?.cancel()
+        if (q == null) {
+            shown.value = null
+            if (listen.value.state == ListenState.LISTENING) {
+                listenJob?.cancel()
+                listen.value = ListenUi(ListenState.OFF)
+            }
+            return
+        }
+        showJob = scope.launch {
+            withTimeoutOrNull(SHOW_WAIT_MS) { starts.first { it === q } }
+            shown.value = q
+            if (listen.value.state != ListenState.HEARD) startListening(q.hint)
         }
     }
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
+     * 수정: 2026-11-12 20:10:00 · 박건준
      * 함수: startListening
      * 목적: 듣는 중 막대를 띄우고, 지금 말이 끝난 뒤 `LISTEN_TIMEOUT_MS`가
      *       지나면 막대만 닫는다.
+     * 인자: hint — 막대 아래 줄 대답 예. null이면 기본 안내("“응” 또는 “괜찮아”")
      */
-    private fun startListening() {
+    private fun startListening(hint: String?) {
         listenJob?.cancel()
         listen.value = ListenUi(
             ListenState.LISTENING,
             context.getString(R.string.listen_on),
-            context.getString(R.string.listen_hint),
+            hint ?: context.getString(R.string.listen_hint),
         )
         listenJob = scope.launch {
             withTimeoutOrNull(SPEAK_START_MS) { speaking.first { it } }

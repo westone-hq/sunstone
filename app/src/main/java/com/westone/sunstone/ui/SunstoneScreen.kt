@@ -55,7 +55,6 @@ import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.ui.panel.LeftZone
 import com.westone.sunstone.ui.panel.PanelToast
-import com.westone.sunstone.ui.panel.zoneFull
 import kotlinx.coroutines.delay
 
 /**
@@ -163,11 +162,7 @@ fun SunstoneScreen(graph: AppGraph) {
 private fun PanelsInApp(graph: AppGraph) {
     val screen by graph.panels.ui.collectAsStateWithLifecycle() // 그릴 값
     Box(Modifier.width(853.dp).height(1210.dp)) {
-        Box(Modifier.align(if (zoneFull(screen)) Alignment.TopStart else Alignment.BottomStart).padding(
-            if (zoneFull(screen)) 0.dp else 24.dp,
-        )) {
-            LeftZone(screen, graph.panels::press, graph.panels::tapMic)
-        }
+        LeftZone(screen, graph.panels::press, graph.panels::tapMic)
         screen.toast?.let {
             Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 184.dp)) { PanelToast(it) }
         }

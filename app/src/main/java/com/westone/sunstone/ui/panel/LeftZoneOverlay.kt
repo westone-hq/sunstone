@@ -31,14 +31,14 @@ import kotlinx.coroutines.launch
 
 /**
  * 작성: 2026-11-12 19:00:00 · 박건준
- * 수정: 2026-11-12 19:52:00 · 박건준
+ * 수정: 2026-11-12 20:12:00 · 박건준
  * 클래스: LeftZoneOverlay
  * 목적: 왼쪽 구역(운전석 쪽 시스템 주행 화면) 위에 패널·듣는 중 막대·토스트·
  *       마이크 칸을 띄운다. 창은 둘이다.
  *       - 구역 창 — 패널이나 듣는 중 막대가 떠 있으면 상태줄 아래부터 하단
  *         막대 위까지(853×1210)를 불투명 배경으로 덮고 패널·막대를 그린다.
- *         아무것도 없으면 왼쪽 아래 마이크 칸 크기로 줄여 주행 화면을 막지
- *         않는다
+ *         아무것도 없으면 상태줄 바로 아래 왼쪽 마이크 칸(112) 크기로 줄여
+ *         주행 화면을 막지 않는다
  *       - 토스트 창 — 왼쪽 구역 아래 가운데, 아래에서 184. 터치를 받지 않고
  *         구역 창 위에 뜬다. 토스트가 없으면 숨긴다
  *       앱이 뒤에 있어도(내비가 앞) 떠 있다. 맨 위 속도·기어 줄(상태줄 자리)은
@@ -80,11 +80,10 @@ class LeftZoneOverlay(
         /**
          * 작성: 2026-11-12 19:00:00 · 박건준
          * 수정: 2026-11-12 19:52:00 · 박건준
-         * 변수: GAP, TOAST_BOTTOM
-         * 목적: 마이크 칸 바깥 여백 24, 토스트 아래 위치 184.
+         * 변수: TOAST_BOTTOM
+         * 목적: 토스트 아래 위치 184.
          * 근거: 인용 — docs/SCREEN.md 1장 위치, 시안 template.html `.toast`
          */
-        const val GAP = 24
         const val TOAST_BOTTOM = 184
 
         /**
@@ -141,9 +140,10 @@ class LeftZoneOverlay(
 
     /**
      * 작성: 2026-11-12 19:52:00 · 박건준
+     * 수정: 2026-11-12 20:12:00 · 박건준
      * 함수: addZone
      * 목적: 구역 창을 더한다. 덮을 때(`zoneFull`)는 구역 전체 크기로, 아니면
-     *       마이크 칸 크기로 왼쪽 아래에 둔다. 포커스는 받지 않아 내비·주행
+     *       마이크 칸 크기로 상태줄 바로 아래 왼쪽에 둔다. 포커스는 받지 않아 내비·주행
      *       화면의 키 입력을 가로채지 않는다.
      */
     private fun addZone() {
@@ -196,6 +196,7 @@ class LeftZoneOverlay(
 
     /**
      * 작성: 2026-11-12 19:52:00 · 박건준
+     * 수정: 2026-11-12 20:12:00 · 박건준
      * 함수: place
      * 목적: 구역 창 자리와 크기를 정한다.
      * 인자: params — 바꿀 창 값
@@ -204,9 +205,9 @@ class LeftZoneOverlay(
     private fun place(params: WindowManager.LayoutParams, full: Boolean) {
         params.width = if (full) ZONE_WIDTH else WindowManager.LayoutParams.WRAP_CONTENT
         params.height = if (full) ZONE_HEIGHT else WindowManager.LayoutParams.WRAP_CONTENT
-        params.gravity = (if (full) Gravity.TOP else Gravity.BOTTOM) or Gravity.START
-        params.x = if (full) 0 else GAP
-        params.y = if (full) 0 else GAP
+        params.gravity = Gravity.TOP or Gravity.START
+        params.x = 0
+        params.y = 0
     }
 
     /**

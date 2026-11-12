@@ -370,12 +370,15 @@ fun PanelToast(message: String) {
 
 /**
  * 작성: 2026-11-12 18:50:00 · 박건준
+ * 수정: 2026-11-12 20:12:00 · 박건준
  * 함수: MicCell
- * 목적: 말 걸기 칸. 듣는 중 막대가 없을 때 왼쪽 구역 아래에 늘 둔다. 누르면
+ * 목적: 말 걸기 칸 112. 패널·막대가 없을 때 상태줄 바로 아래 왼쪽에 둔다. 누르면
  *       듣는 중 막대를 띄운다. 초록은 마이크가 켜졌을 때만 쓰므로 여기는
  *       검정이다.
  * 인자: onTap — 누르면 부른다
- * 근거: 측정 — 운전대 음성 버튼(KEYCODE_VOICE_ASSIST)은 시스템 음성
+ * 근거: 인용 — 시안 template.html `.mic`(left 0, top 92, 112×112). 왼쪽
+ *       아래는 주행(D) 화면의 시스템 빠른 버튼을 가렸다(r3-S10-toast).
+ *       측정 — 운전대 음성 버튼(KEYCODE_VOICE_ASSIST)은 시스템 음성
  *       비서(Gleo)가 가져가 앱이 받지 못한다(docs/api-spike.md 운전대 음성
  *       버튼 행). docs/SCREEN.md 5장 대화 시작 방법의 대안
  * 미구현: 프로토타입이라 운전대 버튼 대신 화면 칸으로 말을 건다
@@ -407,11 +410,12 @@ fun zoneFull(ui: ScreenUi): Boolean = ui.panel != null || ui.listen.state != Lis
 
 /**
  * 작성: 2026-11-12 19:50:00 · 박건준
+ * 수정: 2026-11-12 20:12:00 · 박건준
  * 함수: LeftZone
  * 목적: 왼쪽 구역(상태줄 아래부터 하단 막대 위까지)을 그린다.
  *       - 덮을 때 — 불투명 배경(시안 `.drive` 세로 그라데이션) 위에 위쪽 패널,
- *         맨 아래 듣는 중 막대. 막대가 없으면 왼쪽 아래 마이크 칸
- *       - 덮지 않을 때 — 마이크 칸만
+ *         맨 아래 듣는 중 막대. 마이크 칸은 숨긴다(시안 `.drive.busy .mic`)
+ *       - 덮지 않을 때 — 상태줄 바로 아래 왼쪽 마이크 칸만
  *       배경으로 시스템 주행 화면(차 그림, 빠른 버튼, 미디어 줄)이 패널 사이로
  *       보이지 않게 한다. 토스트는 따로 그린다(`PanelToast`).
  * 인자: ui — 왼쪽 구역 값
@@ -430,12 +434,8 @@ fun LeftZone(ui: ScreenUi, onPress: (PanelAction) -> Unit, onMic: () -> Unit) {
     val drive = Brush.verticalGradient(0f to c.driveTop, .2f to c.driveTop, 1f to c.driveBottom) // 구역 배경
     Box(Modifier.fillMaxSize().background(drive)) {
         ui.panel?.let { Box(Modifier.padding(24.dp)) { AlertPanel(it, onPress) } }
-        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth()) {
-            if (ui.listen.state != ListenState.OFF) {
-                ListenBar(ui.listen)
-            } else {
-                Box(Modifier.padding(24.dp)) { MicCell(onMic) }
-            }
+        if (ui.listen.state != ListenState.OFF) {
+            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth()) { ListenBar(ui.listen) }
         }
     }
 }

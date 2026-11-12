@@ -200,10 +200,13 @@ class AppGraph(private val app: Context) {
     /** 시연 모드 장면 실행기. debug 빌드의 `installDemo()`가 앱 시작 때 넣고, 출시 빌드에서는 null */
     var scenes: SceneControls? = null
 
-    /** 말하기. 대화 기록에 남기고 음성으로 말한다. 루틴·길안내 대화가 모두 이것으로 말한다 */
+    /**
+     * 말하기. 대화 기록에 남기고 음성으로 말한다. 루틴·길안내 대화가 모두 이것으로 말한다. 그때 떠 있는
+     * 질문을 말에 붙여, 패널이 그 말이 시작될 때 뜨게 한다
+     */
     val speaker = Speaker { text ->
         addChat(ChatLine(fromDriver = false, text = text))
-        voice.say(text) // → 로직 이동: AndroidSpeaker.say()
+        voice.say(text, asking.question.value) // → 로직 이동: AndroidSpeaker.say()
     }
 
     /** 사람별 시트 자세 저장소 */
@@ -231,7 +234,7 @@ class AppGraph(private val app: Context) {
     ).also { it.start() } // → 로직 이동: RoutineRunner.start()
 
     /** 왼쪽 구역 패널 값. 버튼은 대답(`answer()`)과 루틴 끝내기로 간다 */
-    val panels = PanelPresenter(app, scope, asking, runner.ui, voice.speaking, ::answer) { id ->
+    val panels = PanelPresenter(app, scope, asking, runner.ui, voice.speaking, voice.starts, ::answer) { id ->
         runner.undo(id) // → 로직 이동: RoutineRunner.undo()
     }
 
