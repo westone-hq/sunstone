@@ -1,5 +1,6 @@
 package com.westone.sunstone.routines.engine
 
+import com.westone.sunstone.routines.dialog.Question
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.port.CarPort
 import com.westone.sunstone.routines.port.Command
@@ -21,20 +22,44 @@ data class RunRequest(
 sealed interface Step {
     val title: String
 
+    /** 화면 줄 아이콘 이름(`QuestionRow.icon`과 같은 이름). 없으면 null */
+    val icon: String?
+
     /**
-     * 앱이 차를 바꾸는 단계.
-     * 실패하거나 지원하지 않으면 [fallback]을 말하고 다음 단계로 간다.
-     * [restoreOnUndo]가 false면 되돌릴 때 건드리지 않는다(예: 창문은 다시 열지 않는다).
+     * 작성: 2026-11-12 18:12:00 · 박건준
+     * 클래스: Control
+     * 목적: 앱이 차를 바꾸는 단계. 실패하거나 지원하지 않으면 [fallback]을
+     *       말하고 다음 단계로 간다.
+     * 인자: title — 단계 이름(화면 줄 글자)
+     *       command — 차에 보낼 명령
+     *       fallback — 실패하면 할 안내
+     *       restoreOnUndo — false면 되돌릴 때 건드리지 않는다(창문은 다시 열지
+     *       않는다)
+     *       icon — 화면 줄 아이콘 이름. 없으면 null
      */
     data class Control(
         override val title: String,
         val command: Command,
         val fallback: String,
         val restoreOnUndo: Boolean = true,
+        override val icon: String? = null,
     ) : Step
 
-    /** 앱이 할 수 없는 일. 말로 안내만 한다. */
-    data class Guide(override val title: String, val say: String) : Step
+    /**
+     * 작성: 2026-11-12 18:12:00 · 박건준
+     * 클래스: Guide
+     * 목적: 앱이 할 수 없는 일. 말로 안내만 한다.
+     * 인자: title — 단계 이름(화면 줄 글자)
+     *       say — 단계마다 말하는 루틴이면 할 안내
+     *       icon — 화면 줄 아이콘 이름. 없으면 null
+     *       hint — 화면 줄 오른쪽 짧은 안내("직접 접어 주세요"). 없으면 null
+     */
+    data class Guide(
+        override val title: String,
+        val say: String,
+        override val icon: String? = null,
+        val hint: String? = null,
+    ) : Step
 }
 
 /**
@@ -66,6 +91,16 @@ interface Routine {
     /** 상황을 보고 먼저 권할 말. 권하지 않으면 null. */
     fun suggestion(before: CarState, now: CarState): String? = null
 
+    /**
+     * 작성: 2026-11-12 18:12:00 · 박건준
+     * 함수: question
+     * 목적: 권할 때 화면에 올릴 질문. [suggestion]이 말을 돌려준 뒤에 부른다.
+     *       null이면 말만 한다.
+     * 인자: now — 지금 차 상태
+     * 반환: 질문. 없으면 null
+     */
+    fun question(now: CarState): Question? = null
+
     /** 켜져 있는 동안 지켜보다가 알려줄 말(예: 뒷좌석 벨트 풀림). */
     fun watch(before: CarState, now: CarState): String? = null
 
@@ -74,6 +109,13 @@ interface Routine {
 
     /** 되돌린 뒤 하는 말. */
     val afterUndo: List<String> get() = emptyList()
+
+    /**
+     * 작성: 2026-11-12 18:12:00 · 박건준
+     * 함수: undoNotice
+     * 목적: 되돌린 뒤 토스트로 보일 문장. 없으면 null.
+     */
+    val undoNotice: String? get() = null
 
     /**
      * 실행 뒤에도 켜진 상태로 남는가(세차·차일드락처럼 "끝"이 있는 루틴).

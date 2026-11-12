@@ -1,5 +1,7 @@
 package com.westone.sunstone.routines.engine
 
+import com.westone.sunstone.routines.dialog.Asking
+import com.westone.sunstone.routines.dialog.Question
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.port.CarPort
 import com.westone.sunstone.routines.port.Command
@@ -19,7 +21,24 @@ enum class StepStatus { WAITING, RUNNING, DONE, GUIDED, SKIPPED }
 
 enum class Phase { RUNNING, ACTIVE, UNDOING, FINISHED }
 
-data class StepView(val title: String, val status: StepStatus, val note: String? = null)
+/**
+ * 작성: 2026-11-12 18:14:00 · 박건준
+ * 클래스: StepView
+ * 목적: 화면에 보일 단계 하나.
+ * 인자: title — 단계 이름
+ *       status — 지금 상태
+ *       note — 안내로 바뀐 이유나 사람이 할 일("직접 접어 주세요"). 없으면 null
+ *       icon — 화면 줄 아이콘 이름(`Step.icon`). 없으면 null
+ *       guide — 앱이 할 수 없어 처음부터 사람이 할 일(`Step.Guide`)이면 true.
+ *       화면이 진행선 개수에서 뺀다
+ */
+data class StepView(
+    val title: String,
+    val status: StepStatus,
+    val note: String? = null,
+    val icon: String? = null,
+    val guide: Boolean = false,
+)
 
 data class RunView(
     val id: RoutineId,
@@ -30,7 +49,15 @@ data class RunView(
     val source: Source,
 )
 
-data class Suggestion(val id: RoutineId, val message: String)
+/**
+ * 작성: 2026-11-12 18:14:00 · 박건준
+ * 클래스: Suggestion
+ * 목적: 떠 있는 권하기 하나.
+ * 인자: id — 권한 루틴
+ *       message — 권한 말
+ *       question — 화면에 올린 질문(`Asking`). 질문 없이 말만 했으면 null
+ */
+data class Suggestion(val id: RoutineId, val message: String, val question: Question? = null)
 
 data class RunnerUi(
     val runs: Map<RoutineId, RunView> = emptyMap(),
@@ -53,6 +80,8 @@ class RoutineRunner(
     private val scope: CoroutineScope,
     private val clock: () -> Long = System::currentTimeMillis,
     private val suggestCooldownMs: Long = 10 * 60_000L,
+    /** 권할 때 질문을 올리고 되돌린 뒤 토스트를 내는 곳. 없으면 말만 한다 */
+    private val asking: Asking? = null,
 ) {
     private companion object {
         /**
@@ -87,14 +116,29 @@ class RoutineRunner(
 
     fun undo(id: RoutineId): Job = scope.launch { mutex.withLock { undoLocked(id) } }
 
+    /**
+     * 수정: 2026-11-12 18:14:00 · 박건준
+     * 함수: acceptSuggestion
+     * 목적: 떠 있는 권하기를 받아들여 그 루틴을 실행하고, 올린 질문을 내린다.
+     * 반환: 실행 작업. 권하기가 없으면 null
+     */
     fun acceptSuggestion(): Job? {
-        val s = _ui.value.suggestion ?: return null
+        val s = _ui.value.suggestion ?: return null // 받아들일 권하기
         _ui.update { it.copy(suggestion = null) }
+        s.question?.let { asking?.answered(it.kind) } // → 로직 이동: Asking.answered()
         return request(RunRequest(s.id, source = Source.DETECTED))
     }
 
+    /**
+     * 수정: 2026-11-12 18:14:00 · 박건준
+     * 함수: dismissSuggestion
+     * 목적: 떠 있는 권하기를 지운다. 질문을 올렸으면 거절로 남겨 이번 길에서
+     *       다시 묻지 않는다.
+     */
     fun dismissSuggestion() {
+        val s = _ui.value.suggestion ?: return // 지울 권하기
         _ui.update { it.copy(suggestion = null) }
+        s.question?.let { asking?.decline(it.kind) } // → 로직 이동: Asking.decline()
     }
 
     /**
@@ -186,7 +230,7 @@ class RoutineRunner(
             when (val step = steps[i]) {
                 is Step.Control -> outcomes += StepOutcome(step, runControl(run, i, step, sayFallback = !atEnd))
                 is Step.Guide -> {
-                    run.mark(i, StepStatus.GUIDED)
+                    run.mark(i, StepStatus.GUIDED, step.hint)
                     if (!atEnd) say(step.say)
                     outcomes += StepOutcome(step, null)
                 }
@@ -247,6 +291,7 @@ class RoutineRunner(
             runCatching { car.apply(command) }
         }
         run.routine.afterUndo.forEach(::say)
+        run.routine.undoNotice?.let { asking?.notice(it) } // → 로직 이동: Asking.notice()
         run.phase = Phase.FINISHED
         publish(run)
     }
@@ -266,8 +311,11 @@ class RoutineRunner(
             val last = lastSuggestedAt[routine.id]
             if (last != null && clock() - last < suggestCooldownMs) continue
             val message = routine.suggestion(before, now) ?: continue
+            val question = routine.question(now) // 화면에 올릴 질문, 없으면 null
+            // 이번 길에서 거절한 질문이면 말도 하지 않는다(docs/SCREEN.md 3장 대화 규칙)
+            if (question != null && asking?.ask(question) == false) continue // → 로직 이동: Asking.ask()
             lastSuggestedAt[routine.id] = clock()
-            _ui.update { it.copy(suggestion = Suggestion(routine.id, message)) }
+            _ui.update { it.copy(suggestion = Suggestion(routine.id, message, question)) }
             say(message)
             return
         }
@@ -294,7 +342,7 @@ class RoutineRunner(
         var phase: Phase = Phase.RUNNING
         val saved = mutableListOf<Command>()
         private val status = MutableList(steps.size) { StepStatus.WAITING }
-        private val notes = MutableList<String?>(steps.size) { null }
+        private val notes = MutableList(steps.size) { (steps[it] as? Step.Guide)?.hint }
 
         fun mark(i: Int, s: StepStatus, note: String? = null) {
             status[i] = s
@@ -309,7 +357,7 @@ class RoutineRunner(
             id = routine.id,
             title = routine.title,
             phase = phase,
-            steps = steps.mapIndexed { i, s -> StepView(s.title, status[i], notes[i]) },
+            steps = steps.mapIndexed { i, s -> StepView(s.title, status[i], notes[i], s.icon, s is Step.Guide) },
             startedAtMs = startedAtMs,
             source = source,
         )
