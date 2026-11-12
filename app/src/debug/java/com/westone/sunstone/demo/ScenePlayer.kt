@@ -66,6 +66,15 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
         const val REPLY_WAIT_MS = 50_000L
 
         /**
+         * 작성: 2026-11-12 15:06:00 · 박건준
+         * 변수: KEEP_ALIVE_MS
+         * 목적: 콘솔 세션 신호를 보내는 간격(밀리초).
+         * 근거: 측정 — 신호가 3초 넘게 끊기면 콘솔이 차량 쪽 연결을 끊는다
+         *       (docs/api-spike.md Virtual Console 설명)
+         */
+        const val KEEP_ALIVE_MS = 1_000L
+
+        /**
          * 작성: 2026-11-11 16:42:25 · 박희정
          * 변수: TAG
          * 목적: 데모 logcat 태그.
@@ -90,7 +99,7 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
             g.scope.launch {
                 while (isActive) {
                     VirtualConsole.keepAlive() // → 로직 이동: VirtualConsole.keepAlive()
-                    delay(1_000)
+                    delay(KEEP_ALIVE_MS)
                 }
             }
         }
@@ -122,9 +131,12 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
+     * 수정: 2026-11-12 15:06:00 · 박건준
      * 함수: goTo
      * 목적: 그 장면으로 건너뛴다. 처음부터 다시 시작해 앞 장면들의 준비와 대사를
-     *       차례로 넣고(앱이 답할 때까지 기다린다) 그 장면을 준비한다.
+     *       차례로 넣고(앱이 답할 때까지 기다린다) 그 장면을 준비한다. 건너뛴
+     *       장면의 말은 그 장면에 들어가기 전에 끊어, 앞 장면 말이 뒤늦게 이어
+     *       나오지 않게 한다.
      * 인자: id — 장면 ID("S3")
      * 반환: 그런 장면이 있으면 true
      */
@@ -137,6 +149,7 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
                 enter(k)
                 scenes[k].driver?.let { sayAndWait(it.text, scenes[k].expectSaid.size) }
             }
+            g.stopVoice() // → 로직 이동: AppGraph.stopVoice()
             enter(target)
         }
         return true
