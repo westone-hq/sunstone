@@ -1,9 +1,11 @@
 package com.westone.sunstone.routines.library
 
 import com.westone.sunstone.routines.dialog.Asking
+import com.westone.sunstone.routines.dialog.Choice
 import com.westone.sunstone.routines.dialog.Question
 import com.westone.sunstone.routines.dialog.QuestionKind
 import com.westone.sunstone.routines.dialog.QuestionRow
+import com.westone.sunstone.routines.dialog.Reply
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.Routine
 import com.westone.sunstone.routines.engine.RoutineId
@@ -27,13 +29,15 @@ import java.time.LocalDate
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-12 18:22:00 · 박건준
+ * 수정: 2026-11-13 03:25:00 · 박건준
  * 클래스: WashRoutine
  * 목적: 세차 모드. 현대 세차 모드가 하는 일(창문·선루프 닫기, 와이퍼 끄기,
  *       내기 순환, 문 잠금, 미러 접기)을 앱이 한 단계씩 직접 한다.
  *       - 세차장에 도착해 멈추면 먼저 권한다. 주유소는 길안내 대화가 세차를
  *         예약했을 때만, 주유 정차가 아닌 세차 입구 정차에서 권한다
- *       - 권할 때 "세차 모드 켤까요?" 패널(`Asking`)을 올린다
+ *       - 예약한 세차 입구에서는 다시 묻지 않고 "곧 세차 모드를 켤게요"
+ *         카드(`Asking`)를 올려 5초 뒤 켠다(취소할 수 있다). 세차장에서는
+ *         "세차 모드 켤까요?" 카드로 묻는다
  *       - 다 하고 나서 한 번에 짧게 말한다. 하나라도 했으면 오늘을 마지막
  *         세차일로 남기고 예약을 지운다
  *       - 미러 접기와 N 유지는 API가 없어서 말로 안내한다. N 유지는 자동
@@ -45,7 +49,8 @@ import java.time.LocalDate
  *       asking — 주유 정차 토스트를 낸다. `RoutineRunner`·`TripDialog`와 같은
  *       것을 넘긴다
  *       today — 오늘 날짜. 테스트에서 고정한다
- * 근거: 인용 — Tab 1 4.3 시나리오 ① #3~#5, docs/SCREEN.md 3장 ①-8~①-11
+ * 근거: 인용 — Tab 1 4.3 시나리오 ① #3~#5, docs/SCREEN.md 6장 시나리오 ①
+ *       다시 짠 흐름 5~9
  */
 class WashRoutine(
     private val booking: WashBooking,
@@ -72,6 +77,15 @@ class WashRoutine(
          *       (docs/api-spike.md 세차 선루프 행)
          */
         val ROOFS = setOf(Window.ROOF_1, Window.ROOF_2)
+
+        /**
+         * 작성: 2026-11-13 03:25:00 · 박건준
+         * 변수: START_WAIT_MS
+         * 목적: 예약한 세차 입구에서 세차 모드를 켜기 전에 기다리는 시간(밀리초).
+         *       그 사이 "취소"라고 하거나 [취소]를 누르면 켜지 않는다.
+         * 근거: 인용 — docs/SCREEN.md 6장 6단계: [지금 켜기]에 5초가 차오른다
+         */
+        const val START_WAIT_MS = 5_000L
     }
 
     override val id = RoutineId.WASH
@@ -105,18 +119,17 @@ class WashRoutine(
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-12 19:40:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: plan
      * 목적: 세차 단계를 만든다. 창문(선루프 포함) → 와이퍼 → 내기 순환 →
      *       문 잠금 → 사이드미러 안내 순서. 세차장에 있으면 N 유지 안내를
      *       더한다. 이 차에 없는 선루프(읽을 수 없음)는 넣지 않는다.
-     *       옆 창문 네 개는 같은 이름("창문 닫기")이라 화면에서 한 줄로 보인다.
-     *       단계마다 끝난 뒤 줄 글자("창문 닫음")를 붙인다.
+     *       옆 창문 네 개는 같은 이름("창문")이라 화면에서 한 칸으로 보인다.
      * 인자: request — 실행 요청. 쓰지 않는다
      *       car — 지금 장소와 선루프가 있는지 보려고 읽는다
      * 반환: 실행할 단계들
      * 근거: 인용 — Tab 1 4.3 시나리오 ① #4는 주유소 장면이라 N 유지를 말하지
-     *       않는다. docs/SCREEN.md 3장 ①-9 항목 5줄
+     *       않는다. docs/SCREEN.md 6장 할 일 칸 다섯
      */
     override suspend fun plan(request: RunRequest, car: CarPort): List<Step> {
         val present = Window.entries.filter { it !in ROOFS || car.read(Target.WindowPosition(it)) != null } // 있는 창문
@@ -127,24 +140,23 @@ class WashRoutine(
                 fallback = "${withObject(w.label)} 닫아 주세요.",
                 restoreOnUndo = false,
                 icon = "window",
-                done = if (w in ROOFS) WashLines.DONE_SUNROOF else WashLines.DONE_WINDOWS,
             )
         }
         val atCarWash = car.state.value.place == Place.CAR_WASH // 자동 세차기가 있는 곳인지
         return windows + listOfNotNull(
             Step.Control(
                 WashLines.STEP_WIPER, Command(Target.Wiper, WiperMode.OFF), "와이퍼 레버를 OFF로 내려 주세요.",
-                icon = "wiper", done = WashLines.DONE_WIPER,
+                icon = "wiper",
             ),
             Step.Control(
                 WashLines.STEP_RECIRCULATION, Command(Target.Recirculation, true), "내기 순환 버튼을 눌러 주세요.",
-                icon = "air", done = WashLines.DONE_RECIRCULATION,
+                icon = "air",
             ),
             Step.Control(
                 WashLines.STEP_DOOR_LOCK, Command(Target.DoorLock, true), "문을 잠가 주세요.",
-                restoreOnUndo = false, icon = "lock", done = WashLines.DONE_DOOR_LOCK,
+                restoreOnUndo = false, icon = "lock",
             ),
-            Step.Guide(WashLines.STEP_MIRROR, "사이드미러 접기 버튼을 눌러 주세요.", "mirror", WashLines.MIRROR_HINT),
+            Step.Guide(WashLines.STEP_MIRROR, "사이드미러 접기 버튼을 눌러 주세요.", "mirror", WashLines.MANUAL),
             if (atCarWash) Step.Guide("자동 세차기라면 N 유지", WashLines.N_HOLD) else null,
         )
     }
@@ -192,19 +204,20 @@ class WashRoutine(
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-12 18:22:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: suggestion
      * 목적: 세차장이나 세차를 예약한 주유소에서 P·N으로 멈추면 세차 모드를
      *       권한다. 같은 장소에서 이미 멈춰 있던 상태면 다시 권하지 않는다.
      *       예약한 주유소는 정차마다 다르게 한다(`WashBooking` 단계).
      *       1. 처음 섬(주유 정차) — 말 없이 토스트만 낸다
      *       2. 그 뒤 주유소 안에서 움직이면 남겨 둔다
-     *       3. 움직인 뒤 다시 섬(세차 입구) — "세차 모드 켤까요?"
+     *       3. 움직인 뒤 다시 섬(세차 입구) — 다시 묻지 않고 "곧 세차 모드
+     *          켤게요."(`question()`이 5초 기다리는 카드를 올린다)
      * 인자: before — 바뀌기 전 차 상태
      *       now — 지금 차 상태
      * 반환: 권할 말. 권하지 않으면 null
      * 근거: 인용 — Tab 1 5.1 장소에 루틴 예약 → 도착 시 권하기. docs/SCREEN.md
-     *       3장 ①-8·①-9
+     *       6장 5·6단계
      * 미구현: 프로토타입이라 주유소 안 두 번째 정차를 세차 입구로 본다
      *       (`WashBooking` 참고)
      */
@@ -224,7 +237,7 @@ class WashRoutine(
                         asking.notice(WashLines.WAIT_FOR_ENTRANCE) // → 로직 이동: Asking.notice()
                         null
                     }
-                    booking.movedAfterFuel -> WashLines.ASK_MODE
+                    booking.movedAfterFuel -> WashLines.SOON
                     else -> null
                 }
             }
@@ -234,27 +247,38 @@ class WashRoutine(
 
     /**
      * 작성: 2026-11-12 18:22:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: question
-     * 목적: 세차 모드를 권할 때 올릴 패널. 줄은 세차 단계(창문은 한 줄)이고
-     *       사이드미러는 사람이 할 일로 미리 보인다.
-     * 인자: now — 지금 차 상태. 쓰지 않는다
+     * 목적: 세차 모드를 권할 때 올릴 카드. 할 일 칸은 세차 단계 다섯(창문은 한
+     *       칸)이고 미러는 사람이 할 칸("직접")으로 미리 보인다.
+     *       - 예약한 주유소(세차 입구) — "곧 세차 모드를 켤게요", [지금 켜기]에
+     *         `START_WAIT_MS`가 차오르고 지나면 켠다. [취소]
+     *       - 세차장 — "세차 모드 켤까요?", [세차 모드 켜기] [괜찮아요]
+     * 인자: now — 지금 차 상태. 장소를 본다
      * 반환: 세차 모드 질문
-     * 근거: 인용 — docs/SCREEN.md 3장 ①-9
+     * 근거: 인용 — docs/SCREEN.md 6장 6단계, 시안 template2.html `card()` wash
      */
-    override fun question(now: CarState): Question = Question(
-        kind = QuestionKind.WASH_MODE,
-        title = WashLines.ASK_MODE,
-        detail = WashLines.ASK_MODE_DETAIL,
-        rows = listOf(
+    override fun question(now: CarState): Question {
+        val cells = listOf( // 할 일 칸 다섯
             QuestionRow("window", WashLines.STEP_WINDOWS),
             QuestionRow("wiper", WashLines.STEP_WIPER),
             QuestionRow("air", WashLines.STEP_RECIRCULATION),
             QuestionRow("lock", WashLines.STEP_DOOR_LOCK),
-            QuestionRow("mirror", WashLines.STEP_MIRROR, manual = true, note = WashLines.MIRROR_HINT),
-        ),
-        yesLabel = WashLines.ASK_MODE_YES,
-        noLabel = WashLines.ASK_MODE_NO,
-    )
+            QuestionRow("mirror", WashLines.STEP_MIRROR, manual = true, note = WashLines.MANUAL),
+        )
+        val booked = now.place == Place.GAS_STATION && booking.atGasStation // 예약한 세차 입구인지
+        return Question(
+            kind = QuestionKind.WASH_MODE,
+            title = if (booked) WashLines.SOON_TITLE else WashLines.ASK_MODE,
+            detail = WashLines.MODE_DETAIL,
+            rows = cells,
+            choices = if (booked) {
+                listOf(Choice(WashLines.START_NOW, Reply.YES, START_WAIT_MS), Choice(WashLines.CANCEL, Reply.NO))
+            } else {
+                listOf(Choice(WashLines.ASK_MODE_YES, Reply.YES), Choice(WashLines.ASK_MODE_NO, Reply.NO))
+            },
+        )
+    }
 
     /**
      * 작성: 2026-11-12 18:22:00 · 박건준

@@ -23,33 +23,40 @@ enum class WashPart(val target: String, val please: String) {
 
 /**
  * 작성: 2026-11-11 14:28:46 · 박희정
- * 수정: 2026-11-12 18:18:00 · 박건준
+ * 수정: 2026-11-13 03:25:00 · 박건준
  * 클래스: WashLines
- * 목적: 세차 모드가 하는 말과 패널 글자를 한곳에 모은다. 문장을 바꿀 때는 이
+ * 목적: 세차 모드가 하는 말과 카드 글자를 한곳에 모은다. 문장을 바꿀 때는 이
  *       파일만 고친다.
- * 근거: 인용 — Tab 1 4.3 시나리오 ① #3~#5 대사, docs/SCREEN.md 3장 ①-8~①-11
+ * 근거: 인용 — Tab 1 4.3 시나리오 ① #3~#5 대사, docs/SCREEN.md 6장 시나리오 ①
+ *       다시 짠 흐름 5~9
  */
 object WashLines {
 
     /**
      * 작성: 2026-11-12 18:18:00 · 박건준
-     * 변수: ASK_MODE
-     * 목적: 예약한 주유소의 세차 입구에 섰을 때 세차 모드를 묻는 말. 패널
-     *       제목과 같다.
-     * 근거: 인용 — docs/SCREEN.md 3장 ①-9. 예약했으면 세차하는지 다시 묻지 않고
-     *       켤지만 한 번 확인한다(2장 다듬을 점 1)
+     * 수정: 2026-11-13 03:25:00 · 박건준
+     * 변수: ASK_MODE, ASK_MODE_YES, ASK_MODE_NO
+     * 목적: 예약 없이 세차장에 섰을 때 세차 모드를 묻는 카드의 제목과 두 버튼.
+     * 근거: 미정 — docs/SCREEN.md 6장은 예약한 세차 입구만 정했다. 세차장은
+     *       예약이 없어 1차처럼 묻는 카드로 둔다
      */
     const val ASK_MODE = "세차 모드 켤까요?"
-
-    /**
-     * 작성: 2026-11-12 18:18:00 · 박건준
-     * 변수: ASK_MODE_DETAIL, ASK_MODE_YES, ASK_MODE_NO
-     * 목적: 세차 모드 질문 패널의 설명줄, 채운 버튼, 흰 버튼.
-     * 근거: 인용 — docs/SCREEN.md 3장 ①-9, 1장 시안 버튼
-     */
-    const val ASK_MODE_DETAIL = "켜면 아래처럼 맞춰 드려요."
     const val ASK_MODE_YES = "세차 모드 켜기"
     const val ASK_MODE_NO = "괜찮아요"
+
+    /**
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 변수: SOON, SOON_TITLE, START_NOW, CANCEL, MODE_DETAIL
+     * 목적: 세차를 예약한 주유소의 세차 입구에서 다시 묻지 않고 곧 켠다고
+     *       알리는 말, 카드 제목, 두 버튼(5초가 차오르는 [지금 켜기], [취소]),
+     *       카드 설명(묻는 카드도 같이 쓴다).
+     * 근거: 인용 — docs/SCREEN.md 6장 6단계, 시안 template2.html `card()` wash
+     */
+    const val SOON = "곧 세차 모드 켤게요."
+    const val SOON_TITLE = "곧 세차 모드를 켤게요"
+    const val START_NOW = "지금 켜기"
+    const val CANCEL = "취소"
+    const val MODE_DETAIL = "창문, 와이퍼, 공조, 문을 세차용으로 맞춰요."
 
     /**
      * 작성: 2026-11-12 18:18:00 · 박건준
@@ -62,43 +69,29 @@ object WashLines {
 
     /**
      * 작성: 2026-11-12 18:18:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 변수: STEP_WINDOWS, STEP_WIPER, STEP_RECIRCULATION, STEP_DOOR_LOCK,
      *       STEP_MIRROR, STEP_SUNROOF
-     * 목적: 세차 모드 단계 이름. 질문 패널 줄과 진행 패널 줄에 같은 글자로
-     *       보인다. 창문 네 개는 한 줄("창문 닫기")로 묶여 보이게 같은 이름을
-     *       쓴다.
-     * 근거: 인용 — docs/SCREEN.md 3장 ①-9 항목 5줄(1차 시안 그대로)
+     * 목적: 세차 모드 단계 이름. 카드의 할 일 칸 글자로 보인다. 창문 네 개는
+     *       한 칸("창문")으로 묶여 보이게 같은 이름을 쓴다.
+     * 근거: 인용 — docs/SCREEN.md 6장 할 일 칸, 시안 template2.html `WASH`
      */
-    const val STEP_WINDOWS = "창문 닫기"
-    const val STEP_WIPER = "와이퍼 끄기"
+    const val STEP_WINDOWS = "창문"
+    const val STEP_WIPER = "와이퍼"
     const val STEP_RECIRCULATION = "내기 순환"
     const val STEP_DOOR_LOCK = "문 잠금"
-    const val STEP_MIRROR = "사이드미러 접기"
-    const val STEP_SUNROOF = "선루프 닫기"
-
-    /**
-     * 작성: 2026-11-12 19:40:00 · 박건준
-     * 변수: DONE_WINDOWS, DONE_WIPER, DONE_RECIRCULATION, DONE_DOOR_LOCK,
-     *       DONE_SUNROOF
-     * 목적: 단계를 마친 뒤 진행 패널 줄 글자(끝난 꼴, "~어요" 없이 짧게).
-     *       사이드미러는 사람이 할 일이라 이름 그대로 둔다.
-     * 근거: 인용 — 시안 sunstone-ui.html 준비됨 상태 줄("창문 닫음", "와이퍼 끔")
-     */
-    const val DONE_WINDOWS = "창문 닫음"
-    const val DONE_WIPER = "와이퍼 끔"
-    const val DONE_RECIRCULATION = "내기 순환"
-    const val DONE_DOOR_LOCK = "문 잠금"
-    const val DONE_SUNROOF = "선루프 닫음"
+    const val STEP_MIRROR = "미러"
+    const val STEP_SUNROOF = "선루프"
 
     /**
      * 작성: 2026-11-12 18:18:00 · 박건준
-     * 변수: MIRROR_HINT
-     * 목적: 사이드미러 줄 오른쪽에 미리 보일 안내. 앱이 접을 수 없어 사람이
-     *       해야 한다.
-     * 근거: 인용 — docs/SCREEN.md 1장 "직접 ~ 주세요"는 제안할 때부터 미리
-     *       보여 준다
+     * 수정: 2026-11-13 03:25:00 · 박건준
+     * 변수: MANUAL
+     * 목적: 사람이 할 칸(미러) 아래 작은 글자. 앱이 접을 수 없어 사람이 해야
+     *       한다. 묻는 카드부터 미리 보인다.
+     * 근거: 인용 — docs/SCREEN.md 6장 할 일 칸 "직접" = 사람 몫
      */
-    const val MIRROR_HINT = "직접 접어 주세요"
+    const val MANUAL = "직접"
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
@@ -133,21 +126,22 @@ object WashLines {
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
-     * 수정: 2026-11-12 18:18:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 변수: FINISHED
      * 목적: 세차를 마치고 D로 바꿔 원래대로 돌린 뒤 하는 말. 출발 전에 미러를
-     *       확인하게 한다.
-     * 근거: 인용 — docs/SCREEN.md 3장 ①-11
+     *       확인하게 한다. 끝냈다는 것은 판(`RESTORED_NOTICE`)이 알린다.
+     * 근거: 인용 — docs/SCREEN.md 6장 9단계
      */
-    const val FINISHED = "세차 모드 끝냈어요. 사이드미러 펴졌는지 확인해 주세요."
+    const val FINISHED = "사이드미러 펴졌는지 확인해 주세요."
 
     /**
      * 작성: 2026-11-12 18:18:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 변수: RESTORED_NOTICE
-     * 목적: 원래대로 돌린 뒤 보일 토스트.
-     * 근거: 인용 — docs/SCREEN.md 3장 ①-11
+     * 목적: 원래대로 돌린 뒤 판에 보일 토스트.
+     * 근거: 인용 — docs/SCREEN.md 6장 9단계
      */
-    const val RESTORED_NOTICE = "원래대로 돌려놨어요"
+    const val RESTORED_NOTICE = "세차 모드를 끝내고 원래대로 돌려놨어요"
 
     /**
      * 작성: 2026-11-12 18:18:00 · 박건준

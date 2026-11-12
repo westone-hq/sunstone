@@ -3,9 +3,11 @@ package com.westone.sunstone.routines.fake
 import com.westone.sunstone.routines.model.PlaceHit
 import com.westone.sunstone.routines.model.RouteSummary
 import com.westone.sunstone.routines.port.NaviPort
+import kotlinx.coroutines.delay
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
+ * 수정: 2026-11-13 04:20:00 · 박건준
  * 클래스: FakeNavi
  * 목적: 메모리 속 가짜 내비. 단위 테스트와 차 없는 시연에 쓴다. 장소는
  *       [places]에서 이름으로 찾고, 경로는 [route]를 그대로 돌려준다.
@@ -23,6 +25,9 @@ class FakeNavi(
 
     /** 넣은 경유지들, 넣은 순서대로 */
     val waypoints = mutableListOf<PlaceHit>()
+
+    /** 경유지를 넣기까지 걸리는 시간(밀리초). 실제 내비가 경로를 다시 찾는 시간을 흉내 낸다. 기본 0 */
+    var waypointDelayMs: Long = 0
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
@@ -48,10 +53,13 @@ class FakeNavi(
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
+     * 수정: 2026-11-13 04:20:00 · 박건준
      * 함수: addWaypoint
-     * 목적: 경유지를 더한다. 경로가 없거나 [route]가 null이면 실패한다.
+     * 목적: [waypointDelayMs]만큼 기다린 뒤 경유지를 더한다. 경로가 없거나
+     *       [route]가 null이면 실패한다.
      */
     override suspend fun addWaypoint(place: PlaceHit): RouteSummary? {
+        delay(waypointDelayMs)
         if (destination == null) return null
         val r = route ?: return null // 돌려줄 경로, 실패면 null
         waypoints += place

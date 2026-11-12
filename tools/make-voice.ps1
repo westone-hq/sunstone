@@ -1,5 +1,6 @@
 ﻿<#
 작성: 2026-11-11 17:40:00 · 박희정
+수정: 2026-11-13 03:55:00 · 박건준
 목적: 대사집 문장을 미리 녹음한 음성 파일(WAV)로 만든다. 에뮬레이터에는 쓸 수 있는
       TTS 엔진이 없어서(초기화 -1) 시연 영상의 소리를 이 녹음본으로 낸다.
       1. routines ScriptBook.kt에서 장면마다 `expectSaid`(앱이 해야 하는 말)를 읽는다
@@ -7,13 +8,17 @@
       3. Windows 한국어 음성(Microsoft Heami)으로 읽어 app/src/main/assets/voice/<md5>.wav로
          저장한다. 파일 이름은 문장 UTF-8의 MD5(소문자 16진수)이고 앱 `AndroidSpeaker`가
          같은 방식으로 찾는다
+      4. 운전자 대사(`Utterance` 대표 문장)는 앱과 다른 목소리로 들리게 낮고 느리게
+         바꿔 app/src/debug/assets/driver/<md5>.wav로 저장한다. 시연 `DriverVoice`가 낸다
       대사집을 고치면 다시 돌린다. 이미 있는 파일은 지우고 새로 만든다.
 인자: -Extra  대사집 밖에서 녹음할 문장들
 근거: 인용 — Tab 1 5.2 음성 출력 "기본 TTS → 대사집 문장은 미리 녹음한 파일".
       측정 — Pleos 에뮬레이터 v2.1.0 TTS 엔진은 ai.pleos.playground.caas 하나이고
       앱 TextToSpeech 초기화가 -1로 실패했다(2026-11-11)
 미구현: 프로토타입이라 장면마다 앱 말이 한 문장(문자열 이어 붙이기 포함)이라고 보고
-      `expectSaid = listOf(...)` 안의 글자를 모두 이어 한 문장으로 만든다
+      `expectSaid = listOf(...)` 안의 글자를 모두 이어 한 문장으로 만든다.
+      PC에 한국어 음성이 Heami 하나뿐이라, 운전자 목소리는 같은 음성의 WAV 머리에
+      적힌 표본율을 낮춰(DRIVER_RATE) 낮고 느리게 들리게 만든다
 #>
 param(
     # 대사집 밖에서 시연 중 나올 수 있는 말. 앱 문장 틀(WashLines·TripLines·CardLines·strings.xml)과
@@ -32,6 +37,8 @@ Add-Type -AssemblyName System.Speech
 $root = Split-Path $PSScriptRoot -Parent                                                  # 저장소 폴더
 $book = Join-Path $root "routines\src\main\kotlin\com\westone\sunstone\routines\script\ScriptBook.kt"  # 대사집
 $out = Join-Path $root "app\src\main\assets\voice"                                         # 녹음본 폴더
+$driverOut = Join-Path $root "app\src\debug\assets\driver"                                # 운전자 녹음본 폴더
+$DRIVER_RATE = 0.84                                                                       # 운전자 표본율 배율(낮고 느리게)
 
 <#
 함수: Get-Lines
@@ -44,6 +51,32 @@ function Get-Lines {
         $parts = [regex]::Matches($b.Groups[1].Value, '"((?:[^"\\]|\\.)*)"') | ForEach-Object { $_.Groups[1].Value }
         ($parts -join "")
     }
+}
+
+<#
+작성: 2026-11-13 03:55:00 · 박건준
+함수: Get-DriverLines
+목적: 대사집에서 장면마다 운전자 대사 대표 문장(`Utterance(text = ...)`)을 꺼낸다.
+#>
+function Get-DriverLines {
+    $text = Get-Content $book -Raw -Encoding UTF8
+    [regex]::Matches($text, 'Utterance\(\s*text\s*=\s*"((?:[^"\\]|\\.)*)"', 'Singleline') | ForEach-Object { $_.Groups[1].Value }
+}
+
+<#
+작성: 2026-11-13 03:55:00 · 박건준
+함수: Set-Lower
+목적: WAV 머리의 표본율과 초당 바이트 수를 배율만큼 낮춰 같은 소리가 낮고 느리게
+      나오게 한다. 머리는 RIFF 표준 그대로(표본율 24번째, 초당 바이트 28번째 바이트)다.
+#>
+function Set-Lower([string]$file, [double]$ratio) {
+    $bytes = [IO.File]::ReadAllBytes($file)
+    $rate = [BitConverter]::ToInt32($bytes, 24)                                          # 원래 표본율
+    $block = [BitConverter]::ToInt16($bytes, 32)                                         # 표본 하나의 바이트 수
+    $new = [int]($rate * $ratio)                                                          # 바꿀 표본율
+    [BitConverter]::GetBytes($new).CopyTo($bytes, 24)
+    [BitConverter]::GetBytes($new * $block).CopyTo($bytes, 28)
+    [IO.File]::WriteAllBytes($file, $bytes)
 }
 
 <#
@@ -68,5 +101,18 @@ foreach ($line in $lines) {
     $voice.SetOutputToNull()
     Write-Host ("{0}  {1}" -f (Split-Path $file -Leaf), $line)
 }
-$voice.Dispose()
 Write-Host ("녹음본 {0}개 → {1}" -f $lines.Count, $out)
+
+New-Item -ItemType Directory -Force $driverOut | Out-Null
+Get-ChildItem $driverOut -Filter *.wav | Remove-Item
+$drivers = @(Get-DriverLines) | Select-Object -Unique                                     # 운전자 대사들
+foreach ($line in $drivers) {
+    $file = Join-Path $driverOut ((Get-Md5 $line) + ".wav")                               # 저장할 파일
+    $voice.SetOutputToWaveFile($file)
+    $voice.Speak($line)
+    $voice.SetOutputToNull()
+    Set-Lower $file $DRIVER_RATE
+    Write-Host ("{0}  {1}" -f (Split-Path $file -Leaf), $line)
+}
+$voice.Dispose()
+Write-Host ("운전자 녹음본 {0}개 → {1}" -f $drivers.Count, $driverOut)

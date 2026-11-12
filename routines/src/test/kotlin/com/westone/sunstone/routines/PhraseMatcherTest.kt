@@ -1,5 +1,6 @@
 package com.westone.sunstone.routines
 
+import com.westone.sunstone.routines.dialog.Reply
 import com.westone.sunstone.routines.understand.PhraseMatcher
 import com.westone.sunstone.routines.understand.VoiceAction
 import com.westone.sunstone.routines.engine.RoutineId
@@ -38,21 +39,38 @@ class PhraseMatcherTest {
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: 긍정 대답
      * 목적: 대사집의 "응", "그래"와 흔한 변형을 긍정으로 알아듣는지 본다.
      */
     @Test fun `긍정 대답`() = listOf("응", "그래", "네", "네 맞춰줘", "좋아요", "응 해줘", "그래요", "부탁해").forEach {
-        assertEquals(it, VoiceAction.Answer(yes = true), PhraseMatcher.match(it))
+        assertEquals(it, VoiceAction.Answer(Reply.YES), PhraseMatcher.match(it))
     }
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: 거절 대답
-     * 목적: 부정어를 루틴 이름보다 먼저 봐서 "세차 안 해"도 거절로 알아듣는지
-     *       본다.
+     * 목적: 부정어를 루틴 이름보다 먼저 봐서 "세차 안 해"도 거절로, 곧 켜질
+     *       세차 모드를 멈추는 "취소"·"하지 마"도 거절로 알아듣는지 본다.
      */
-    @Test fun `거절 대답`() = listOf("아니", "괜찮아", "아니요 괜찮아요", "세차 안 해", "나중에").forEach {
-        assertEquals(it, VoiceAction.Answer(yes = false), PhraseMatcher.match(it))
+    @Test fun `거절 대답`() = listOf("아니", "괜찮아", "아니요 괜찮아요", "세차 안 해", "나중에", "취소", "하지 마").forEach {
+        assertEquals(it, VoiceAction.Answer(Reply.NO), PhraseMatcher.match(it))
+    }
+
+    /**
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 함수: 세차까지와 주유만
+     * 목적: 주유 질문에 세차까지 하겠다는 말은 세차 모드 켜기가 아니라 대답
+     *       `ALL`로, "주유만"은 `ONLY`로 알아듣는지 본다.
+     */
+    @Test fun `세차까지와 주유만`() {
+        listOf("응, 세차도 할게", "세차도 같이 해 줘", "세차까지 할게").forEach {
+            assertEquals(it, VoiceAction.Answer(Reply.ALL), PhraseMatcher.match(it))
+        }
+        listOf("주유만", "주유만 할게", "기름만 넣을게").forEach {
+            assertEquals(it, VoiceAction.Answer(Reply.ONLY), PhraseMatcher.match(it))
+        }
     }
 
     /**

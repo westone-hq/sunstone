@@ -2,6 +2,7 @@ package com.westone.sunstone.routines.engine
 
 import com.westone.sunstone.routines.dialog.Asking
 import com.westone.sunstone.routines.dialog.Question
+import com.westone.sunstone.routines.dialog.Reply
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.port.CarPort
 import com.westone.sunstone.routines.port.Command
@@ -9,6 +10,7 @@ import com.westone.sunstone.routines.port.ControlResult
 import com.westone.sunstone.routines.port.Speaker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,7 +25,7 @@ enum class Phase { RUNNING, ACTIVE, UNDOING, FINISHED }
 
 /**
  * 작성: 2026-11-12 18:14:00 · 박건준
- * 수정: 2026-11-12 19:40:00 · 박건준
+ * 수정: 2026-11-13 03:25:00 · 박건준
  * 클래스: StepView
  * 목적: 화면에 보일 단계 하나.
  * 인자: title — 단계 이름
@@ -31,8 +33,7 @@ enum class Phase { RUNNING, ACTIVE, UNDOING, FINISHED }
  *       note — 안내로 바뀐 이유나 사람이 할 일("직접 접어 주세요"). 없으면 null
  *       icon — 화면 줄 아이콘 이름(`Step.icon`). 없으면 null
  *       guide — 앱이 할 수 없어 처음부터 사람이 할 일(`Step.Guide`)이면 true.
- *       화면이 진행선 개수에서 뺀다
- *       done — 끝난 뒤 화면 줄 글자(`Step.done`). 없으면 null(title 그대로)
+ *       화면이 "N개 중 M개"에서 뺀다
  */
 data class StepView(
     val title: String,
@@ -40,7 +41,6 @@ data class StepView(
     val note: String? = null,
     val icon: String? = null,
     val guide: Boolean = false,
-    val done: String? = null,
 )
 
 data class RunView(
@@ -101,6 +101,9 @@ class RoutineRunner(
     private val active = mutableMapOf<RoutineId, ActiveRun>()
     private val lastSuggestedAt = mutableMapOf<RoutineId, Long>()
 
+    /** 기다렸다 저절로 받아들이는 권하기의 타이머(`Choice.waitMs`). 없으면 null */
+    private var waitJob: Job? = null
+
     private val _ui = MutableStateFlow(RunnerUi())
     val ui: StateFlow<RunnerUi> = _ui.asStateFlow()
 
@@ -120,37 +123,44 @@ class RoutineRunner(
     fun undo(id: RoutineId): Job = scope.launch { mutex.withLock { undoLocked(id) } }
 
     /**
-     * 수정: 2026-11-12 18:14:00 · 박건준
+     * 작성: 2026-11-08 18:03:56 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: acceptSuggestion
      * 목적: 떠 있는 권하기를 받아들여 그 루틴을 실행하고, 올린 질문을 내린다.
+     *       기다리던 타이머는 멈춘다.
      * 반환: 실행 작업. 권하기가 없으면 null
      */
     fun acceptSuggestion(): Job? {
         val s = _ui.value.suggestion ?: return null // 받아들일 권하기
+        waitJob?.cancel()
         _ui.update { it.copy(suggestion = null) }
         s.question?.let { asking?.answered(it.kind) } // → 로직 이동: Asking.answered()
         return request(RunRequest(s.id, source = Source.DETECTED))
     }
 
     /**
-     * 수정: 2026-11-12 18:14:00 · 박건준
+     * 작성: 2026-11-08 18:03:56 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: dismissSuggestion
      * 목적: 떠 있는 권하기를 지운다. 질문을 올렸으면 거절로 남겨 이번 길에서
      *       다시 묻지 않는다.
      */
     fun dismissSuggestion() {
         val s = _ui.value.suggestion ?: return // 지울 권하기
+        waitJob?.cancel()
         _ui.update { it.copy(suggestion = null) }
         s.question?.let { asking?.decline(it.kind) } // → 로직 이동: Asking.decline()
     }
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: forgetSuggestions
      * 목적: 권하기 기록(같은 루틴 10분에 한 번)과 떠 있는 권하기를 지운다.
      *       새 주행·시연 장면을 처음부터 다시 시작할 때 부른다.
      */
     fun forgetSuggestions() {
+        waitJob?.cancel()
         lastSuggestedAt.clear()
         _ui.update { it.copy(suggestion = null) }
     }
@@ -175,15 +185,18 @@ class RoutineRunner(
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: answer
-     * 목적: 권하기에 말로 한 대답("응", "괜찮아")을 처리한다. "네"면 권한
-     *       루틴을 실행하고, "아니요"면 권하기를 지우고 알았다고 말한다.
-     * 인자: yes — 받아들이면 true, 거절이면 false
+     * 목적: 권하기에 한 대답("응", "취소", 카드 버튼)을 처리한다. 받아들이면
+     *       권한 루틴을 실행하고, 거절이면 권하기를 지우고 알았다고 말한다.
+     *       질문 카드가 있으면 그 카드의 고를 것으로 받아들였는지 본다.
+     * 인자: reply — 대답 값
      * 반환: 권하기가 떠 있어서 대답으로 처리했으면 true. 권하기가 없으면
      *       아무것도 하지 않고 false(부르는 쪽이 "못 알아들었어요"로 처리)
      */
-    fun answer(yes: Boolean): Boolean {
-        if (_ui.value.suggestion == null) return false
+    fun answer(reply: Reply): Boolean {
+        val s = _ui.value.suggestion ?: return false // 떠 있는 권하기
+        val yes = s.question?.accepts(reply) ?: (reply != Reply.NO) // 받아들였는지
         if (yes) {
             acceptSuggestion()
         } else {
@@ -318,9 +331,29 @@ class RoutineRunner(
             // 이번 길에서 거절한 질문이면 말도 하지 않는다(docs/SCREEN.md 3장 대화 규칙)
             if (question != null && asking?.ask(question) == false) continue // → 로직 이동: Asking.ask()
             lastSuggestedAt[routine.id] = clock()
-            _ui.update { it.copy(suggestion = Suggestion(routine.id, message, question)) }
+            val suggestion = Suggestion(routine.id, message, question) // 올린 권하기
+            _ui.update { it.copy(suggestion = suggestion) }
             say(message)
+            question?.choices?.firstOrNull { it.waitMs > 0 }?.let { waitThenAccept(suggestion, it.waitMs) }
             return
+        }
+    }
+
+    /**
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 함수: waitThenAccept
+     * 목적: 기다리는 버튼이 있는 권하기(예약한 세차 입구)는 그 시간이 지나도록
+     *       대답이 없으면 받아들인 것으로 보고 실행한다. 그 사이 대답하거나
+     *       권하기가 바뀌면 하지 않는다.
+     * 인자: suggestion — 올린 권하기
+     *       waitMs — 기다릴 시간(밀리초)
+     * 근거: 인용 — docs/SCREEN.md 6장 6단계: 5초가 지나면 시작한다
+     */
+    private fun waitThenAccept(suggestion: Suggestion, waitMs: Long) {
+        waitJob?.cancel()
+        waitJob = scope.launch {
+            delay(waitMs)
+            if (_ui.value.suggestion === suggestion) acceptSuggestion()
         }
     }
 
@@ -361,7 +394,7 @@ class RoutineRunner(
             title = routine.title,
             phase = phase,
             steps = steps.mapIndexed { i, s ->
-                StepView(s.title, status[i], notes[i], s.icon, s is Step.Guide, s.done)
+                StepView(s.title, status[i], notes[i], s.icon, s is Step.Guide)
             },
             startedAtMs = startedAtMs,
             source = source,
