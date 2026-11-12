@@ -1,5 +1,6 @@
 package com.westone.sunstone.routines.script
 
+import com.westone.sunstone.routines.dialog.QuestionKind
 import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.routines.port.Target
@@ -7,9 +8,12 @@ import com.westone.sunstone.routines.understand.VoiceAction
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
+ * 수정: 2026-11-12 18:30:00 · 박건준
  * 클래스: Scene
  * 목적: 대사집 장면 하나(Tab 1 4.1 장면 형식). 자동 테스트, adb `scene`, 화면
  *       [다음 장면] 버튼이 모두 이 값을 쓴다. 대사를 고칠 때는 이것만 고친다.
+ *       준비도 운전자 말도 없는 장면은 앞 장면에 이어지는 장면이다(①-3 주유
+ *       제안은 ①-2 길안내 말 뒤에 이어 나온다).
  * 인자: id — 장면 ID("S1")
  *       title — 장면 이름(화면에 보인다)
  *       prep — 이 장면 전에 차례로 넣을 상황. 한 단계씩 넣어야 권하기가
@@ -19,6 +23,8 @@ import com.westone.sunstone.routines.understand.VoiceAction
  *       expectCar — 장면 뒤 차에서 읽혀야 하는 값
  *       expectDestination — 장면 뒤 내비 목적지 이름. 보지 않으면 null
  *       expectWaypoints — 장면 뒤 내비 경유지 이름들. 보지 않으면 null
+ *       expectNotices — 앱이 내야 하는 토스트 문장, 차례대로
+ *       expectQuestion — 장면 뒤 대답을 기다리는 질문 종류. 없어야 하면 null
  * 근거: 인용 — Tab 1 4.1 장면 하나의 형식(장면 ID, 준비, 운전자 말, 기대 말,
  *       기대 변화, 고정 응답)
  */
@@ -31,7 +37,16 @@ data class Scene(
     val expectCar: Map<Target, Any> = emptyMap(),
     val expectDestination: String? = null,
     val expectWaypoints: List<String>? = null,
-)
+    val expectNotices: List<String> = emptyList(),
+    val expectQuestion: QuestionKind? = null,
+) {
+    /**
+     * 작성: 2026-11-12 18:30:00 · 박건준
+     * 함수: follows
+     * 목적: 준비도 운전자 말도 없어 앞 장면에 이어지는 장면이면 true.
+     */
+    val follows: Boolean get() = prep.isEmpty() && driver == null
+}
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정

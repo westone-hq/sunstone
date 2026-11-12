@@ -1,8 +1,12 @@
 package com.westone.sunstone.routines
 
+import com.westone.sunstone.routines.dialog.Asking
+import com.westone.sunstone.routines.dialog.QuestionKind
+import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RoutineRunner
 import com.westone.sunstone.routines.engine.RunRequest
+import com.westone.sunstone.routines.engine.StepStatus
 import com.westone.sunstone.routines.fake.FakeCar
 import com.westone.sunstone.routines.library.ChildLockRoutine
 import com.westone.sunstone.routines.library.SeatMemoryRoutine
@@ -13,14 +17,13 @@ import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.routines.model.Window
 import com.westone.sunstone.routines.model.WiperMode
-import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.port.InMemoryMemory
 import com.westone.sunstone.routines.port.InMemorySeatProfiles
-import java.time.LocalDate
 import com.westone.sunstone.routines.port.Target
 import com.westone.sunstone.routines.understand.PhraseMatcher
 import com.westone.sunstone.routines.understand.VoiceAction
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -29,14 +32,17 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 
 /**
  * 작성: 2026-11-11 14:28:46 · 박희정
+ * 수정: 2026-11-12 18:38:00 · 박건준
  * 클래스: WashScenarioTest
- * 목적: Tab 1 4.3 시나리오 ①의 세차 장면(#3 주유소 도착 → #4 "응" → #5 세차 후
- *       출발)을 가짜 차로 돌려, 하는 말과 차 값 변화가 대사집과 같은지 본다.
- *       기대 문장은 대사집 문장을 글자 그대로 적는다.
- * 근거: 인용 — Tab 1 4.3 시나리오 ① 표
+ * 목적: 시나리오 ①의 세차 장면(①-8 주유 정차 → ①-9 세차 입구 → ①-10 "응,
+ *       켜 줘" → ①-11 D로 해제)을 가짜 차로 돌려, 하는 말·토스트·패널과 차 값
+ *       변화가 docs/SCREEN.md 3장과 같은지 본다. 기대 문장은 표 문장을 글자
+ *       그대로 적는다.
+ * 근거: 인용 — docs/SCREEN.md 3장 ①-8~①-11
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class WashScenarioTest {
@@ -53,11 +59,17 @@ class WashScenarioTest {
     /** 앱이 한 말, 말한 순서대로. 장면마다 비우고 그 장면 말만 본다 */
     private val said = mutableListOf<String>()
 
-    /** 세차 예약. 시나리오 ①은 #2에서 길안내 대화가 예약한 상태로 #3을 시작한다 */
+    /** 앱이 낸 토스트, 낸 순서대로 */
+    private val noticed = mutableListOf<String>()
+
+    /** 세차 예약. 시나리오 ①은 ①-6에서 길안내 대화가 예약한 상태로 세차 장면을 시작한다 */
     private val booking = WashBooking().apply { reserve() }
 
     /** 마지막 세차일 기억 */
     private val memory = InMemoryMemory(lastWash = TODAY.minusDays(36))
+
+    /** 질문·토스트 */
+    private val asking = Asking()
 
     /** 선루프 두 개. Pleos 에뮬레이터 차처럼 지원하지 않게 둔다 */
     private val roofs = setOf(Target.WindowPosition(Window.ROOF_1), Target.WindowPosition(Window.ROOF_2))
@@ -67,22 +79,28 @@ class WashScenarioTest {
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
+     * 수정: 2026-11-12 18:38:00 · 박건준
      * 함수: runner
-     * 목적: 앱과 같은 루틴 세 개로 실행기를 만들고 상황 감지를 시작한다.
+     * 목적: 앱과 같은 루틴 세 개로 실행기를 만들고 상황 감지와 토스트 받기를
+     *       시작한다.
      * 인자: car — 가짜 차
      * 반환: 실행기
      */
-    private fun TestScope.runner(car: FakeCar) = RoutineRunner(
-        car = car,
-        routines = listOf(
-            WashRoutine(booking, memory, { TODAY }),
-            ChildLockRoutine(),
-            SeatMemoryRoutine(InMemorySeatProfiles()),
-        ),
-        speaker = { said += it },
-        scope = backgroundScope,
-        clock = { testScheduler.currentTime },
-    ).also { it.start() }
+    private fun TestScope.runner(car: FakeCar): RoutineRunner {
+        backgroundScope.launch { asking.notices.collect { noticed += it } }
+        return RoutineRunner(
+            car = car,
+            routines = listOf(
+                WashRoutine(booking, memory, asking, { TODAY }),
+                ChildLockRoutine(),
+                SeatMemoryRoutine(InMemorySeatProfiles()),
+            ),
+            speaker = { said += it },
+            scope = backgroundScope,
+            clock = { testScheduler.currentTime },
+            asking = asking,
+        ).also { it.start() }
+    }
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
@@ -99,41 +117,71 @@ class WashScenarioTest {
     }
 
     /**
+     * 작성: 2026-11-12 18:38:00 · 박건준
+     * 함수: arriveAndMove
+     * 목적: 달리다가 주유소에 들어와 P로 서고(주유 정차), 조금 움직였다가 다시
+     *       P로 선다(세차 입구). 대사집 S6~S8 준비와 같다.
+     * 인자: car — 가짜 차
+     */
+    private fun TestScope.arriveAndMove(car: FakeCar) {
+        car.update { it.copy(place = Place.GAS_STATION, speedKmh = 0f) }; runCurrent()
+        car.update { it.copy(gear = Gear.PARK) }; runCurrent()
+        car.update { it.copy(gear = Gear.DRIVE, speedKmh = 5f) }; runCurrent()
+        car.update { it.copy(gear = Gear.PARK, speedKmh = 0f) }; runCurrent()
+    }
+
+    /**
      * 작성: 2026-11-11 14:28:46 · 박희정
-     * 함수: 시나리오 1 - 주유소 도착부터 세차 후 출발까지
-     * 목적: 대사집 #3~#5를 차례로 돌린다.
-     *       1. 주행 중 주유소에 들어와 P로 서면 #3 문장으로 권한다
-     *       2. "응"이면 창문·와이퍼·내기 순환·문 잠금을 하고 #4 한 문장만 말한다.
-     *          선루프는 이 차에 없어 말하지 않는다
-     *       3. 주유소를 벗어나 달리면 와이퍼·내기 순환만 되돌리고 #5 문장을 말한다
+     * 수정: 2026-11-12 18:38:00 · 박건준
+     * 함수: 시나리오 1 - 주유 정차부터 세차 후 출발까지
+     * 목적: docs/SCREEN.md 3장 ①-8~①-11을 차례로 돌린다.
+     *       1. 주유소에 처음 P로 서면 말 없이 토스트만 낸다
+     *       2. 조금 움직였다 다시 서면 "세차 모드 켤까요?"와 패널을 올린다
+     *       3. "응"이면 창문·와이퍼·내기 순환·문 잠금을 하고 짧게 한 번 말한다.
+     *          진행 줄에는 아이콘과 사이드미러 안내가 붙는다
+     *       4. D로 바꾸면(정차 중) 와이퍼·내기 순환만 되돌리고 미러 확인을 말한다
      */
     @Test
-    fun `시나리오 1 - 주유소 도착부터 세차 후 출발까지`() = runTest {
+    fun `시나리오 1 - 주유 정차부터 세차 후 출발까지`() = runTest {
         val car = FakeCar(CarState(gear = Gear.DRIVE, speedKmh = 40f)).apply { unsupported = roofs }
         val runner = runner(car)
         runCurrent()
 
         car.update { it.copy(place = Place.GAS_STATION, speedKmh = 0f) }; runCurrent()
         car.update { it.copy(gear = Gear.PARK) }; runCurrent()
-        assertEquals(listOf("세차하시나요? 세차하실 거면 세차 모드로 맞춰 드릴까요?"), said)
+        assertTrue(said.isEmpty())
+        assertEquals(listOf("세차 입구에서 맞춰 드릴게요"), noticed)
+        assertNull(runner.ui.value.suggestion)
+
+        car.update { it.copy(gear = Gear.DRIVE, speedKmh = 5f) }; runCurrent()
+        car.update { it.copy(gear = Gear.PARK, speedKmh = 0f) }; runCurrent()
+        assertEquals(listOf("세차 모드 켤까요?"), said)
+        val q = asking.question.value!! // 올린 질문
+        assertEquals(QuestionKind.WASH_MODE, q.kind)
+        assertEquals(listOf("창문 닫기", "와이퍼 끄기", "내기 순환", "문 잠금", "사이드미러 접기"), q.rows.map { it.text })
+        assertTrue(q.rows.last().manual)
 
         said.clear()
-        assertTrue(answer(runner, "응")); runCurrent()
-        assertEquals(
-            listOf("창문 닫고, 와이퍼 끄고, 내기 순환으로 바꾸고, 문 잠갔어요. 사이드미러는 직접 접어 주세요."),
-            said,
-        )
+        assertTrue(answer(runner, "응, 켜 줘")); runCurrent()
+        assertEquals(listOf("세차 모드 맞췄어요. 사이드미러는 직접 접어 주세요."), said)
+        assertNull(asking.question.value)
         sideWindows.forEach { assertEquals(0, car.value(Target.WindowPosition(it))) }
         assertEquals(WiperMode.OFF, car.value(Target.Wiper))
         assertEquals(true, car.value(Target.Recirculation))
         assertEquals(true, car.value(Target.DoorLock))
         assertEquals(TODAY, memory.lastWashDate()) // 오늘 세차한 것으로 남긴다
         assertFalse(booking.atGasStation) // 예약은 썼으니 지운다
+        val steps = runner.ui.value.runs.getValue(RoutineId.WASH).steps // 진행 줄
+        assertTrue(steps.none { it.title == "선루프 닫기" }) // 이 차에 없는 선루프는 넣지 않는다
+        assertTrue(steps.all { it.icon != null })
+        assertEquals("창문 닫음", steps.first().done) // 끝난 줄 글자
+        assertEquals(StepStatus.GUIDED, steps.last().status)
+        assertEquals("직접 접어 주세요", steps.last().note)
 
-        said.clear()
+        said.clear(); noticed.clear()
         car.update { it.copy(gear = Gear.DRIVE) }; runCurrent()
-        car.update { it.copy(speedKmh = 30f, place = Place.NONE) }; runCurrent()
-        assertEquals(listOf("세차 모드 끝낼게요. 원래대로 돌려놨어요."), said)
+        assertEquals(listOf("세차 모드 끝냈어요. 사이드미러 펴졌는지 확인해 주세요."), said)
+        assertEquals(listOf("원래대로 돌려놨어요"), noticed)
         assertEquals(WiperMode.AUTO, car.value(Target.Wiper))
         assertEquals(false, car.value(Target.Recirculation))
         assertEquals(0, car.value(Target.WindowPosition(Window.FRONT_LEFT))) // 창문은 다시 열지 않는다
@@ -159,8 +207,10 @@ class WashScenarioTest {
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
+     * 수정: 2026-11-12 18:38:00 · 박건준
      * 함수: 세차를 예약하지 않은 주유소에서는 권하지 않는다
-     * 목적: 주유만 하러 들른 주유소에서 매번 세차를 묻지 않는지 본다.
+     * 목적: 주유만 하러 들른 주유소에서는 두 번 서도 세차를 묻지 않고 토스트도
+     *       내지 않는지 본다.
      */
     @Test
     fun `세차를 예약하지 않은 주유소에서는 권하지 않는다`() = runTest {
@@ -169,7 +219,27 @@ class WashScenarioTest {
         val runner = runner(car)
         runCurrent()
 
-        car.update { it.copy(gear = Gear.PARK, speedKmh = 0f, place = Place.GAS_STATION) }; runCurrent()
+        arriveAndMove(car)
+
+        assertNull(runner.ui.value.suggestion)
+        assertTrue(said.isEmpty())
+        assertTrue(noticed.isEmpty())
+    }
+
+    /**
+     * 작성: 2026-11-12 18:38:00 · 박건준
+     * 함수: 주유 정차에서 움직이지 않으면 묻지 않는다
+     * 목적: 주유 정차 뒤 P에서 N으로만 바꾸는 것처럼 움직이지 않았으면 세차
+     *       입구로 보지 않는지 본다.
+     */
+    @Test
+    fun `주유 정차에서 움직이지 않으면 묻지 않는다`() = runTest {
+        val car = FakeCar(CarState(gear = Gear.DRIVE, speedKmh = 20f))
+        val runner = runner(car)
+        runCurrent()
+
+        car.update { it.copy(place = Place.GAS_STATION, speedKmh = 0f, gear = Gear.PARK) }; runCurrent()
+        car.update { it.copy(gear = Gear.NEUTRAL) }; runCurrent()
 
         assertNull(runner.ui.value.suggestion)
         assertTrue(said.isEmpty())
@@ -177,16 +247,17 @@ class WashScenarioTest {
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
+     * 수정: 2026-11-12 18:38:00 · 박건준
      * 함수: 권하기를 거절하면 아무것도 바꾸지 않는다
-     * 목적: 주유소에서 권했을 때 "괜찮아"라고 하면 차를 바꾸지 않고 알았다고만
-     *       말하는지 본다.
+     * 목적: 세차 입구에서 권했을 때 "괜찮아"라고 하면 차를 바꾸지 않고 알았다고만
+     *       말하며 패널을 내리는지 본다.
      */
     @Test
     fun `권하기를 거절하면 아무것도 바꾸지 않는다`() = runTest {
         val car = FakeCar(CarState(gear = Gear.DRIVE, speedKmh = 20f))
         val runner = runner(car)
         runCurrent()
-        car.update { it.copy(gear = Gear.PARK, speedKmh = 0f, place = Place.GAS_STATION) }; runCurrent()
+        arriveAndMove(car)
 
         said.clear()
         assertTrue(answer(runner, "괜찮아")); runCurrent()
@@ -194,6 +265,7 @@ class WashScenarioTest {
         assertEquals(listOf("알겠어요."), said)
         assertTrue(car.applied.isEmpty())
         assertNull(runner.ui.value.suggestion)
+        assertNull(asking.question.value)
     }
 
     /**
@@ -213,9 +285,9 @@ class WashScenarioTest {
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
+     * 수정: 2026-11-12 18:38:00 · 박건준
      * 함수: 앱이 못 한 단계는 직접 해 달라고 말한다
-     * 목적: 와이퍼를 바꾸지 못하면 "와이퍼 끄고"를 빼고 "와이퍼는 직접 꺼
-     *       주세요."를 덧붙이는지 본다.
+     * 목적: 와이퍼를 바꾸지 못하면 "와이퍼는 직접 꺼 주세요."를 덧붙이는지 본다.
      */
     @Test
     fun `앱이 못 한 단계는 직접 해 달라고 말한다`() = runTest {
@@ -225,30 +297,28 @@ class WashScenarioTest {
         runner.request(RunRequest(RoutineId.WASH)); runCurrent()
 
         assertEquals(
-            listOf(
-                "창문 닫고, 내기 순환으로 바꾸고, 문 잠갔어요. " +
-                    "와이퍼는 직접 꺼 주세요. 사이드미러는 직접 접어 주세요.",
-            ),
+            listOf("세차 모드 맞췄어요. 와이퍼는 직접 꺼 주세요. 사이드미러는 직접 접어 주세요."),
             said,
         )
     }
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
-     * 함수: 선루프가 있는 차는 선루프도 닫았다고 말한다
-     * 목적: 선루프를 지원하는 차에서는 "선루프 닫고"가 들어가는지 본다.
+     * 수정: 2026-11-12 18:38:00 · 박건준
+     * 함수: 선루프가 있는 차는 선루프도 닫는다
+     * 목적: 선루프를 지원하는 차에서는 선루프 단계가 들어가 닫히고, 말은 같은지
+     *       본다.
      */
     @Test
-    fun `선루프가 있는 차는 선루프도 닫았다고 말한다`() = runTest {
-        val car = FakeCar(CarState(gear = Gear.PARK))
+    fun `선루프가 있는 차는 선루프도 닫는다`() = runTest {
+        val car = FakeCar(CarState(gear = Gear.PARK)).apply { set(Target.WindowPosition(Window.ROOF_1), 5) }
         val runner = runner(car)
 
         runner.request(RunRequest(RoutineId.WASH)); runCurrent()
 
-        assertEquals(
-            listOf("창문 닫고, 선루프 닫고, 와이퍼 끄고, 내기 순환으로 바꾸고, 문 잠갔어요. 사이드미러는 직접 접어 주세요."),
-            said,
-        )
+        assertEquals(listOf("세차 모드 맞췄어요. 사이드미러는 직접 접어 주세요."), said)
+        assertEquals(0, car.value(Target.WindowPosition(Window.ROOF_1)))
+        assertTrue(runner.ui.value.runs.getValue(RoutineId.WASH).steps.any { it.title == "선루프 닫기" })
     }
 
     /**

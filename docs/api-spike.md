@@ -162,3 +162,17 @@ NaviHelper 3.0.5(`ai.pleos.playground:NaviHelper:3.0.5`, navi-data 3.0.4 함께 
 | TTS | 엔진은 `ai.pleos.playground.caas` SpeechService 하나. 앱 `TextToSpeech` 초기화가 -1로 실패해 소리 없음 | 조작(녹음본) | `tools/make-voice.ps1`이 대사집 문장을 Windows 한국어 음성(Microsoft Heami)으로 `assets/voice/<문장 MD5>.wav`에 만들고, `AndroidSpeaker`가 녹음본을 `MediaPlayer`(USAGE_ASSISTANT)로 재생한다. 재생 중 `dumpsys audio`에 `state:started` 확인. 녹음본이 없는 문장은 소리가 없다 2026-11-12 app/wash: 녹음본과 TTS를 한 줄(`VoicePlayer`)에 세워 들어온 순서대로 낸다. 녹음본이 없는 말은 앞 녹음본이 끝날 때까지 기다렸다가 `소리 없이 건너뜀(녹음본 없음)`을 logcat에 남긴다(빠진 녹음본 찾기). 시연 [처음]·장면 건너뛰기 때는 나오던 말을 끊는다 |
 | 문 열기(콘솔) | `PUT /vehicle/body?door_rl=true\|false`가 앱 `doorOpen`에 바로 반영 | 실제(콘솔로 장면 준비) | 세차 모드는 문이 열려 있으면 시작하지 않는다("문을 모두 닫으시면 시작할게요.", 세차 모드 기능 카드 조건) |
 | 화면 읽기(uiautomator) | 화면 전환 중에는 `null root node`로 실패 | — | 자동 버튼 누르기는 실패하면 1초 뒤 다시 읽는다. 그래픽 오류(`Failed to find ColorBuffer`) 뒤 화면이 검게 멈추면 에뮬레이터를 다시 켠다 |
+
+## 화면 1차와 시나리오 ① 다듬기 (2026-11-12, screen/scenario1)
+
+docs/SCREEN.md 1장 화면을 앱에 옮기고 3장 ①-2~①-11(대사집 S1~S10)을 Pleos 에뮬레이터에서 돌리며 잰 것. 캡처는 `relay/files/screen/`.
+
+| 무엇 | 결과 | 시연 표기 | 메모 |
+|---|---|---|---|
+| 왼쪽 구역 그리기 | `SYSTEM_ALERT_WINDOW` 허가(`adb shell appops set com.westone.sunstone SYSTEM_ALERT_WINDOW allow`) 뒤 `TYPE_APPLICATION_OVERLAY` 창이 시스템 주행 화면(`ai.umos.drivingview`, 0~853) 위에 보이고 터치를 받음. 내비가 앞에 있어도 보임 | 조작(허가를 adb로 줌) | 데모 `overlay show`로 확인(`01-overlay-app.png`, `02-overlay-navi.png`). 오버레이 창의 위·아래 기준은 상태줄(90)·하단 막대(140)를 뺀 영역이다. 패널은 그 패널의 말이 시작될 때 띄운다(말에 그때의 질문을 붙여 두고 재생이 시작되면 알린다). 패널이나 듣는 중 막대가 떠 있는 동안은 창을 왼쪽 구역 전체(853×1210)로 키우고 불투명 배경(시안 `.drive` 그라데이션)을 칠해 주행 화면 내용(차 그림·빠른 버튼·미디어 줄)을 가린다. 아무것도 없으면 마이크 칸 크기로 줄인다. 주행 화면의 운전대 표시 아이콘(오른쪽 위)은 시스템 창이라 패널 위에 남는다. 실제 차에서 일반 앱이 이 허가를 받을 수 있는지는 미확인. 허가가 없으면 앱 화면 안 왼쪽에 같은 패널을 그린다 |
+| 운전대 음성 버튼 | SDK `SteeringWheel`은 각도·열선만 있고 버튼 API가 없음. Virtual Console에도 없음(기어·속도·문·공조·하이패스만). `input keyevent KEYCODE_VOICE_ASSIST`·`cmd car_service inject-key 231`은 앱 창이 포커스여도 시스템 음성 비서(`[GAA]`, Gleo)가 가져가 STT를 시작함 | 조작(마이크 칸) | `KEYCODE_SEARCH`·`HEADSETHOOK`는 앱에 오지만 운전대 버튼이 아니다. docs/SCREEN.md 5장 대안으로 마이크 칸(112)을 둔다. 처음에는 왼쪽 아래에 뒀으나 주행(D) 화면의 시스템 빠른 버튼 첫 칸을 가려(r3-S10-toast) 시안 최신본대로 상태줄 바로 아래 왼쪽으로 옮기고, 패널·막대가 떠 있는 동안은 숨긴다. P·D 모두 시스템 버튼을 가리지 않음(r4-P-idle, r4-S10-toast) |
+| 음성 인식 | 에뮬레이터에 마이크 입력이 없다 | 조작(시연 버튼·adb `say`) | 마이크 칸·질문은 듣는 중 막대만 띄우고, 말은 시연 대사 버튼과 데모 `say`가 `AppGraph.hear()`로 넣는다. 들은 말은 막대에 HEARD로 보인다 |
+| 화면 밀도 | 2560×1440, 160dpi | 실제 | 시안 1단위 = 1dp = 1px. 글자는 sp(글자 배율 1.0) |
+| 세차 입구 판단 | 주유소 안 두 번째 정차를 세차 입구로 봄 | 조작(장면 준비 S8) | 주유소 첫 P는 주유 정차(토스트만), 속도 > 0 뒤 다시 P·N이면 "세차 모드 켤까요?". S8 준비가 D·5km/h → 0·P를 넣는다 |
+| 질문 녹음본 | 새 문장 8개(S1~S10)를 `tools/make-voice.ps1`로 다시 녹음 | 조작(녹음본) | 3회 연속 실행에서 `소리 없이 건너뜀` 0건 |
+| 3회 연속 | S1~S10을 `scene next`·`say`로 3번 이어 돌림. 회마다 앱 말 8개가 같은 순서로 나오고 끊김 없음(토스트는 2회차 캡처로만 확인) | — | 회마다 처음에 `scene restart`(말 끊기, 질문·거절 기록 지우기, 켜진 루틴 되돌리기, 길안내 취소) |

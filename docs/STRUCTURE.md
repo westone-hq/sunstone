@@ -31,7 +31,8 @@ sunstone/
 ├─ docs/
 │  ├─ STRUCTURE.md         이 문서
 │  ├─ COMMENT_RULES.md     주석·코드·커밋 규칙 (작업 전마다 읽는다)
-│  └─ api-spike.md         Pleos API 실측 기록
+│  ├─ api-spike.md         Pleos API 실측 기록
+│  └─ SCREEN.md            화면 1차 규격, 시나리오 ① 장면별 상세
 ├─ apk/                    (예정) 심사용 release APK
 ├─ tools/api-explorer/     Pleos 공식 Vehicle 샘플 (실측용, 출품 제외)
 ├─ tools/scene-move.ps1    시연 이동: geo fix 1초마다 + 콘솔 속도·기어 (시나리오 ①·②)
@@ -46,9 +47,10 @@ sunstone/
 │     ├─ library/          루틴들 (초안: 세차·차일드락·시트 메모리)
 │     ├─ understand/       말 알아듣기 (대사집 먼저 → 규칙: 길안내·질문·대답·루틴)
 │     ├─ speech/           문장 틀 (세차·길안내·기능 카드 답, 조사 붙이기)
-│     ├─ dialog/           대화 흐름: 길안내 → 주유 제안 → 주유소 경유지 → 세차 예약(TripDialog, WashBooking)
+│     ├─ dialog/           대화 흐름: 길안내 → 주유 제안 → 주유소 경유지 → 세차 예약(TripDialog, WashBooking),
+│     │                    묻는 질문·토스트(Asking: 길안내 대화와 루틴 권하기가 함께 쓴다)
 │     ├─ knowledge/        AI 참고 문서: 기능 카드(지금은 세차 모드 하나), 별칭 검색 상위 3개
-│     ├─ script/           대사집(ScriptBook: 시나리오 ① S1~S6). 자동 테스트·scene·[다음 장면]이 함께 쓴다
+│     ├─ script/           대사집(ScriptBook: 시나리오 ① S1~S10). 자동 테스트·scene·[다음 장면]이 함께 쓴다
 │     └─ fake/             가짜 차·내비·바깥 정보 (테스트·시연)
 │
 └─ app/                    ② 앱 연결 ─ 박건준
@@ -65,11 +67,16 @@ sunstone/
       │  │                 PlaceWatcher(시연 장소 도착 → 장소), NaviModels(좌표·경로 값),
       │  │                 PleosNaviPort(기능 쪽 내비 창구를 PleosNavi로 채움)
       │  ├─ info/          FixedInfo(주유소·날씨 고정 응답). 바깥 API(카카오·오피넷·기상청·에어코리아)는 예정
-      │  ├─ ui/            MainActivity, SunstoneScreen(대화 기록·말 입력칸·시연 모드 줄),
+      │  ├─ ui/            MainActivity, SunstoneScreen(앱 영역: 대화 기록·말 입력칸·시연 모드 줄),
       │  │                 SceneControls(시연 모드 창구. 구현은 debug)
+      │  │  └─ panel/      왼쪽 구역 화면: PanelModels(PanelUi·RowUi·ListenUi 값),
+      │  │                 PanelPresenter(Asking·실행 상태 → 화면 값, 듣는 중 8초·토스트),
+      │  │                 PanelViews·PanelTheme(Compose 패널·막대·토스트·마이크 칸, 색·Asta Sans),
+      │  │                 LeftZoneOverlay(주행 화면 위 오버레이 창 넷)
       │  └─ SunstoneApp.kt AppGraph: 두 영역 조립, 모든 입력의 입구(hear·handle), 대화 기록
-      ├─ main/res/values/  strings.xml (앱 문구. 루틴 문장은 routines/)
-      ├─ main/assets/      schema.json(Gleo), places.json(시연 장소 고정 목록),
+      ├─ main/res/values/  strings.xml (앱 문구. 루틴 문장·질문 패널 글자는 routines/)
+      ├─ main/res/         font/asta_sans.ttf(Asta Sans, OFL), drawable/ic_panel_*(패널 아이콘)
+      ├─ main/assets/      schema.json(Gleo), places.json(시연 장소 고정 목록), licenses/(글꼴 라이선스),
       │                    voice/(대사집 녹음본 <문장 MD5>.wav, tools/make-voice.ps1이 만든다)
       ├─ debug/            출시 빌드에는 없음
       │  ├─ DemoReceiver   adb 장면 주입·실측 명령 입구(scene, washed 포함)
@@ -84,7 +91,8 @@ sunstone/
       │  ├─ NaviProbe      navi: 내비 경로·경유지·남은 거리·통행료·도착
       │  ├─ LocationProbe  location: FusedLocation 위치·근접 알림
       │  ├─ BeltProbe      beltprobe: 좌석별 벨트·미착용 경고·벨트 경고등
-      │  └─ ChildLockProbe childlock: 뒷문 차일드락(AAOS 속성) 읽기·쓰기
+      │  ├─ ChildLockProbe childlock: 뒷문 차일드락(AAOS 속성) 읽기·쓰기
+      │  └─ OverlayProbe   overlay: 왼쪽 구역 오버레이 창·키 수신 실측
       ├─ release/          DemoSetup(시연 모드 없음, debug의 installDemo와 짝)
       (예정) sim/, pleos/  빌드 2종: 시연 빌드(가짜 차·고정 응답) / Pleos 빌드(실제 SDK)
 ```
@@ -103,6 +111,7 @@ sunstone/
 | `NaviPort` | 기능 → 내비 | 목적지 찾기(시연 장소 목록), 경로 시작, 경유지 1개, 통행료 | 남은 거리, 도착 알림 |
 | `InfoPort` | 기능 → 바깥 | 주변 주유소(가격·세차), 날씨(N일 비). 지금은 고정 응답 | 실제 API, 미세먼지 |
 | `MemoryPort` | 기능 → 저장소 | 마지막 세차일 | 방문 기록 |
+| `Asking` | 기능 → 화면 | 대답을 기다리는 질문(`Question`: 종류·제목·설명·줄·버튼), 토스트 문장. 길안내 대화와 루틴 권하기가 함께 올리고 대답이 오면 내린다. "괜찮아요"로 끝난 종류는 새 길안내 전까지 다시 묻지 않는다 | 시나리오 ②③ 질문 종류 |
 
 - 창구는 `routines/.../port/`에 두고, 구현은 `app/`이 한다.
 - 창구 함수를 더하거나 바꾸려면 GitHub 이슈로 제안 → 상대 확인 → 박건준 결정.
