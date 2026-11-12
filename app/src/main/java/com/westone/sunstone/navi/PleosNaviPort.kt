@@ -23,6 +23,7 @@ class PleosNaviPort(
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
+     * 수정: 2026-11-12 15:06:00 · 박건준
      * 함수: findPlace
      * 목적: 시연 장소 목록에서 이름이 겹치는 곳을 찾는다. 띄어쓰기는 무시한다.
      * 인자: query — 운전자가 말한 목적지
@@ -31,7 +32,7 @@ class PleosNaviPort(
     override suspend fun findPlace(query: String): RoutinePlaceHit? {
         val key = query.replace(" ", "") // 띄어쓰기를 뺀 검색어
         val hit = places().firstOrNull { // 이름이 겹치는 첫 장소
-            val name = it.name.replace(" ", "")
+            val name = it.name.replace(" ", "") // 띄어쓰기를 뺀 장소 이름
             name.contains(key) || key.contains(name)
         } ?: return null
         return RoutinePlaceHit(hit.name, RoutineGeoPoint(hit.point.lat, hit.point.lng))
