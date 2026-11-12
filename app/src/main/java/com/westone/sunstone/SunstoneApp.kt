@@ -18,6 +18,7 @@ import com.westone.sunstone.navi.PleosNaviPort
 import com.westone.sunstone.navi.Proximity
 import com.westone.sunstone.routines.dialog.Asking
 import com.westone.sunstone.routines.dialog.QuestionKind
+import com.westone.sunstone.routines.dialog.Reply
 import com.westone.sunstone.routines.dialog.TripDialog
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.Phase
@@ -119,7 +120,7 @@ data class ChatLine(val fromDriver: Boolean, val text: String)
  *       가짜 차일 때 길안내 대화는 시연 장소 고정 목록만 찾는 가짜 내비를 쓴다
  *       (지도 화면은 바뀌지 않는다)
  */
-class AppGraph(private val app: Context) {
+class AppGraph(val app: Context) {
 
     private companion object {
         /**
@@ -233,10 +234,21 @@ class AppGraph(private val app: Context) {
         asking = asking,
     ).also { it.start() } // → 로직 이동: RoutineRunner.start()
 
-    /** 왼쪽 구역 패널 값. 버튼은 대답(`answer()`)과 루틴 끝내기로 간다 */
-    val panels = PanelPresenter(app, scope, asking, runner.ui, voice.speaking, voice.starts, ::answer) { id ->
-        runner.undo(id) // → 로직 이동: RoutineRunner.undo()
-    }
+    /**
+     * 왼쪽 구역 카드·판 값. 버튼은 대답(`answer()`)과 루틴 끝내기로 가고, 마이크 칸 길게 누르기는 시연 모드
+     * 다음 장면(debug 빌드만 `scenes`가 있다)으로 간다
+     */
+    val panels = PanelPresenter(
+        context = app,
+        scope = scope,
+        asking = asking,
+        runner = runner.ui,
+        speaking = voice.speaking,
+        starts = voice.starts,
+        onAnswer = ::answer,
+        onFinish = { id -> runner.undo(id) }, // → 로직 이동: RoutineRunner.undo()
+        onHold = { scenes?.next() }, // → 로직 이동: SceneControls.next()
+    )
 
     /** 왼쪽 구역 창. 화면이 뜰 때 `showPanels()`가 띄운다 */
     private val overlay = LeftZoneOverlay(app, scope, panels)
@@ -352,7 +364,7 @@ class AppGraph(private val app: Context) {
             is VoiceAction.Ask -> speaker.say(
                 action.cardId?.let(CardBook::byId)?.let(CardLines::answer) ?: CardLines.NO_CARD,
             )
-            is VoiceAction.Answer -> answer(action.yes) // → 로직 이동: AppGraph.answer()
+            is VoiceAction.Answer -> answer(action.reply) // → 로직 이동: AppGraph.answer()
         }
     }
 
@@ -379,17 +391,20 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-12 19:06:00 · 박건준
+     * 수정: 2026-11-13 03:40:00 · 박건준
      * 함수: answer
-     * 목적: 앱이 물은 것에 대답한다. 말("응", "괜찮아")과 패널 버튼·닫기가 모두
-     *       여기로 온다. 루틴 권하기(세차 입구)를 먼저 보고, 없으면 길안내
-     *       대화의 질문을 본다. 둘 다 없으면 못 알아들은 것으로 본다.
-     * 인자: yes — 받아들이면 true
+     * 목적: 앱이 물은 것에 대답한다. 말("응, 세차도 할게", "취소")과 카드
+     *       버튼·닫기가 모두 여기로 온다. 카드에 고른 버튼을 먼저 표시하고,
+     *       루틴 권하기(세차 입구)를 본 뒤, 없으면 길안내 대화의 질문을 본다.
+     *       둘 다 없으면 못 알아들은 것으로 본다.
+     * 인자: reply — 대답 값
      */
-    fun answer(yes: Boolean) {
+    fun answer(reply: Reply) {
+        panels.picked(reply) // → 로직 이동: PanelPresenter.picked()
         scope.launch {
             // → 로직 이동: RoutineRunner.answer(), TripDialog.answer(),
             //   AppGraph.notUnderstood()
-            if (!runner.answer(yes) && !trip.answer(yes)) notUnderstood()
+            if (!runner.answer(reply) && !trip.answer(reply)) notUnderstood()
         }
     }
 
@@ -405,6 +420,7 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-12 19:56:00 · 박건준
+     * 수정: 2026-11-13 03:40:00 · 박건준
      * 함수: nextOf
      * 목적: 들은 말 아래에 보일, 앱이 이어서 하는 일을 짧게 고른다. 대답이면
      *       지금 묻는 질문 종류로, 길안내면 길안내로 정한다. 실행 결정은 하지
@@ -418,10 +434,10 @@ class AppGraph(private val app: Context) {
         val res = when { // 고른 문구
             action is VoiceAction.Navigate -> R.string.next_navigate
             action !is VoiceAction.Answer || kind == null -> return null
-            !action.yes -> R.string.next_declined
-            kind == QuestionKind.FUEL_STOP -> R.string.next_fuel_stop
-            kind == QuestionKind.WASH_RECOMMEND -> R.string.next_wash_booked
-            else -> R.string.next_wash_mode
+            asking.question.value?.accepts(action.reply) != true -> R.string.next_declined
+            kind == QuestionKind.WASH_MODE -> R.string.next_wash_mode
+            asking.question.value?.pick(action.reply)?.reply == Reply.ALL -> R.string.next_fuel_wash
+            else -> R.string.next_fuel_stop
         }
         return app.getString(res)
     }

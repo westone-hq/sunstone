@@ -13,21 +13,18 @@ import com.westone.sunstone.R
 
 /**
  * 작성: 2026-11-12 18:48:00 · 박건준
- * 수정: 2026-11-12 22:45:00 · 박건준
+ * 수정: 2026-11-13 03:40:00 · 박건준
  * 클래스: PanelColors
- * 목적: 패널 색 토큰. 검정·흰색·회색만 쓰고, 초록은 마이크 칸, 주황은 앱
+ * 목적: 카드 색 토큰. 검정·흰색·회색만 쓰고, 초록은 마이크 칸, 주황은 앱
  *       아이콘 안에서만 쓴다.
- * 인자: surface — 패널 면
- *       t1, t2, t3, t4 — 글자 진하기 1~4단계
- *       div1 — 아직 안 한 칸 바탕
- *       div2 — 구분선
- *       basic — 채우지 않은 버튼 바탕(낮 검정 5%, 밤 흰색 8%)
+ * 인자: surface — 카드 면
+ *       t1, t2, t3 — 글자 진하기 1~3단계
+ *       div1 — 아직 안 한 칸·근거 칸 바탕
+ *       basic, basicPress — 채우지 않은 버튼 바탕과 눌린 바탕
  *       filled, onFilled — 채운 버튼 바탕과 글자
- *       toast, onToast — 토스트 바탕과 글자
  *       green — 마이크 켜짐 칸
  *       sun — 앱 아이콘 로고 칸
- *       driveTop, driveBottom — 왼쪽 구역 배경 그라데이션 위(20%까지)·아래 색
- * 근거: 인용 — 시안 template.html `:root`(낮)과 `[data-theme="dark"]`(밤)
+ * 근거: 인용 — 시안 template2.html `:root`(낮)과 `[data-theme="dark"]`(밤)
  *       토큰, docs/SCREEN.md 1장 색
  */
 @Immutable
@@ -36,63 +33,47 @@ data class PanelColors(
     val t1: Color,
     val t2: Color,
     val t3: Color,
-    val t4: Color,
     val div1: Color,
-    val div2: Color,
     val basic: Color,
+    val basicPress: Color,
     val filled: Color,
     val onFilled: Color,
-    val toast: Color,
-    val onToast: Color,
     val green: Color,
     val sun: Color,
-    val driveTop: Color,
-    val driveBottom: Color,
 )
 
 /**
  * 작성: 2026-11-12 18:48:00 · 박건준
- * 수정: 2026-11-12 22:45:00 · 박건준
+ * 수정: 2026-11-13 03:40:00 · 박건준
  * 변수: LIGHT, DARK
  * 목적: 낮·밤 색 토큰.
- * 근거: 인용 — 시안 template.html 토큰 값 그대로(`--panel-top`,
- *       `--panel-bottom`은 `.drive` 배경)
+ * 근거: 인용 — 시안 template2.html 토큰 값 그대로
  */
 private val LIGHT = PanelColors(
     surface = Color(0xFFFFFFFF),
     t1 = Color(0xFF131417),
     t2 = Color(0xD61B1C1E),
     t3 = Color(0xA31B1C1E),
-    t4 = Color(0x52131417),
     div1 = Color(0x0D131417),
-    div2 = Color(0x1A131417),
     basic = Color(0x0D131417),
+    basicPress = Color(0x1A131417),
     filled = Color(0xFF131417),
     onFilled = Color(0xFFFFFFFF),
-    toast = Color(0xD6131417),
-    onToast = Color(0xFFFFFFFF),
     green = Color(0xFF02C265),
     sun = Color(0xFFF09A1C),
-    driveTop = Color(0xFFFFFFFF),
-    driveBottom = Color(0xFFEEF0F2),
 )
 private val DARK = PanelColors(
     surface = Color(0xFF26282D),
     t1 = Color(0xFFF2F3F5),
     t2 = Color(0xD6F2F3F5),
     t3 = Color(0xA3F2F3F5),
-    t4 = Color(0x52F2F3F5),
     div1 = Color(0x0FFFFFFF),
-    div2 = Color(0x1FFFFFFF),
     basic = Color(0x14FFFFFF),
+    basicPress = Color(0x24FFFFFF),
     filled = Color(0xFFF2F3F5),
     onFilled = Color(0xFF131417),
-    toast = Color(0xFFE0E1E6),
-    onToast = Color(0xFF131417),
     green = Color(0xFF00E074),
     sun = Color(0xFFFFAE3D),
-    driveTop = Color(0xFF1D1E21),
-    driveBottom = Color(0xFF17181B),
 )
 
 /**
@@ -106,9 +87,12 @@ fun panelColors(): PanelColors = if (isSystemInDarkTheme()) DARK else LIGHT
 
 /**
  * 작성: 2026-11-12 18:48:00 · 박건준
+ * 수정: 2026-11-13 03:40:00 · 박건준
  * 변수: BAR_BLACK, BAR_HEARD
- * 목적: 듣는 중 막대 바탕과, 들은 뒤 마이크 칸 색. 낮·밤 모두 같다.
- * 근거: 인용 — 시안 template.html `.voice` #131417, `.voice.heard .mc` #2A2C31
+ * 목적: 듣는 중 판·토스트 바탕과, 들은 뒤 마이크 칸·토스트 체크 칸 색. 낮·밤
+ *       모두 같다.
+ * 근거: 인용 — 시안 template2.html `.voice`·`.toast` #131417, `.voice.heard
+ *       .mc`·`.toast .tc` #2A2C31
  */
 val BAR_BLACK = Color(0xFF131417)
 val BAR_HEARD = Color(0xFF2A2C31)
@@ -130,14 +114,14 @@ val AstaSans = FontFamily(
 
 /**
  * 작성: 2026-11-12 18:48:00 · 박건준
+ * 수정: 2026-11-13 03:40:00 · 박건준
  * 함수: iconRes
  * 목적: 아이콘 이름을 그림 리소스로 바꾼다.
- * 인자: name — 아이콘 이름(`QuestionRow.icon`, `Step.icon`)
+ * 인자: name — 아이콘 이름(`Fact.icon`, `QuestionRow.icon`, `Step.icon`)
  * 반환: 그림 리소스. 모르는 이름이면 null(아이콘 칸을 비운다)
  */
 fun iconRes(name: String?): Int? = when (name) {
     "fuel" -> R.drawable.ic_panel_fuel
-    "wash" -> R.drawable.ic_panel_wash
     "calendar" -> R.drawable.ic_panel_calendar
     "sun" -> R.drawable.ic_panel_sun
     "window" -> R.drawable.ic_panel_window

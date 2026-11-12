@@ -8,10 +8,9 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
@@ -31,30 +30,32 @@ import kotlinx.coroutines.launch
 
 /**
  * 작성: 2026-11-12 19:00:00 · 박건준
- * 수정: 2026-11-12 20:12:00 · 박건준
+ * 수정: 2026-11-13 03:40:00 · 박건준
  * 클래스: LeftZoneOverlay
- * 목적: 왼쪽 구역(운전석 쪽 시스템 주행 화면) 위에 패널·듣는 중 막대·토스트·
- *       마이크 칸을 띄운다. 창은 둘이다.
- *       - 구역 창 — 패널이나 듣는 중 막대가 떠 있으면 상태줄 아래부터 하단
- *         막대 위까지(853×1210)를 불투명 배경으로 덮고 패널·막대를 그린다.
- *         아무것도 없으면 상태줄 바로 아래 왼쪽 마이크 칸(112) 크기로 줄여
- *         주행 화면을 막지 않는다
- *       - 토스트 창 — 왼쪽 구역 아래 가운데, 아래에서 184. 터치를 받지 않고
- *         구역 창 위에 뜬다. 토스트가 없으면 숨긴다
- *       앱이 뒤에 있어도(내비가 앞) 떠 있다. 맨 위 속도·기어 줄(상태줄 자리)은
- *       가리지 않는다.
+ * 목적: 왼쪽 구역(운전석 쪽 시스템 주행 화면) 위에 카드·듣는 중 판·토스트·
+ *       마이크 칸을 띄운다. 주행 화면(차 그림, 빠른 버튼, 미디어)은 가리지
+ *       않는다. 창은 셋이고 저마다 자기 자리만 잡는다.
+ *       - 마이크 칸 창 — 상태줄 바로 아래 왼쪽 112×112
+ *       - 카드 창 — 좌우 24, 상태줄 아래 74(화면 164), 폭 805, 높이는 카드만큼
+ *       - 판 창 — 좌우 24, 아래 24, 805×112. 듣는 중 판과 토스트가 번갈아 쓴다
+ *       창은 그림자 자리(`SHADOW`)만큼 둘레를 더 잡는다. 그릴 것이 없는 창은
+ *       숨기고 터치를 받지 않아, 그 밖의 자리 터치는 시스템 화면으로 간다.
+ *       보이는 창은 터치를 받는다(토스트 판도). 앱이 뒤에 있어도(내비가 앞)
+ *       떠 있다.
  * 인자: context — 앱 Context
- *       scope — 창 크기·보이기를 바꾸는 일을 돌린다(화면 스레드)
+ *       scope — 창 보이기를 바꾸는 일을 돌린다(화면 스레드)
  *       panels — 그릴 값과 버튼 처리
- * 근거: 측정 — Pleos 에뮬레이터 v2.1.0에서 `TYPE_APPLICATION_OVERLAY` 창이
- *       왼쪽 구역 위에 보이고, 터치를 받고, 내비가 앞에 있어도 보였다
- *       (docs/api-spike.md 왼쪽 구역 그리기 행, relay/files/screen/
- *       01-overlay-app.png·02-overlay-navi.png). 시안 `.drive.busy`는 패널이
- *       뜨면 주행 화면 원래 내용을 숨긴다
+ * 근거: 인용 — docs/SCREEN.md 6장: 왼쪽 구역을 가리지 않고 카드와 판만 위에
+ *       뜬다. 측정 — Pleos 에뮬레이터 v2.1.0에서 `TYPE_APPLICATION_OVERLAY`
+ *       창이 왼쪽 구역 위에 보이고, 터치를 받고, 내비가 앞에 있어도 보였다
+ *       (docs/api-spike.md 왼쪽 구역 그리기 행). 터치를 받지 않는
+ *       (`FLAG_NOT_TOUCHABLE`) 다른 앱 오버레이 창은 시스템이 불투명도를 0.8로
+ *       낮춰 토스트 판 뒤의 미디어 줄이 비쳤다(2026-11-13 v2-S3 캡처). 그래서
+ *       보이는 창은 터치를 받게 둔다
  * 미구현: 프로토타입이라 다른 앱 위에 그리기 허가를 adb(`appops set …
  *       SYSTEM_ALERT_WINDOW allow`)로 준다. 실제 차에서 일반 앱이 이 허가를
  *       받을 수 있는지는 미확인이다. 허가가 없으면 `show()`가 false를 돌려주고
- *       `SunstoneScreen`이 앱 화면 안 왼쪽에 같은 패널을 그린다
+ *       `SunstoneScreen`이 앱 화면 안 왼쪽에 같은 카드를 그린다
  */
 class LeftZoneOverlay(
     private val context: Context,
@@ -63,29 +64,6 @@ class LeftZoneOverlay(
 ) {
 
     private companion object {
-        /**
-         * 작성: 2026-11-12 19:00:00 · 박건준
-         * 수정: 2026-11-12 19:52:00 · 박건준
-         * 변수: ZONE_WIDTH, ZONE_HEIGHT
-         * 목적: 왼쪽 구역 폭과, 상태줄 아래부터 하단 막대 위까지 높이(px = dp).
-         *       창 위치는 상태줄(90) 아래, 하단 막대(140) 위 영역을 기준으로 잰다.
-         * 근거: 측정 — Pleos 에뮬레이터 v2.1.0 `dumpsys activity`: 주행 화면
-         *       task 0~853 × 0~1300, 상태줄 inset 90, 160dpi(시안 854와 1 차이).
-         *       오버레이 창의 위·아래 기준은 상태줄·하단 막대를 뺀 영역이었다
-         *       (2026-11-12 캡처)
-         */
-        const val ZONE_WIDTH = 853
-        const val ZONE_HEIGHT = 1210
-
-        /**
-         * 작성: 2026-11-12 19:00:00 · 박건준
-         * 수정: 2026-11-12 19:52:00 · 박건준
-         * 변수: TOAST_BOTTOM
-         * 목적: 토스트 아래 위치 184.
-         * 근거: 인용 — docs/SCREEN.md 1장 위치, 시안 template.html `.toast`
-         */
-        const val TOAST_BOTTOM = 184
-
         /**
          * 작성: 2026-11-12 19:00:00 · 박건준
          * 변수: TAG
@@ -101,25 +79,26 @@ class LeftZoneOverlay(
     /** 띄운 창들. 띄우기 전이면 비어 있다 */
     private val views = mutableListOf<ComposeView>()
 
-    /** 창 크기·보이기를 맞추는 작업들. 창을 내리면 멈춘다 */
+    /** 창 보이기를 맞추는 작업들. 창을 내리면 멈춘다 */
     private val watchers = mutableListOf<Job>()
 
     /**
      * 작성: 2026-11-12 19:00:00 · 박건준
-     * 수정: 2026-11-12 19:52:00 · 박건준
+     * 수정: 2026-11-13 03:40:00 · 박건준
      * 함수: show
-     * 목적: 구역 창과 토스트 창을 띄운다. 이미 띄웠으면 그대로 둔다.
+     * 목적: 마이크 칸·카드·판 창을 띄운다. 이미 띄웠으면 그대로 둔다.
      * 반환: 떠 있으면 true. 허가가 없거나 실패하면 false
      */
     fun show(): Boolean {
         if (views.isNotEmpty()) return true
         if (!Settings.canDrawOverlays(context)) {
-            Log.w(TAG, "다른 앱 위에 그리기 허가 없음, 앱 화면 안에 패널을 그린다")
+            Log.w(TAG, "다른 앱 위에 그리기 허가 없음, 앱 화면 안에 카드를 그린다")
             return false
         }
         return runCatching {
-            addZone()
-            addToast()
+            addMic()
+            addCard()
+            addPlate()
             Log.i(TAG, "왼쪽 구역 창을 띄움")
             true
         }.onFailure { Log.w(TAG, "왼쪽 구역 창 실패: ${it.message}"); hide() }.getOrDefault(false)
@@ -139,25 +118,87 @@ class LeftZoneOverlay(
     }
 
     /**
-     * 작성: 2026-11-12 19:52:00 · 박건준
-     * 수정: 2026-11-12 20:12:00 · 박건준
-     * 함수: addZone
-     * 목적: 구역 창을 더한다. 덮을 때(`zoneFull`)는 구역 전체 크기로, 아니면
-     *       마이크 칸 크기로 상태줄 바로 아래 왼쪽에 둔다. 포커스는 받지 않아 내비·주행
-     *       화면의 키 입력을 가로채지 않는다.
+     * 작성: 2026-11-13 03:40:00 · 박건준
+     * 함수: addMic
+     * 목적: 마이크 칸 창(112×112)을 상태줄 바로 아래 왼쪽에 더한다. 카드나 듣는
+     *       중 판이 떠 있으면 숨긴다.
      */
-    private fun addZone() {
-        val params = layout(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) // 창 자리와 크기
-        val view = compose { // 구역 창
+    private fun addMic() {
+        val params = layout(Gravity.TOP or Gravity.START, 0, 0, 112, 112) // 창 자리와 크기
+        val view = compose { MicCell(panels::tapMic, panels.onHold) } // 마이크 칸 창
+        add(view, params) { ui -> if (ui.mic) Touch.ON else Touch.HIDDEN }
+    }
+
+    /**
+     * 작성: 2026-11-13 03:40:00 · 박건준
+     * 함수: addCard
+     * 목적: 카드 창을 더한다. 폭은 카드 폭 + 그림자 둘레, 높이는 카드만큼.
+     *       카드가 없으면 숨긴다.
+     */
+    private fun addCard() {
+        val params = layout( // 창 자리와 크기
+            Gravity.TOP or Gravity.START,
+            CARD_SIDE - SHADOW,
+            CARD_TOP - SHADOW,
+            CARD_WIDTH + 2 * SHADOW,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+        )
+        val view = compose { // 카드 창
             val ui by panels.ui.collectAsStateWithLifecycle() // 그릴 값
-            LeftZone(ui, panels::press, panels::tapMic)
+            ui.card?.let { Box(Modifier.padding(SHADOW.dp)) { NotiCard(it, panels::press, panels.onHold) } }
         }
-        place(params, full = false)
+        add(view, params) { ui -> if (ui.card != null) Touch.ON else Touch.HIDDEN }
+    }
+
+    /**
+     * 작성: 2026-11-13 03:40:00 · 박건준
+     * 함수: addPlate
+     * 목적: 판 창을 왼쪽 구역 아래에 더한다. 듣는 중 판이나 토스트가 있으면
+     *       보이고 터치를 받는다(마이크 칸 길게 누르기). 둘 다 없으면 숨긴다.
+     */
+    private fun addPlate() {
+        val params = layout( // 창 자리와 크기
+            Gravity.BOTTOM or Gravity.START,
+            CARD_SIDE - SHADOW,
+            PLATE_BOTTOM - SHADOW,
+            CARD_WIDTH + 2 * SHADOW,
+            PLATE_HEIGHT + 2 * SHADOW,
+        )
+        val view = compose { // 판 창
+            val ui by panels.ui.collectAsStateWithLifecycle() // 그릴 값
+            ui.plate?.let { Box(Modifier.padding(SHADOW.dp)) { PlateView(it, panels.onHold) } }
+        }
+        add(view, params) { ui -> if (ui.plate != null) Touch.ON else Touch.HIDDEN }
+    }
+
+    /**
+     * 작성: 2026-11-13 03:40:00 · 박건준
+     * 클래스: Touch
+     * 목적: 창 하나의 보이기와 터치.
+     *       - `ON` — 보이고 터치를 받는다
+     *       - `HIDDEN` — 숨기고 터치도 받지 않는다(터치는 아래 시스템 화면으로)
+     */
+    private enum class Touch { ON, HIDDEN }
+
+    /**
+     * 작성: 2026-11-13 03:40:00 · 박건준
+     * 함수: add
+     * 목적: 창을 띄우고, 그릴 값이 바뀔 때마다 보이기와 터치를 맞춘다.
+     * 인자: view — 띄울 뷰
+     *       params — 창 자리와 크기
+     *       touch — 그릴 값에서 보이기·터치를 정한다
+     */
+    private fun add(view: ComposeView, params: WindowManager.LayoutParams, touch: (ScreenUi) -> Touch) {
         windows.addView(view, params)
         views += view
         watchers += scope.launch {
-            panels.ui.map(::zoneFull).distinctUntilChanged().collect { full ->
-                place(params, full)
+            panels.ui.map(touch).distinctUntilChanged().collect { t ->
+                view.visibility = if (t == Touch.ON) View.VISIBLE else View.GONE
+                params.flags = if (t == Touch.ON) {
+                    params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+                } else {
+                    params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                }
                 runCatching { windows.updateViewLayout(view, params) }
             }
         }
@@ -165,65 +206,28 @@ class LeftZoneOverlay(
 
     /**
      * 작성: 2026-11-12 19:52:00 · 박건준
-     * 함수: addToast
-     * 목적: 토스트 창을 더한다. 폭은 구역과 같고 가운데에 그린다. 터치를 받지
-     *       않는다. 토스트가 없으면 숨긴다.
-     * 근거: 측정 — 내용만 비우면 창 크기가 줄지 않아, 없을 때는 창을 숨긴다
-     *       (2026-11-12 캡처 r1-S2)
-     */
-    private fun addToast() {
-        val params = layout( // 창 자리와 크기
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-        ).apply {
-            width = ZONE_WIDTH
-            gravity = Gravity.BOTTOM or Gravity.START
-            y = TOAST_BOTTOM
-        }
-        val view = compose { // 토스트 창
-            val ui by panels.ui.collectAsStateWithLifecycle() // 그릴 값
-            ui.toast?.let { t ->
-                Box(Modifier.width(ZONE_WIDTH.dp), contentAlignment = Alignment.Center) { PanelToast(t) }
-            }
-        }
-        windows.addView(view, params)
-        views += view
-        watchers += scope.launch {
-            panels.ui.map { it.toast != null }.distinctUntilChanged().collect { on ->
-                view.visibility = if (on) View.VISIBLE else View.GONE
-            }
-        }
-    }
-
-    /**
-     * 작성: 2026-11-12 19:52:00 · 박건준
-     * 수정: 2026-11-12 20:12:00 · 박건준
-     * 함수: place
-     * 목적: 구역 창 자리와 크기를 정한다.
-     * 인자: params — 바꿀 창 값
-     *       full — 구역 전체를 덮으면 true, 마이크 칸만이면 false
-     */
-    private fun place(params: WindowManager.LayoutParams, full: Boolean) {
-        params.width = if (full) ZONE_WIDTH else WindowManager.LayoutParams.WRAP_CONTENT
-        params.height = if (full) ZONE_HEIGHT else WindowManager.LayoutParams.WRAP_CONTENT
-        params.gravity = Gravity.TOP or Gravity.START
-        params.x = 0
-        params.y = 0
-    }
-
-    /**
-     * 작성: 2026-11-12 19:52:00 · 박건준
+     * 수정: 2026-11-13 03:40:00 · 박건준
      * 함수: layout
-     * 목적: 다른 앱 위에 뜨는 창 값을 만든다. 크기는 내용만큼으로 시작한다.
-     * 인자: flags — 창 성질(포커스·터치)
+     * 목적: 다른 앱 위에 뜨는 창 값을 만든다. 포커스는 받지 않아 내비·주행
+     *       화면의 키 입력을 가로채지 않는다. 처음에는 터치를 받지 않는다.
+     * 인자: gravity — 기준 모서리
+     *       x, y — 기준 모서리에서 떨어진 거리(px = dp). 위·아래 기준은
+     *       상태줄(90)·하단 막대(140)를 뺀 영역이다
+     *       width, height — 창 크기(px = dp). `WRAP_CONTENT`면 내용만큼
      * 반환: 창 값
      */
-    private fun layout(flags: Int) = WindowManager.LayoutParams(
-        WindowManager.LayoutParams.WRAP_CONTENT,
-        WindowManager.LayoutParams.WRAP_CONTENT,
+    private fun layout(gravity: Int, x: Int, y: Int, width: Int, height: Int) = WindowManager.LayoutParams(
+        width,
+        height,
         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-        flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
         PixelFormat.TRANSLUCENT,
-    ).apply { gravity = Gravity.TOP or Gravity.START }
+    ).apply {
+        this.gravity = gravity
+        this.x = x
+        this.y = y
+    }
 
     /**
      * 작성: 2026-11-12 19:52:00 · 박건준
