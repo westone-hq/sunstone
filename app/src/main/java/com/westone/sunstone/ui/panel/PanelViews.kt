@@ -59,6 +59,27 @@ import com.westone.sunstone.R
 private val SHADE = Color.Black.copy(alpha = .12f)
 
 /**
+ * 작성: 2026-11-12 22:45:00 · 박건준
+ * 변수: GAP
+ * 목적: 패널 항목 줄끼리, 마지막 줄과 버튼, 두 버튼 사이 띄우기. 사이로 패널
+ *       흰 바탕이 보인다.
+ * 근거: 인용 — 2026-11-12 박건준 검토: 칸 사이를 2씩 띄운다
+ */
+private val GAP = 2.dp
+
+/**
+ * 작성: 2026-11-12 22:45:00 · 박건준
+ * 변수: PANEL_TOP
+ * 목적: 왼쪽 구역 위 끝(상태줄 아래)에서 패널 위 끝까지. 시스템 운전대 표시
+ *       아이콘(우리가 가릴 수 없는 시스템 창) 아래 16에 패널을 둔다.
+ * 식: PANEL_TOP = 아이콘 아래 끝 161 + 16 - 상태줄 90 = 87
+ * 근거: 측정 — 2026-11-12 Pleos 에뮬레이터 v2.1.0 캡처(r6)에서 아이콘이 화면
+ *       x 766~795, y 106~160(운전대 그림 28×28 + 그 아래 y 158~160 막대 둘),
+ *       모든 장면에서 같은 자리. 시안은 상태줄 아래 74(top 164)
+ */
+private val PANEL_TOP = 87.dp
+
+/**
  * 작성: 2026-11-12 18:50:00 · 박건준
  * 함수: text
  * 목적: 시안 글자 크기(크기/줄높이, 굵기)를 글자 모양으로 만든다. 시안
@@ -74,17 +95,22 @@ private fun text(size: Int, line: Int, weight: FontWeight, color: Color) =
 
 /**
  * 작성: 2026-11-12 18:50:00 · 박건준
+ * 수정: 2026-11-12 22:45:00 · 박건준
  * 함수: AlertPanel
  * 목적: 알림 패널. 내비 경로 패널과 같은 각진 흑백 뼈대에 제목줄, 설명줄,
  *       항목 줄, 버튼 줄을 차례로 둔다.
  *       - 제목줄 112: 앱 아이콘 72, 제목 36/44 ExtraBold, 닫기 칸 112(왼쪽 1px
- *         구분선)
- *       - 설명줄 30/38, 진행 중이면 아래 진행선 6
- *       - 항목 줄 104: 아이콘 56, 글자 30/38
- *       - 버튼 100, 32/40 Bold. 두 개면 반반, 사이 1px
+ *         구분선). 아래 1px 구분선
+ *       - 설명줄 30/38, 진행 중이면 아래 진행선 6. 아래 1px 구분선
+ *       - 항목 줄 104: 아이콘 56, 글자 30/38. 줄 사이는 `GAP`만큼 띄워 패널
+ *         흰 바탕이 보이게 한다(구분선 없음)
+ *       - 버튼 100, 32/40 Bold. 두 개면 반반. 마지막 줄과 버튼 사이, 두 버튼
+ *         사이도 `GAP`. 채우지 않은 버튼은 회색(`basic`)
  * 인자: panel — 그릴 패널
  *       onPress — 버튼·닫기를 누르면 부른다
- * 근거: 인용 — docs/SCREEN.md 1장 뼈대와 크기, 시안 template.html `.noti`
+ * 근거: 인용 — docs/SCREEN.md 1장 뼈대와 크기, 시안 template.html `.noti`.
+ *       2026-11-12 박건준 검토: 칸 사이를 2씩 띄우고 줄·버튼 사이 구분선을
+ *       뺀다. 흰 버튼은 흰 바탕에 묻혀 회색으로
  */
 @Composable
 fun AlertPanel(panel: PanelUi, onPress: (PanelAction) -> Unit) {
@@ -141,20 +167,19 @@ fun AlertPanel(panel: PanelUi, onPress: (PanelAction) -> Unit) {
             Line(c.div2)
         }
         panel.rows.forEachIndexed { i, row ->
+            if (i > 0) Spacer(Modifier.height(GAP))
             PanelRow(row)
-            if (i < panel.rows.lastIndex) Line(c.div2)
         }
         if (panel.actions.isNotEmpty()) {
-            Line(c.div2)
-            Row(Modifier.fillMaxWidth().height(100.dp)) {
-                panel.actions.forEachIndexed { i, a ->
-                    if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(c.div2))
+            if (panel.rows.isNotEmpty()) Spacer(Modifier.height(GAP))
+            Row(Modifier.fillMaxWidth().height(100.dp), horizontalArrangement = Arrangement.spacedBy(GAP)) {
+                panel.actions.forEach { a ->
                     Box(
                         // 버튼 하나: 칸을 꽉 채우는 각진 막대
                         Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .background(if (a.filled) c.filled else c.surface)
+                            .background(if (a.filled) c.filled else c.basic)
                             .clickable { onPress(a.action) },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -273,35 +298,43 @@ private fun Line(color: Color) = Box(Modifier.fillMaxWidth().height(1.dp).backgr
 
 /**
  * 작성: 2026-11-12 18:50:00 · 박건준
+ * 수정: 2026-11-12 22:45:00 · 박건준
  * 함수: ListenBar
- * 목적: 듣는 중 막대. 높이 160, 검은 바탕에 마이크 칸 160, 파형 막대 5개,
- *       글자. 듣는 중이면 마이크 칸 초록·파형 움직임, 들은 뒤면 #2A2C31·파형
- *       멈춤.
+ * 목적: 듣는 중 막대. 높이 112(마이크 칸과 같은 크기), 검은 바탕에 마이크
+ *       칸 112(아이콘 48), 파형 막대 5개, 글자 30/38 Bold. 듣는 중이면 마이크
+ *       칸 초록·파형 움직임·"듣고 있어요" 한 줄, 들은 뒤면 #2A2C31·파형
+ *       멈춤·들은 말 아래 앱이 할 일 24/30.
  * 인자: listen — 막대 값. OFF면 부르지 않는다
- * 근거: 인용 — docs/SCREEN.md 1장, 시안 template.html `.voice`
+ * 근거: 인용 — docs/SCREEN.md 1장, 시안 template.html `.voice`. 2026-11-12
+ *       박건준 검토: 높이 160 → 112, 듣는 중 대답 예 줄 없앰
  */
 @Composable
 fun ListenBar(listen: ListenUi) {
     val c = panelColors() // 색 토큰
     val heard = listen.state == ListenState.HEARD // 들은 뒤인지
-    Row(Modifier.fillMaxWidth().height(160.dp).background(BAR_BLACK), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(112.dp).background(BAR_BLACK), verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.size(160.dp).background(if (heard) BAR_HEARD else c.green),
+            Modifier.size(112.dp).background(if (heard) BAR_HEARD else c.green),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painterResource(R.drawable.ic_panel_mic),
                 null,
-                Modifier.size(64.dp),
+                Modifier.size(48.dp),
                 tint = if (heard) Color.White else BAR_BLACK,
             )
         }
         Wave(moving = !heard, Modifier.padding(start = 36.dp, end = 28.dp))
         Column(Modifier.weight(1f).padding(end = 32.dp)) {
-            Text(listen.text, style = text(32, 40, FontWeight.Bold, Color.White), maxLines = 2)
-            listen.hint?.let {
-                Spacer(Modifier.height(4.dp))
-                Text(it, style = text(26, 34, FontWeight.Normal, Color.White.copy(alpha = .64f)))
+            Text(
+                listen.text,
+                style = text(30, 38, FontWeight.Bold, Color.White),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            listen.next?.let {
+                Spacer(Modifier.height(2.dp))
+                Text(it, style = text(24, 30, FontWeight.Normal, Color.White.copy(alpha = .64f)), maxLines = 1)
             }
         }
     }
@@ -309,24 +342,27 @@ fun ListenBar(listen: ListenUi) {
 
 /**
  * 작성: 2026-11-12 18:50:00 · 박건준
+ * 수정: 2026-11-12 22:45:00 · 박건준
  * 함수: Wave
- * 목적: 파형 막대 5개(폭 6, 사이 6). 움직이면 높이 12↔48을 1초에 오가고
- *       막대마다 0.15초씩 늦게 시작한다. 멈추면 높이 6, 투명도 40%.
+ * 목적: 파형 막대 5개(폭 6, 사이 6, 칸 높이 40). 움직이면 높이 12↔36을
+ *       1초에 오가고 막대마다 0.15초씩 늦게 시작한다. 멈추면 높이 6, 투명도
+ *       40%.
  * 인자: moving — 움직이면 true
  *       modifier — 배치
- * 근거: 인용 — 시안 template.html `.wave`, `@keyframes wv`
+ * 근거: 인용 — 시안 template.html `.wave`, `@keyframes wv`. 2026-11-12
+ *       박건준 검토: 막대 높이 112에 맞춰 파형 칸 40, 최대 36
  */
 @Composable
 private fun Wave(moving: Boolean, modifier: Modifier) {
     val wave = rememberInfiniteTransition(label = "wave") // 파형 반복
     Row(
-        modifier.height(56.dp),
+        modifier.height(40.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         repeat(5) { i ->
             val h by wave.animateFloat( // 막대 높이(dp)
-                12f, 48f,
+                12f, 36f,
                 infiniteRepeatable(
                     tween(500, easing = FastOutSlowInEasing),
                     RepeatMode.Reverse,
@@ -410,11 +446,11 @@ fun zoneFull(ui: ScreenUi): Boolean = ui.panel != null || ui.listen.state != Lis
 
 /**
  * 작성: 2026-11-12 19:50:00 · 박건준
- * 수정: 2026-11-12 20:12:00 · 박건준
+ * 수정: 2026-11-12 22:45:00 · 박건준
  * 함수: LeftZone
  * 목적: 왼쪽 구역(상태줄 아래부터 하단 막대 위까지)을 그린다.
- *       - 덮을 때 — 불투명 배경(시안 `.drive` 세로 그라데이션) 위에 위쪽 패널,
- *         맨 아래 듣는 중 막대. 마이크 칸은 숨긴다(시안 `.drive.busy .mic`)
+ *       - 덮을 때 — 불투명 배경(시안 `.drive` 세로 그라데이션) 위에 패널(위
+ *         `PANEL_TOP`, 좌우 24), 맨 아래 듣는 중 막대. 마이크 칸은 숨긴다(시안 `.drive.busy .mic`)
  *       - 덮지 않을 때 — 상태줄 바로 아래 왼쪽 마이크 칸만
  *       배경으로 시스템 주행 화면(차 그림, 빠른 버튼, 미디어 줄)이 패널 사이로
  *       보이지 않게 한다. 토스트는 따로 그린다(`PanelToast`).
@@ -433,7 +469,7 @@ fun LeftZone(ui: ScreenUi, onPress: (PanelAction) -> Unit, onMic: () -> Unit) {
     val c = panelColors() // 색 토큰
     val drive = Brush.verticalGradient(0f to c.driveTop, .2f to c.driveTop, 1f to c.driveBottom) // 구역 배경
     Box(Modifier.fillMaxSize().background(drive)) {
-        ui.panel?.let { Box(Modifier.padding(24.dp)) { AlertPanel(it, onPress) } }
+        ui.panel?.let { Box(Modifier.padding(start = 24.dp, top = PANEL_TOP, end = 24.dp)) { AlertPanel(it, onPress) } }
         if (ui.listen.state != ListenState.OFF) {
             Box(Modifier.align(Alignment.BottomStart).fillMaxWidth()) { ListenBar(ui.listen) }
         }
