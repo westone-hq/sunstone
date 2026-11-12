@@ -13,7 +13,7 @@ import com.westone.sunstone.R
 
 /**
  * 작성: 2026-11-12 18:48:00 · 박건준
- * 수정: 2026-11-12 19:48:00 · 박건준
+ * 수정: 2026-11-12 22:45:00 · 박건준
  * 클래스: PanelColors
  * 목적: 패널 색 토큰. 검정·흰색·회색만 쓰고, 초록은 마이크 칸, 주황은 앱
  *       아이콘 안에서만 쓴다.
@@ -21,6 +21,7 @@ import com.westone.sunstone.R
  *       t1, t2, t3, t4 — 글자 진하기 1~4단계
  *       div1 — 아직 안 한 칸 바탕
  *       div2 — 구분선
+ *       basic — 채우지 않은 버튼 바탕(낮 검정 5%, 밤 흰색 8%)
  *       filled, onFilled — 채운 버튼 바탕과 글자
  *       toast, onToast — 토스트 바탕과 글자
  *       green — 마이크 켜짐 칸
@@ -38,6 +39,7 @@ data class PanelColors(
     val t4: Color,
     val div1: Color,
     val div2: Color,
+    val basic: Color,
     val filled: Color,
     val onFilled: Color,
     val toast: Color,
@@ -50,7 +52,7 @@ data class PanelColors(
 
 /**
  * 작성: 2026-11-12 18:48:00 · 박건준
- * 수정: 2026-11-12 19:48:00 · 박건준
+ * 수정: 2026-11-12 22:45:00 · 박건준
  * 변수: LIGHT, DARK
  * 목적: 낮·밤 색 토큰.
  * 근거: 인용 — 시안 template.html 토큰 값 그대로(`--panel-top`,
@@ -64,6 +66,7 @@ private val LIGHT = PanelColors(
     t4 = Color(0x52131417),
     div1 = Color(0x0D131417),
     div2 = Color(0x1A131417),
+    basic = Color(0x0D131417),
     filled = Color(0xFF131417),
     onFilled = Color(0xFFFFFFFF),
     toast = Color(0xD6131417),
@@ -81,6 +84,7 @@ private val DARK = PanelColors(
     t4 = Color(0x52F2F3F5),
     div1 = Color(0x0FFFFFFF),
     div2 = Color(0x1FFFFFFF),
+    basic = Color(0x14FFFFFF),
     filled = Color(0xFFF2F3F5),
     onFilled = Color(0xFF131417),
     toast = Color(0xFFE0E1E6),

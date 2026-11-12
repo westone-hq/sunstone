@@ -27,7 +27,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 작성: 2026-11-12 18:44:00 · 박건준
- * 수정: 2026-11-12 20:10:00 · 박건준
+ * 수정: 2026-11-12 22:45:00 · 박건준
  * 클래스: PanelPresenter
  * 목적: 왼쪽 구역에 그릴 값(`ScreenUi`)을 만든다. 판단은 하지 않고 routines가
  *       준 값을 화면 모양으로만 바꾼다.
@@ -37,9 +37,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  *       - `RunnerUi.runs`의 세차 모드 → 맞추는 중·준비됨 패널. 단계 상태를
  *         WAITING=TODO, RUNNING=NOW, DONE=DONE, GUIDED=MANUAL로 옮긴다
  *       - `Asking.notices` → 토스트
- *       - 패널이 뜨면 듣는 중 막대(LISTENING, 안내는 질문의 `hint`), 들은
- *         말(`heard()`)은 HEARD로
- *         1초 보인 뒤 내린다. 질문 말이 끝나고 8초 안에 대답이 없으면 막대만
+ *       - 패널이 뜨면 듣는 중 막대(LISTENING, "듣고 있어요" 한 줄), 들은
+ *         말(`heard()`)은 HEARD로 1초 보인 뒤 내린다. 질문 말이 끝나고 8초 안에 대답이 없으면 막대만
  *         닫고 패널은 남긴다
  *       - 새 패널이 뜨거나 시연 장면이 바뀌면 남은 토스트를 바로 지운다
  * 인자: context — 화면 문구(strings.xml)를 읽는다
@@ -151,23 +150,23 @@ class PanelPresenter(
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
-     * 수정: 2026-11-12 19:44:00 · 박건준
+     * 수정: 2026-11-12 22:45:00 · 박건준
      * 함수: heard
      * 목적: 운전자가 한 말을 막대에 HEARD로 보여 준다. 음성·시연 버튼·adb
      *       `say`가 모두 `AppGraph.hear()`를 거쳐 여기로 온다. `HEARD_MS` 뒤
      *       아직 질문이 남아 있으면(못 알아들음) 다시 듣고, 없으면 막대를 닫는다.
      * 인자: text — 들은 말
-     *       hint — 들은 말 아래에 보일, 앱이 이어서 하는 일("세차 모드를
+     *       next — 들은 말 아래에 보일, 앱이 이어서 하는 일("세차 모드를
      *       켤게요"). 없으면 null(줄을 비운다)
      * 근거: 인용 — 시안 sunstone-ui.html 들음 상태 `.vh`
      */
-    fun heard(text: String, hint: String?) {
+    fun heard(text: String, next: String?) {
         listenJob?.cancel()
-        listen.value = ListenUi(ListenState.HEARD, context.getString(R.string.listen_heard, text), hint)
+        listen.value = ListenUi(ListenState.HEARD, context.getString(R.string.listen_heard, text), next)
         listenJob = scope.launch {
             delay(HEARD_MS)
             val q = shown.value // 아직 떠 있는 질문(못 알아들었을 때), 없으면 null
-            if (q != null) startListening(q.hint) else listen.value = ListenUi(ListenState.OFF)
+            if (q != null) startListening() else listen.value = ListenUi(ListenState.OFF)
         }
     }
 
@@ -191,7 +190,7 @@ class PanelPresenter(
      *       에뮬레이터에 마이크 입력이 없어 말은 시연 버튼·adb `say`로 넣는다
      *       (docs/api-spike.md 음성 인식 행)
      */
-    fun tapMic() = startListening(null)
+    fun tapMic() = startListening()
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
@@ -210,7 +209,7 @@ class PanelPresenter(
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
-     * 수정: 2026-11-12 20:10:00 · 박건준
+     * 수정: 2026-11-12 22:45:00 · 박건준
      * 함수: onQuestion
      * 목적: 질문이 바뀌면 패널과 막대를 맞춘다.
      *       - 새 질문 — 그 질문의 말이 시작될 때(`starts`) 패널을 띄우고 듣는 중
@@ -232,25 +231,21 @@ class PanelPresenter(
         showJob = scope.launch {
             withTimeoutOrNull(SHOW_WAIT_MS) { starts.first { it === q } }
             shown.value = q
-            if (listen.value.state != ListenState.HEARD) startListening(q.hint)
+            if (listen.value.state != ListenState.HEARD) startListening()
         }
     }
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
-     * 수정: 2026-11-12 20:10:00 · 박건준
+     * 수정: 2026-11-12 22:45:00 · 박건준
      * 함수: startListening
-     * 목적: 듣는 중 막대를 띄우고, 지금 말이 끝난 뒤 `LISTEN_TIMEOUT_MS`가
-     *       지나면 막대만 닫는다.
-     * 인자: hint — 막대 아래 줄 대답 예. null이면 기본 안내("“응” 또는 “괜찮아”")
+     * 목적: 듣는 중 막대("듣고 있어요" 한 줄)를 띄우고, 지금 말이 끝난 뒤
+     *       `LISTEN_TIMEOUT_MS`가 지나면 막대만 닫는다.
+     * 근거: 인용 — 2026-11-12 박건준 검토: 듣는 중에는 대답 예를 보이지 않는다
      */
-    private fun startListening(hint: String?) {
+    private fun startListening() {
         listenJob?.cancel()
-        listen.value = ListenUi(
-            ListenState.LISTENING,
-            context.getString(R.string.listen_on),
-            hint ?: context.getString(R.string.listen_hint),
-        )
+        listen.value = ListenUi(ListenState.LISTENING, context.getString(R.string.listen_on))
         listenJob = scope.launch {
             withTimeoutOrNull(SPEAK_START_MS) { speaking.first { it } }
             speaking.first { !it }

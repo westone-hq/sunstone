@@ -88,13 +88,14 @@ enum class ListenState { OFF, LISTENING, HEARD }
 
 /**
  * 작성: 2026-11-12 18:40:00 · 박건준
+ * 수정: 2026-11-12 22:45:00 · 박건준
  * 클래스: ListenUi
  * 목적: 듣는 중 막대 하나.
  * 인자: state — 막대 상태
  *       text — 큰 글자("듣고 있어요", 들은 말)
- *       hint — 작은 글자(말하는 법 안내). 없으면 null
+ *       next — 들은 말 아래 작은 글자(앱이 이어서 할 일). 없으면 null
  */
-data class ListenUi(val state: ListenState, val text: String = "", val hint: String? = null)
+data class ListenUi(val state: ListenState, val text: String = "", val next: String? = null)
 
 /**
  * 작성: 2026-11-12 18:40:00 · 박건준

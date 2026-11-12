@@ -71,7 +71,6 @@
     <string name="panel_finish">지금 끝내기</string>
     <!-- 듣는 중 막대와 마이크 칸 -->
     <string name="listen_on">듣고 있어요</string>
-    <string name="listen_hint">“응” 또는 “괜찮아”라고 말씀해 주세요</string>
     <string name="listen_heard">“%1$s”</string>
     <!-- 들은 말 아래 안내: 앱이 이어서 하는 일 -->
     <string name="next_navigate">길안내를 시작할게요</string>
