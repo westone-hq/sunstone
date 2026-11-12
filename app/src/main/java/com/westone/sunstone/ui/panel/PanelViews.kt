@@ -10,7 +10,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -57,16 +56,19 @@ import com.westone.sunstone.routines.dialog.Fact
 
 /**
  * 작성: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 04:20:00 · 박건준
  * 변수: CARD_SIDE, CARD_TOP, CARD_WIDTH, PLATE_BOTTOM, PLATE_HEIGHT
- * 목적: 왼쪽 구역 안 카드·판 자리(px = dp). 카드는 좌우 24, 상태줄 아래 74
- *       (화면 164)에서 시작하고, 판은 좌우 24, 아래 24에 높이 112로 뜬다.
+ * 목적: 왼쪽 구역 안 카드·판 자리(px = dp). 카드는 좌우 24, 상태줄 아래 86
+ *       (화면 176)에서 시작하고, 판은 좌우 24, 아래 24에 높이 112로 뜬다.
  *       구역 폭은 853이라 카드·판 폭은 853 − 48 = 805.
- * 근거: 인용 — 시안 template2.html `.noti`(left 24, right 24, top 164),
+ * 식: CARD_TOP = 운전대 표시 아이콘 아래 끝 160 + 16 − 상태줄 90 = 86
+ * 근거: 인용 — 시안 template2.html `.noti`(left 24, right 24, top 176),
  *       `.voice`·`.toast`(bottom 24, height 112). 측정 — 왼쪽 구역 폭 853,
- *       상태줄 90(docs/api-spike.md 왼쪽 구역 그리기 행)
+ *       상태줄 90, 운전대 표시 아이콘 y 106~160(docs/api-spike.md 왼쪽 구역
+ *       그리기 행)
  */
 internal const val CARD_SIDE = 24
-internal const val CARD_TOP = 74
+internal const val CARD_TOP = 86
 internal const val CARD_WIDTH = 805
 internal const val PLATE_BOTTOM = 24
 internal const val PLATE_HEIGHT = 112
@@ -98,6 +100,15 @@ private val SHADE = Color.Black.copy(alpha = .12f)
  * 근거: 인용 — 시안 template2.html `.facts`·`.cells`·`.na` gap 2
  */
 private val GAP = 2.dp
+
+/**
+ * 작성: 2026-11-13 04:20:00 · 박건준
+ * 변수: PICKED
+ * 목적: 채운 버튼 위에 덮는 흰색 18%. 기다림이 차오르는 막대와 고른 버튼에
+ *       같이 쓴다.
+ * 근거: 인용 — 시안 template2.html `.btn .cd`, `.btn.filled.picked`
+ */
+private val PICKED = Color.White.copy(alpha = .18f)
 
 /**
  * 작성: 2026-11-13 03:40:00 · 박건준
@@ -349,18 +360,20 @@ private fun Cell(cell: CellUi, modifier: Modifier) {
 
 /**
  * 작성: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 04:20:00 · 박건준
  * 함수: ActionButton
  * 목적: 카드 버튼 하나. 칸을 꽉 채우는 각진 막대.
  *       - 기다리는 버튼(`waitMs`)이면 흰색 18%가 그 시간 동안 왼쪽부터 차오른다
- *       - 고른 버튼(`picked`)이면 채운 버튼은 안쪽 테두리 4(t3), 회색 버튼은
- *         눌린 회색으로 둔다
+ *       - 고른 버튼(`picked`)이면 채운 버튼은 흰색 18%를 버튼 전체에 덮고(기다림이
+ *         다 찬 모습과 같다), 회색 버튼은 눌린 회색으로 둔다
  * 인자: action — 버튼 값
  *       key — 같은 카드의 같은 버튼인지 가르는 값. 바뀌면 다시 채운다
  *       onPress — 누르면 부른다
  *       modifier — 배치(폭)
  * 근거: 인용 — 시안 template2.html `.btn`, `.btn .cd`(5초 linear),
- *       `.btn.picked`. 다 차면 고르는 일은 routines 실행기가 한다
- *       (`RoutineRunner` 기다렸다 받아들이기). 화면은 차오르기만 그린다
+ *       `.btn.filled.picked`(inset 흰색 18%), `.btn.basic.picked`. 다 차면
+ *       고르는 일은 routines 실행기가 한다(`RoutineRunner` 기다렸다
+ *       받아들이기). 화면은 차오르기만 그린다
  */
 @Composable
 private fun ActionButton(action: ActionUi, key: Any?, onPress: (PanelPress) -> Unit, modifier: Modifier) {
@@ -374,7 +387,7 @@ private fun ActionButton(action: ActionUi, key: Any?, onPress: (PanelPress) -> U
         modifier
             .fillMaxHeight()
             .background(back)
-            .then(if (action.filled && action.picked) Modifier.border(4.dp, c.t3) else Modifier)
+            .then(if (action.filled && action.picked) Modifier.background(PICKED) else Modifier)
             .holdOrTap({ onPress(action.press) }, {}),
         contentAlignment = Alignment.Center,
     ) {
@@ -384,7 +397,7 @@ private fun ActionButton(action: ActionUi, key: Any?, onPress: (PanelPress) -> U
             // 차오르는 막대는 그리기 단계에서만 읽어 버튼을 다시 짜지 않는다
             Box(
                 Modifier.matchParentSize().drawBehind {
-                    drawRect(Color.White.copy(alpha = .18f), size = Size(size.width * fill.value, size.height))
+                    drawRect(PICKED, size = Size(size.width * fill.value, size.height))
                 },
             )
         }
