@@ -12,47 +12,43 @@ import com.westone.sunstone.connect.PrefsMemory
 import com.westone.sunstone.connect.PrefsSeatProfiles
 import com.westone.sunstone.demo.installDemo
 import com.westone.sunstone.info.FixedInfo
-import com.westone.sunstone.ui.SceneControls
-import com.westone.sunstone.navi.PleosNaviPort
-import com.westone.sunstone.routines.dialog.TripDialog
-import com.westone.sunstone.routines.dialog.WashBooking
-import com.westone.sunstone.routines.fake.FakeNavi
-import com.westone.sunstone.routines.knowledge.CardBook
-import com.westone.sunstone.routines.model.GeoPoint
-import com.westone.sunstone.routines.model.PlaceHit
-import com.westone.sunstone.routines.model.Window
-import com.westone.sunstone.routines.port.Target
-import com.westone.sunstone.routines.speech.CardLines
-import org.json.JSONObject
-import java.time.LocalDate
 import com.westone.sunstone.navi.PlaceWatcher
 import com.westone.sunstone.navi.PleosNavi
+import com.westone.sunstone.navi.PleosNaviPort
 import com.westone.sunstone.navi.Proximity
-import com.westone.sunstone.routines.understand.VoiceAction
+import com.westone.sunstone.routines.dialog.TripDialog
+import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.Phase
 import com.westone.sunstone.routines.engine.RoutineRunner
+import com.westone.sunstone.routines.engine.Source
 import com.westone.sunstone.routines.fake.FakeCar
+import com.westone.sunstone.routines.fake.FakeNavi
+import com.westone.sunstone.routines.knowledge.CardBook
 import com.westone.sunstone.routines.library.ChildLockRoutine
 import com.westone.sunstone.routines.library.SeatMemoryRoutine
 import com.westone.sunstone.routines.library.WashRoutine
 import com.westone.sunstone.routines.model.CarState
+import com.westone.sunstone.routines.model.GeoPoint
 import com.westone.sunstone.routines.model.Place
+import com.westone.sunstone.routines.model.PlaceHit
 import com.westone.sunstone.routines.model.Seat
+import com.westone.sunstone.routines.model.Window
 import com.westone.sunstone.routines.port.CarPort
+import com.westone.sunstone.routines.port.Speaker
+import com.westone.sunstone.routines.port.Target
+import com.westone.sunstone.routines.speech.CardLines
+import com.westone.sunstone.routines.understand.PhraseMatcher
+import com.westone.sunstone.routines.understand.VoiceAction
+import com.westone.sunstone.ui.SceneControls
+import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import com.westone.sunstone.routines.engine.Source
-import com.westone.sunstone.routines.port.Speaker
-import com.westone.sunstone.routines.understand.PhraseMatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
@@ -99,7 +95,7 @@ data class ChatLine(val fromDriver: Boolean, val text: String)
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-11 15:14:38 · 박희정
+ * 수정: 2026-11-12 15:00:00 · 박건준
  * 클래스: AppGraph
  * 목적: 기능 구현(routines)과 앱 연결을 한곳에서 잇는 조립부. 의존성 주입
  *       라이브러리 없이 손으로 만든다.
@@ -108,7 +104,8 @@ data class ChatLine(val fromDriver: Boolean, val text: String)
  *       - 말·Gleo·화면·데모 입력은 모두 `handle()`로 들어온다
  *       - 장소는 근접 알림(`PlaceWatcher`)이 바꾸고, 내비 도착은 logcat에만
  *         남긴다(routines 창구에 아직 잇지 않음)
- *       - 길안내 중이거나 루틴이 진행 중이면 `KeepAwakeService`를 켠다
+ *       - Pleos 차면 화면이 뜰 때 `KeepAwakeService`를 켜 두어 앱이 얼지 않게
+ *         한다
  * 인자: app — 앱 Context
  * 미구현: 프로토타입이라 Pleos 연결에 실패하면 알리지 않고 가짜 차로 진행한다
  *       (상태 줄에 "가짜 차"). 실제 차에서는 연결 실패를 안내해야 한다.
@@ -134,17 +131,6 @@ class AppGraph(private val app: Context) {
          * 목적: 가짜 차를 쓸지 저장하는 설정 키.
          */
         const val KEY_FAKE = "use_fake_car"
-
-        /**
-         * 작성: 2026-11-11 12:06:00 · 박건준
-         * 변수: AWAKE_GRACE_MS
-         * 목적: 깨어 있을 이유가 사라진 뒤 서비스를 끄기 전에 기다리는
-         *       시간(밀리초). 그 사이 다시 필요해지면 끄지 않는다.
-         * 근거: 측정 — 경유지를 더하면 내비가 경로를 취소했다 다시 시작해서
-         *       길안내 상태가 1초 남짓 꺼진다. 서비스를 한 번 끄면 앱이 뒤에
-         *       있어 다시 켜지 못했다(`mAllowStartForeground false`)
-         */
-        const val AWAKE_GRACE_MS = 15_000L
 
         /**
          * 작성: 2026-11-11 16:02:00 · 박희정
@@ -195,7 +181,7 @@ class AppGraph(private val app: Context) {
     /** 루틴이 쓰는 차. Pleos 차, 없으면 가짜 차 */
     val car: CarPort = pleos ?: fake!!
 
-    /** 음성 안내(TTS) */
+    /** 음성 안내(녹음본·TTS를 한 줄로 낸다) */
     private val voice = AndroidSpeaker(app)
 
     /** 대화 기록. 운전자 말과 Sunstone 말을 차례로 쌓고, 화면이 보여준다. 최근 `CHAT_KEEP`줄만 둔다 */
@@ -260,9 +246,6 @@ class AppGraph(private val app: Context) {
         today = { LocalDate.now() },
     )
 
-    /** 앱을 깨어 있게 하는 중인지. 같은 값으로 서비스를 다시 켜고 끄지 않으려고 둔다 */
-    private val awake = MutableStateFlow(false)
-
     /** AAOS 에너지 속성과 연료 종류. 값을 Pleos 차 창구에 넣는다. 가짜 차일 때는 버린다 */
     private val energy = AaosEnergySource(
         app,
@@ -271,7 +254,6 @@ class AppGraph(private val app: Context) {
     )
 
     init {
-        watchAwake()
         watchArrivals()
     }
 
@@ -387,16 +369,27 @@ class AppGraph(private val app: Context) {
     private fun addChat(line: ChatLine) = chatLines.update { (it + line).takeLast(CHAT_KEEP) }
 
     /**
+     * 작성: 2026-11-12 15:00:00 · 박건준
+     * 함수: stopVoice
+     * 목적: 나오던 말을 끊고 기다리던 말을 버린다. 시연에서 장면을 건너뛸 때
+     *       앞 장면 말이 뒤늦게 이어 나오지 않게 한다.
+     */
+    fun stopVoice() = voice.stop() // → 로직 이동: AndroidSpeaker.stop()
+
+    /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-11 19:10:34 · 박희정
+     * 수정: 2026-11-12 15:00:00 · 박건준
      * 함수: restartTrip
      * 목적: 시연을 처음부터 다시 할 수 있게 지운다.
-     *       1. 켜진 루틴을 되돌린다(차 값을 원래대로)
-     *       2. 길안내 중이면 취소한다. 안내가 없을 때 취소를 보내면 지도 앱이
+     *       1. 나오던 말을 끊고 기다리던 말을 버린다
+     *       2. 켜진 루틴을 되돌린다(차 값을 원래대로)
+     *       3. 길안내 중이면 취소한다. 안내가 없을 때 취소를 보내면 지도 앱이
      *          앞으로 나와 앱 화면을 가린다
-     *       3. 대화 기록, 권하기 기록(10분에 한 번), 끝난 실행 기록을 지운다
+     *       4. 대화 기록, 권하기 기록(10분에 한 번), 끝난 실행 기록을 지운다
+     *       되돌리는 동안 나오는 말("원래대로 돌렸어요")은 그대로 들린다
      */
     suspend fun restartTrip() {
+        voice.stop() // → 로직 이동: AndroidSpeaker.stop()
         runner.activeIds().forEach { runner.undo(it).join() } // → 로직 이동: RoutineRunner.undo()
         if (navi?.routing?.value == true) navi.cancelRoute() // → 로직 이동: PleosNavi.cancelRoute()
         runner.forgetSuggestions() // → 로직 이동: RoutineRunner.forgetSuggestions()
@@ -503,24 +496,19 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-11 12:22:00 · 박건준
-     * 함수: watchAwake
-     * 목적: 길안내 중이거나 루틴이 진행 중(실행·켜짐·되돌리는 중)이면
-     *       `KeepAwakeService`를 켜고, 둘 다 아닌 채로 `AWAKE_GRACE_MS`가
-     *       지나면 끈다.
+     * 수정: 2026-11-12 15:00:00 · 박건준
+     * 함수: keepAwake
+     * 목적: Pleos 차일 때 `KeepAwakeService`를 켜 앱이 얼지 않게 한다. 앱
+     *       화면이 뜰 때마다 `MainActivity`가 부르고, 이미 켜져 있으면 그대로
+     *       둔다. 끄지 않는다(상황을 알아채려면 늘 깨어 있어야 한다). 가짜 차는
+     *       켜지 않는다.
+     * 근거: 측정 — 길안내·루틴이 있을 때만 켜던 때는 지도 앱이 앞에 있고 둘 다
+     *       없으면 앱이 얼어 주유소 근접 알림을 못 받았다. 앱이 뒤에 있을 때는
+     *       서비스를 새로 켤 수 없어서(Android 12+) 화면이 뜰 때 켠다
+     *       (docs/api-spike.md 앱 얼림 대응 절)
      */
-    private fun watchAwake() {
-        val routing = navi?.routing ?: MutableStateFlow(false) // 길안내 중인지
-        scope.launch {
-            combine(routing, runner.ui) { guiding, ui ->
-                guiding || ui.runs.values.any { it.phase != Phase.FINISHED }
-            }.distinctUntilChanged().collectLatest { need ->
-                if (!need) delay(AWAKE_GRACE_MS)
-                if (need == awake.value) return@collectLatest
-                awake.value = need
-                // → 로직 이동: KeepAwakeService.start(), KeepAwakeService.stop()
-                if (need) KeepAwakeService.start(app) else KeepAwakeService.stop(app)
-            }
-        }
+    fun keepAwake() {
+        if (pleos != null) KeepAwakeService.start(app) // → 로직 이동: KeepAwakeService.start()
     }
 
     /**

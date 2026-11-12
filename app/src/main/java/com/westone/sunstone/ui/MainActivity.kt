@@ -84,6 +84,17 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * 작성: 2026-11-12 15:04:00 · 박건준
+     * 함수: onStart
+     * 목적: 화면이 뜰 때마다 앱을 깨어 있게 한다. 앱이 앞에 있을 때만
+     *       포그라운드 서비스를 켤 수 있어서 여기서 부른다.
+     */
+    override fun onStart() {
+        super.onStart()
+        graph.keepAwake() // → 로직 이동: AppGraph.keepAwake()
+    }
+
+    /**
      * 작성: 2026-11-08 18:03:56 · 박건준
      * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: onNewIntent

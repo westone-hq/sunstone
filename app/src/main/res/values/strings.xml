@@ -92,8 +92,8 @@
     <string name="car_seat_not_park">기어가 P가 아니라서 시트를 움직이지 않았어요</string>
     <string name="car_seat_gear_changed">기어가 바뀌어서 시트를 멈췄어요</string>
 
-    <!-- 길안내·루틴 중 앱을 깨어 있게 하는 알림(KeepAwakeService) -->
-    <string name="awake_channel">길안내·루틴 진행</string>
+    <!-- 앱을 깨어 있게 하는 알림(KeepAwakeService) -->
+    <string name="awake_channel">차 상황 지켜보기</string>
     <string name="awake_title">Sunstone이 차를 지켜보고 있어요</string>
-    <string name="awake_text">길안내나 루틴이 끝나면 알림이 사라져요</string>
+    <string name="awake_text">도착·탑승 같은 상황을 놓치지 않게 앱을 켜 두고 있어요</string>
 </resources>
