@@ -12,8 +12,11 @@
         /accept, /dismiss             화면의 네·아니요 버튼과 같다
         /ready1                       시나리오 ① 준비: P단, 연료 18%, 마지막 세차
                                       36일 전, 현재 위치 서울(강남역)
-        /move1                        시나리오 ① 이동: 서울 → 경유지 주유소(약 95초)
-        /leave1                       시나리오 ① 세차 후 출발: D·30km/h로 주유소를 떠남
+        /move1                        시나리오 ① 이동: 서울 → 경유지 주유소(약 95초).
+                                      도착해 P로 서면 주유 정차(토스트만)
+        /entrance1                    시나리오 ① 세차 입구: 주유소 안에서 D·5km/h로
+                                      움직였다가 다시 P로 선다(세차 모드 질문)
+        /leave1                       시나리오 ① 세차 후 출발: D로 바꿔(해제) 30km/h로 떠남
         /데모명령 …                     그 밖의 데모 명령을 그대로 보낸다
       - q 를 치면 끝낸다
       켜져 있는 동안 Virtual Console 연결 신호를 1초마다 보낸다. 끊기면 내기
@@ -114,6 +117,13 @@ try {
                     Write-Host "  준비: P단, 연료 18%, 마지막 세차 36일 전, 서울(강남역)" -ForegroundColor Gray
                 }
                 "move1" { & powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "scene-move.ps1") -Scenario 1 }
+                "entrance1" {
+                    Send-Console "/vehicle/gear?gear=Drive"
+                    Send-Console "/vehicle/controls?speed=5"
+                    Start-Sleep -Seconds 3
+                    Send-Console "/vehicle/controls?speed=0"
+                    Send-Console "/vehicle/gear?gear=Park"
+                }
                 "leave1" {
                     Send-Console "/vehicle/gear?gear=Drive"
                     Send-Console "/vehicle/controls?speed=30"

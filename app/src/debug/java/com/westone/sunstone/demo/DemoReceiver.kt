@@ -376,6 +376,14 @@ class DemoReceiver : BroadcastReceiver() {
              * 목적: 뒷문 차일드락을 AAOS 속성으로 읽고 써 본다(`ChildLockProbe`).
              */
             "childlock" -> ChildLockProbe(context).run() // → 로직 이동: ChildLockProbe.run()
+            /**
+             * 작성: 2026-11-12 18:05:00 · 박건준
+             * 함수: overlay
+             * 목적: 왼쪽 구역 오버레이 창과 키 수신을 실측한다(`OverlayProbe`).
+             *       `overlay show` | `overlay hide`.
+             */
+            // → 로직 이동: OverlayProbe.show(), OverlayProbe.hide()
+            "overlay" -> OverlayProbe(context).run { if (arg == "hide") hide() else show() }
             else -> Log.w("SunstoneDemo", "모르는 명령: $cmd")
         }
     }

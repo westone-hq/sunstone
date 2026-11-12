@@ -131,12 +131,13 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-12 15:06:00 · 박건준
+     * 수정: 2026-11-12 19:14:00 · 박건준
      * 함수: goTo
      * 목적: 그 장면으로 건너뛴다. 처음부터 다시 시작해 앞 장면들의 준비와 대사를
-     *       차례로 넣고(앱이 답할 때까지 기다린다) 그 장면을 준비한다. 건너뛴
-     *       장면의 말은 그 장면에 들어가기 전에 끊어, 앞 장면 말이 뒤늦게 이어
-     *       나오지 않게 한다.
+     *       차례로 넣고(앱이 답할 때까지 기다린다) 그 장면을 준비한다. 대사 뒤에
+     *       이어지는 장면(주유 제안·세차 추천)의 말까지 기다린다. 건너뛴 장면의
+     *       말은 그 장면에 들어가기 전에 끊어, 앞 장면 말이 뒤늦게 이어 나오지
+     *       않게 한다.
      * 인자: id — 장면 ID("S3")
      * 반환: 그런 장면이 있으면 true
      */
@@ -147,7 +148,7 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
             g.restartTrip() // → 로직 이동: AppGraph.restartTrip()
             for (k in 0 until target) {
                 enter(k)
-                scenes[k].driver?.let { sayAndWait(it.text, scenes[k].expectSaid.size) }
+                scenes[k].driver?.let { sayAndWait(it.text, replies(k)) }
             }
             g.stopVoice() // → 로직 이동: AppGraph.stopVoice()
             enter(target)
@@ -208,6 +209,19 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
         withTimeoutOrNull(REPLY_WAIT_MS) {
             while (g.chat.value.count { !it.fromDriver } < before + replies) delay(300)
         } ?: Log.w(TAG, "장면 대사 답 없음: $text")
+    }
+
+    /**
+     * 작성: 2026-11-12 19:14:00 · 박건준
+     * 함수: replies
+     * 목적: 장면 대사 하나에 앱이 할 말 수. 뒤에 이어지는 장면(`Scene.follows`)의
+     *       말도 같은 대사가 낳으므로 더한다.
+     * 인자: k — 대사가 있는 장면 번호
+     * 반환: 기다릴 앱 말 수
+     */
+    private fun replies(k: Int): Int {
+        val follow = scenes.drop(k + 1).takeWhile { it.follows } // 이어지는 장면들
+        return scenes[k].expectSaid.size + follow.sumOf { it.expectSaid.size }
     }
 
     /**
