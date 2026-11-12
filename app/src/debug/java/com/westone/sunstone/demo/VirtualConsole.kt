@@ -63,10 +63,33 @@ internal object VirtualConsole {
     }.isSuccess
 
     /**
+     * 작성: 2026-11-11 16:42:25 · 박희정
+     * 함수: keepAlive
+     * 목적: 콘솔에 브라우저 세션 신호를 보낸다. 3초 넘게 끊기면 차량 쪽 연결이
+     *       끊겨 내기 순환·문 잠금 제어가 실패하므로 시연 중 1초마다 보낸다.
+     * 반환: 성공하면 true
+     * 근거: 측정 — 신호가 끊긴 뒤 내기 순환 Failed, 문 잠금 3초 응답 없음.
+     *       신호를 보내는 동안에는 둘 다 Done(2026-11-11 routine/wash)
+     */
+    suspend fun keepAlive(): Boolean = runCatching { request("POST", "/browser/session?client=sunstone") }.isSuccess
+
+    /**
+     * 작성: 2026-11-11 16:42:25 · 박희정
+     * 함수: put
+     * 목적: 콘솔 값을 바꾼다(기어, 속도). 세션 신호를 먼저 보낸다.
+     * 인자: path — 콘솔 경로("/vehicle/gear?gear=Park")
+     * 반환: 성공하면 true
+     */
+    suspend fun put(path: String): Boolean = runCatching {
+        request("POST", "/browser/session?client=sunstone")
+        request("PUT", path)
+    }.isSuccess
+
+    /**
      * 작성: 2026-11-09 18:53:00 · 박건준
      * 함수: request
      * 목적: 콘솔에 HTTP 요청 하나를 보내고 응답 본문을 받는다.
-     * 인자: method — GET 또는 PUT
+     * 인자: method — GET, PUT, 또는 POST(세션 신호)
      *       path — `/vehicle/...` 경로와 질의
      * 반환: 응답 본문. 연결 실패나 2xx가 아닌 응답이면 예외
      */

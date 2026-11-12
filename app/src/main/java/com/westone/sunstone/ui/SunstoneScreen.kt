@@ -38,10 +38,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.westone.sunstone.AppGraph
+import com.westone.sunstone.ChatLine
 import com.westone.sunstone.R
-import com.westone.sunstone.car.CarKind
 import com.westone.sunstone.car.FuelState
-import com.westone.sunstone.routines.understand.PhraseMatcher
 import com.westone.sunstone.routines.understand.VoiceAction
 import com.westone.sunstone.routines.engine.Phase
 import com.westone.sunstone.routines.engine.RoutineId
@@ -55,22 +54,18 @@ import com.westone.sunstone.routines.model.Place
 import kotlinx.coroutines.delay
 
 /**
- * 작성: 2026-11-09 20:18:22 · 박건준
- * 변수: METERS_PER_KM
- * 목적: AAOS 주행 가능 거리(m)를 km로 바꾸는 나눗수.
- */
-private const val METERS_PER_KM = 1000f
-
-/**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 20:18:22 · 박건준
+ * 수정: 2026-11-11 16:02:00 · 박희정
  * 함수: SunstoneScreen
  * 목적: 앱 화면 전체. 주 입력은 말 한마디와 상황 감지이고, 화면은 지금 무엇을
  *       했는지 보여주는 보조다. 문구는 res/values/strings.xml에 있다.
- *       - 늘 보임 — 상태 줄, 마지막 안내, 권하기 카드
- *       - 정차 중에만 보임 — 루틴 카드, 저장한 자세, 실행 기록, 말 입력칸
+ *       - 늘 보임 — 상태 줄, 대화 기록, 말 입력칸, 권하기 카드
+ *       - 정차 중에만 보임 — 루틴 카드, 저장한 자세, 실행 기록
  * 인자: graph — 앱 조립부
  * 근거: 인용 — Pleos 주행 중 화면 제한. 주행 중에는 켜진 루틴 이름만 둔다
+ * 미구현: 프로토타입이라 음성 인식 대신 쓰는 말 입력칸을 주행 중에도 보인다
+ *       (시나리오가 주행 중 장면을 오가며 시험하려고). 음성 인식이 붙으면
+ *       주행 중에는 숨긴다
  */
 @Composable
 fun SunstoneScreen(graph: AppGraph) {
@@ -78,6 +73,7 @@ fun SunstoneScreen(graph: AppGraph) {
     val ui by graph.runner.ui.collectAsStateWithLifecycle() // 루틴 실행기 화면 상태
     val driving = !car.stopped || car.gear == Gear.DRIVE || car.gear == Gear.REVERSE // 주행 중 화면 제한 여부
     val fuel = graph.pleos?.fuel?.collectAsStateWithLifecycle()?.value // 연료 값, 가짜 차면 null
+    val chat by graph.chat.collectAsStateWithLifecycle() // 대화 기록
 
     MaterialTheme(colorScheme = darkColorScheme()) {
         Column(
@@ -90,7 +86,9 @@ fun SunstoneScreen(graph: AppGraph) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             StatusLine(car, fuel, graph.usingFakeCar || graph.pleos == null)
-            ui.lastMessage?.let { Text(it, color = Color(0xFFB8C4FF), fontSize = 18.sp) }
+            graph.scenes?.let { SceneBar(graph, it) }
+            ChatLog(chat)
+            SayBox(graph)
 
             ui.suggestion?.let { s ->
                 Card(Modifier.fillMaxWidth()) {
@@ -136,18 +134,18 @@ fun SunstoneScreen(graph: AppGraph) {
 
             ProfileRow(graph)
             ui.runs.values.maxByOrNull { it.startedAtMs }?.let { RunDetail(it) }
-            SayBox(graph)
         }
     }
 }
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 20:58:00 · 박건준
+ * 수정: 2026-11-11 16:02:00 · 박희정
  * 함수: StatusLine
- * 목적: 차 상태 한 줄(기어·속도·장소·열린 문·탑승, 받은 경우 차 종류·
- *       연료·배터리·주행 가능 거리). 시연 때 차가 무엇을 알아챘는지
- *       보여준다. 기어·장소는 영어 이름 대신 화면 문구로 바꾼다.
+ * 목적: 차 상태 한 줄(기어·속도·장소·열린 문·탑승, 받은 경우 연료). 시연 때
+ *       차가 무엇을 알아챘는지 보여준다. 기어·장소는 영어 이름 대신 화면
+ *       문구로 바꾼다. 시나리오가 주유(내연기관) 기준이라 에뮬레이터 전기차의
+ *       차 종류·배터리·주행 가능 거리는 보이지 않는다.
  * 인자: car — 지금 차 상태
  *       fuel — 연료 값. 가짜 차면 null
  *       fake — 가짜 차를 쓰면 true. 줄 끝에 표시한다
@@ -175,19 +173,7 @@ private fun StatusLine(car: CarState, fuel: FuelState?, fake: Boolean) {
             Place.NONE -> R.string.place_none
         },
     )
-    val energy = buildString { // 받은 연료 값만 이어 붙인 글자
-        fuel?.kind?.let {
-            val kind = when (it) { // 차 종류 문구
-                CarKind.ELECTRIC -> R.string.kind_electric
-                CarKind.HYBRID -> R.string.kind_hybrid
-                CarKind.COMBUSTION -> R.string.kind_combustion
-            }
-            append(stringResource(R.string.status_kind, stringResource(kind)))
-        }
-        fuel?.percent?.let { append(stringResource(R.string.status_fuel, it)) }
-        fuel?.batteryPercent?.let { append(stringResource(R.string.status_battery, it)) }
-        fuel?.aaosRangeM?.let { append(stringResource(R.string.status_range, it / METERS_PER_KM)) }
-    }
+    val energy = fuel?.percent?.let { stringResource(R.string.status_fuel, it) }.orEmpty() // 연료, 모르면 빈 글자
     Text(
         stringResource(R.string.status_line, gear, car.speedKmh, place, doors, seats) + energy +
             if (fake) stringResource(R.string.status_fake_car) else "",
@@ -350,14 +336,100 @@ private fun SayBox(graph: AppGraph) {
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 19:11:42 · 박건준
+ * 수정: 2026-11-11 16:02:00 · 박희정
  * 함수: say
- * 목적: 입력한 말을 요청으로 바꿔 처리한다. 못 알아들으면 그렇다고 말한다.
+ * 목적: 입력한 말을 음성 인식 결과처럼 넘긴다. 대화 기록에 남고, 못 알아들으면
+ *       그렇다고 말한다.
  * 인자: graph — 앱 조립부
  *       text — 입력한 말
  */
-private fun say(graph: AppGraph, text: String) {
-    val action = PhraseMatcher.match(text, Source.VOICE) // 알아들은 요청, 못 알아들으면 null
-    // → 로직 이동: AppGraph.notUnderstood(), AppGraph.handle()
-    if (action == null) graph.notUnderstood() else graph.handle(action)
+private fun say(graph: AppGraph, text: String) = graph.hear(text, Source.VOICE) // → 로직 이동: AppGraph.hear()
+
+/**
+ * 작성: 2026-11-11 16:02:00 · 박희정
+ * 함수: ChatLog
+ * 목적: 대화 기록을 말풍선처럼 보여준다. 운전자 말은 오른쪽 회색, Sunstone
+ *       말은 왼쪽 파란색. 최근 `CHAT_SHOWN`줄만 보인다.
+ * 인자: lines — 대화 기록, 오래된 것부터
+ */
+@Composable
+private fun ChatLog(lines: List<ChatLine>) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        lines.takeLast(CHAT_SHOWN).forEach { line ->
+            val side = if (line.fromDriver) Arrangement.End else Arrangement.Start // 운전자는 오른쪽
+            val bubble = if (line.fromDriver) Color(0xFF2A2D33) else Color(0xFF1C2541) // 말풍선 색
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = side) {
+                Text(
+                    line.text,
+                    Modifier
+                        .background(bubble, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    color = if (line.fromDriver) Color(0xFFE0E0E0) else Color(0xFFB8C4FF),
+                    fontSize = 18.sp,
+                )
+            }
+        }
+    }
 }
+
+/**
+ * 작성: 2026-11-11 16:42:25 · 박희정
+ * 수정: 2026-11-12 11:45:00 · 박희정
+ * 함수: SceneBar
+ * 목적: 시연 모드 줄(Tab 1 4.2 실행 방식 1). 지금 장면, 그 장면 대사 버튼,
+ *       [다음 장면]·[처음] 버튼을 둔다. 대사 버튼을 누르면 그 말을 한 것으로
+ *       넣는다(음성 인식이 안 될 때 쓴다). 준비 상황을 넣는 동안은 버튼을 막는다.
+ *       대사 버튼은 장면마다 한 번만 보인다. 같은 대답을 두 번 넣으면 물은 게
+ *       없어 "잘 못 알아들었어요"가 나오기 때문이다
+ * 인자: graph — 앱 조립부
+ *       scenes — 장면 실행기
+ */
+@Composable
+private fun SceneBar(graph: AppGraph, scenes: SceneControls) {
+    val scene by scenes.current.collectAsStateWithLifecycle() // 지금 장면, 시작 전이면 null
+    Row(
+        // 시연 모드: 장면 이름, 대사 버튼, 다음·처음 버튼
+        Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF1A1F2B), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        val s = scene // 화면에 그릴 장면
+        Text(
+            if (s == null) stringResource(R.string.scene_ready)
+            else stringResource(R.string.scene_title, s.id, s.title),
+            Modifier.weight(1f),
+            color = Color(0xFF9AA0A6),
+            fontSize = 16.sp,
+        )
+        var saidIn by remember { mutableStateOf<String?>(null) } // 대사 버튼을 누른 장면 ID
+        if (s == null && saidIn != null) saidIn = null // [처음]이면 다시 보이게
+        s?.line?.takeIf { saidIn != s.id }?.let { line ->
+            Button(
+                onClick = {
+                    saidIn = s.id
+                    graph.hear(line, Source.DEMO) // → 로직 이동: AppGraph.hear()
+                },
+                enabled = !s.busy,
+            ) { Text(line) }
+        }
+        // → 로직 이동: SceneControls.next()
+        Button(onClick = { scenes.next() }, enabled = s == null || (!s.busy && !s.last)) {
+            Text(stringResource(if (s == null) R.string.scene_start else R.string.scene_next))
+        }
+        // → 로직 이동: SceneControls.restart()
+        OutlinedButton(onClick = { scenes.restart() }, enabled = s?.busy != true) {
+            Text(stringResource(R.string.scene_restart))
+        }
+    }
+}
+
+/**
+ * 작성: 2026-11-11 16:02:00 · 박희정
+ * 변수: CHAT_SHOWN
+ * 목적: 화면에 보일 대화 줄 수.
+ * 근거: 미정 — 시나리오 ① 한 바퀴(준비 뒤 약 10줄)가 한 화면에 들어가게 정했다
+ */
+private const val CHAT_SHOWN = 12

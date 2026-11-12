@@ -62,6 +62,8 @@ data class CarState(
     val seatOccupied: Map<Seat, Boolean> = emptyMap(),
     val beltBuckled: Map<Seat, Boolean> = emptyMap(),
     val place: Place = Place.NONE,
+    /** 연료(0~100%). 모르면 null. 에뮬레이터 차는 전기차라 데모 `fuel`로 넣는다 */
+    val fuelPercent: Int? = null,
 ) {
     val stopped: Boolean get() = speedKmh < 1f
     fun isOpen(door: Door): Boolean = doorOpen[door] == true

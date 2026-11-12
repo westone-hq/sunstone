@@ -287,9 +287,17 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         val belt: Map<Seat, Boolean> = emptyMap(),
     )
 
-    /** 루틴이 보는 차 상태(값이 바뀌면 알려주는 상태). 차에서 받은 값에 장소·속도·데모 벨트를 덮어 만든다 */
-    override val state: StateFlow<CarState> = combine(sensed, manual) { s, m ->
-        s.copy(place = m.place, speedKmh = m.speedKmh ?: m.sensorSpeedKmh, beltBuckled = s.beltBuckled + m.belt)
+    /**
+     * 루틴이 보는 차 상태(값이 바뀌면 알려주는 상태). 차에서 받은 값에 장소·속도·데모 벨트를 덮고,
+     * 연료(데모 `fuel` 덮어쓰기 포함)를 넣어 만든다. 전기차라 연료가 없으면 `fuelPercent`는 null
+     */
+    override val state: StateFlow<CarState> = combine(sensed, manual, fuelState) { s, m, f ->
+        s.copy(
+            place = m.place,
+            speedKmh = m.speedKmh ?: m.sensorSpeedKmh,
+            beltBuckled = s.beltBuckled + m.belt,
+            fuelPercent = f.percent,
+        )
     }.stateIn(scope, SharingStarted.Eagerly, CarState())
 
     init {

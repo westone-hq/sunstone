@@ -3,6 +3,7 @@ package com.westone.sunstone.routines.engine
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.port.CarPort
 import com.westone.sunstone.routines.port.Command
+import com.westone.sunstone.routines.port.ControlResult
 
 enum class RoutineId { WASH, CHILD_LOCK, SEAT_MEMORY }
 
@@ -37,6 +38,16 @@ sealed interface Step {
 }
 
 /**
+ * 작성: 2026-11-11 14:28:46 · 박희정
+ * 클래스: StepOutcome
+ * 목적: 단계 하나를 처리한 결과. 끝에 한 번에 말하는 루틴([Routine.report])이
+ *       무엇이 됐고 무엇을 사람이 해야 하는지 고를 때 쓴다.
+ * 인자: step — 처리한 단계
+ *       result — 제어 단계를 차에 보낸 결과. 안내 단계면 null
+ */
+data class StepOutcome(val step: Step, val result: ControlResult?)
+
+/**
  * 미리 만들어 둔 루틴 하나.
  * 무엇을 할지([plan]), 언제 권할지([suggestion]), 언제 되돌릴지([shouldUndo])만 정한다.
  * 실행·저장·되돌리기는 [RoutineRunner]가 모든 루틴에 똑같이 한다.
@@ -69,4 +80,22 @@ interface Routine {
      * false면 한 번 맞추고 끝나는 루틴이라 다시 부르면 새로 실행한다(되돌리기는 마지막 실행 기준).
      */
     val staysActive: Boolean get() = true
+
+    /**
+     * 작성: 2026-11-11 14:28:46 · 박희정
+     * 함수: reportsAtEnd
+     * 목적: true면 시작 말과 단계마다의 안내를 하지 않고, 모든 단계가 끝난 뒤
+     *       [report]가 만든 말만 한다. 대사집처럼 한 번에 말해야 하는 루틴이 쓴다.
+     */
+    val reportsAtEnd: Boolean get() = false
+
+    /**
+     * 작성: 2026-11-11 14:28:46 · 박희정
+     * 함수: report
+     * 목적: 모든 단계가 끝난 뒤 할 말을 만든다. [reportsAtEnd]가 true일 때만
+     *       부른다.
+     * 인자: outcomes — 단계마다의 결과, 실행한 순서대로
+     * 반환: 차례로 말할 문장들. 비어 있으면 말하지 않는다
+     */
+    fun report(outcomes: List<StepOutcome>): List<String> = emptyList()
 }

@@ -8,6 +8,7 @@
 - `docs/COMMENT_RULES.md` 주석·코드·커밋 규칙. 코드를 쓰기 전마다 다시 읽는다
 - `CONTRIBUTING.md` 담당, 기능 승인, 브랜치·PR
 - `docs/api-spike.md` Pleos API 실측 결과
+- `docs/SCREEN.md` 화면 1차 규격, 시나리오 ① 장면별 상세
 
 ## 담당
 - 박건준: `app/` 앱 연결, 시연 빌드, 기능 승인과 최종 결정

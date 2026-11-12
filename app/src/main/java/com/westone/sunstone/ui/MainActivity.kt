@@ -84,6 +84,17 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * 작성: 2026-11-12 15:04:00 · 박건준
+     * 함수: onStart
+     * 목적: 화면이 뜰 때마다 앱을 깨어 있게 한다. 앱이 앞에 있을 때만
+     *       포그라운드 서비스를 켤 수 있어서 여기서 부른다.
+     */
+    override fun onStart() {
+        super.onStart()
+        graph.keepAwake() // → 로직 이동: AppGraph.keepAwake()
+    }
+
+    /**
      * 작성: 2026-11-08 18:03:56 · 박건준
      * 수정: 2026-11-09 18:49:00 · 박건준
      * 함수: onNewIntent
@@ -130,7 +141,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 19:11:42 · 박건준
+     * 수정: 2026-11-11 14:28:46 · 박희정
      * 함수: handleGleo
      * 목적: Gleo(또는 같은 인텐트를 보낸 adb)가 부른 함수를 처리하고 결과를
      *       돌려준다. 요청을 넘기기만 하므로 결과는 늘 성공으로 알린다.
@@ -143,6 +154,9 @@ class MainActivity : ComponentActivity() {
             is VoiceAction.Run -> getString(R.string.gleo_run, action.request.id.name)
             is VoiceAction.Undo -> getString(R.string.gleo_undo)
             is VoiceAction.SaveSeat -> getString(R.string.gleo_save, action.name)
+            is VoiceAction.Answer -> getString(R.string.gleo_answer)
+            is VoiceAction.Navigate -> getString(R.string.gleo_navigate, action.destination)
+            is VoiceAction.Ask -> getString(R.string.gleo_ask)
         }
         GleoEntry.respond(this, intent?.action.orEmpty(), true, message) // → 로직 이동: GleoEntry.respond()
     }
