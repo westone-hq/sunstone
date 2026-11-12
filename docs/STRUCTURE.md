@@ -46,9 +46,10 @@ sunstone/
 │     ├─ library/          루틴들 (초안: 세차·차일드락·시트 메모리)
 │     ├─ understand/       말 알아듣기 (대사집 먼저 → 규칙: 길안내·질문·대답·루틴)
 │     ├─ speech/           문장 틀 (세차·길안내·기능 카드 답, 조사 붙이기)
-│     ├─ dialog/           대화 흐름: 길안내 → 주유 제안 → 주유소 경유지 → 세차 예약(TripDialog, WashBooking)
+│     ├─ dialog/           대화 흐름: 길안내 → 주유 제안 → 주유소 경유지 → 세차 예약(TripDialog, WashBooking,
+│     │                    CurrentRoute(지금 길안내 목적지, 차일드락이 집 가는 길을 본다))
 │     ├─ knowledge/        AI 참고 문서: 기능 카드(지금은 세차 모드 하나), 별칭 검색 상위 3개
-│     ├─ script/           대사집(ScriptBook: 시나리오 ① S1~S6). 자동 테스트·scene·[다음 장면]이 함께 쓴다
+│     ├─ script/           대사집(ScriptBook: 시나리오 ① S1~S6, ② S7~S15). 자동 테스트·scene·[다음 장면]이 함께 쓴다
 │     └─ fake/             가짜 차·내비·바깥 정보 (테스트·시연)
 │
 └─ app/                    ② 앱 연결 ─ 박건준
@@ -57,7 +58,7 @@ sunstone/
       │  ├─ car/           PleosCarPort(차량 SDK·제어), Callbacks(SDK 콜백 기다리기),
       │  │                 AaosSpeedSource(속도), AaosEnergySource(주행 가능 거리·배터리·연료 종류),
       │  │                 FuelState(연료·배터리·차 종류 값 묶음)
-      │  ├─ connect/       GleoEntry, AndroidSpeaker, PrefsSeatProfiles, PrefsMemory(마지막 세차일),
+      │  ├─ connect/       GleoEntry, AndroidSpeaker, PrefsSeatProfiles, PrefsMemory(마지막 세차일·차일드락 날),
       │  │                 KeepAwakeService(길안내·루틴 중 앱을 깨어 있게 하는 알림)
       │  ├─ navi/          PleosNavi(내비 경로·경유지·남은 거리·도착), Proximity(근접 알림),
       │  │                 PlaceWatcher(시연 장소 도착 → 장소), NaviModels(좌표·경로 값),
@@ -100,7 +101,7 @@ sunstone/
 | `SeatProfiles` | 기능 → 저장소 | 자세 저장·조회 | |
 | `NaviPort` | 기능 → 내비 | 목적지 찾기(시연 장소 목록), 경로 시작, 경유지 1개, 통행료 | 남은 거리, 도착 알림 |
 | `InfoPort` | 기능 → 바깥 | 주변 주유소(가격·세차), 날씨(N일 비). 지금은 고정 응답 | 실제 API, 미세먼지 |
-| `MemoryPort` | 기능 → 저장소 | 마지막 세차일 | 방문 기록 |
+| `MemoryPort` | 기능 → 저장소 | 마지막 세차일, 마지막 차일드락 날 | 방문 기록 |
 
 - 창구는 `routines/.../port/`에 두고, 구현은 `app/`이 한다.
 - 창구 함수를 더하거나 바꾸려면 GitHub 이슈로 제안 → 상대 확인 → 박건준 결정.
@@ -129,7 +130,7 @@ sunstone/
 |---|---|---|
 | 기능 테스트 | `.\gradlew :routines:test` | 박희정 |
 | 앱 설치 | `.\gradlew :app:installDebug` | 박건준 |
-| 대사집 자동 테스트 | `.\gradlew :routines:test` 안의 `ScriptTest`(지금은 시나리오 ① S1~S6) | 박희정 |
+| 대사집 자동 테스트 | `.\gradlew :routines:test` 안의 `ScriptTest`(시나리오 ① S1~S6, ② S7~S15) | 박희정 |
 | 실제 경로 확인 | 에뮬레이터 + Virtual Console | 박건준 |
 
 (예정) 빌드 2종: **시연 빌드**(가짜 차·고정 응답, 아무 에뮬레이터·폰에서 동작) / **Pleos 빌드**(실제 SDK).
