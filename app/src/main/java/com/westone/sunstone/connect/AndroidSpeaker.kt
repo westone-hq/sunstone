@@ -3,6 +3,7 @@ package com.westone.sunstone.connect
 import android.content.Context
 import android.util.Log
 import com.westone.sunstone.routines.port.Speaker
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -43,17 +44,30 @@ class AndroidSpeaker(context: Context) : Speaker, AutoCloseable {
     /** 말하는 중이거나 기다리는 말이 있으면 true(값이 바뀌면 알려주는 상태) */
     val speaking: StateFlow<Boolean> get() = player.speaking
 
+    /** 말 하나가 시작될 때마다 그 말의 꼬리표(`VoicePlayer.starts`) */
+    val starts: SharedFlow<Any?> get() = player.starts
+
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-12 14:58:00 · 박건준
+     * 수정: 2026-11-12 20:06:00 · 박건준
      * 함수: say
-     * 목적: 문장 하나를 줄 끝에 세운다. 앞 말이 끝난 뒤 나간다. 화면 스레드에서
-     *       부른다.
+     * 목적: 문장 하나를 꼬리표 없이 줄 끝에 세운다. 앞 말이 끝난 뒤 나간다.
+     *       화면 스레드에서 부른다.
      * 인자: text — 읽을 문장
      */
-    override fun say(text: String) {
+    override fun say(text: String) = say(text, null)
+
+    /**
+     * 작성: 2026-11-12 20:06:00 · 박건준
+     * 함수: say
+     * 목적: 문장 하나를 꼬리표와 함께 줄 끝에 세운다. 꼬리표는 그 말이 시작될 때
+     *       `starts`로 나간다.
+     * 인자: text — 읽을 문장
+     *       tag — 말과 함께 보일 것(그때 떠 있던 질문). 없으면 null
+     */
+    fun say(text: String, tag: Any?) {
         Log.i(TAG, "말: $text")
-        player.enqueue(VoicePlayer.Line(text, library.find(text))) // → 로직 이동: VoicePlayer.enqueue()
+        player.enqueue(VoicePlayer.Line(text, library.find(text), tag)) // → 로직 이동: VoicePlayer.enqueue()
     }
 
     /**

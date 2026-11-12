@@ -8,12 +8,15 @@ import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.Locale
 
 /**
  * 작성: 2026-11-12 14:55:00 · 박건준
+ * 수정: 2026-11-12 20:06:00 · 박건준
  * 클래스: VoicePlayer
  * 목적: 말을 한 줄로 세워 들어온 순서대로 하나씩 낸다. 녹음본과 TTS(글자를
  *       소리로 읽는 기능)를 섞어도 순서가 바뀌지 않는다. 앞 말이 끝나야 다음
@@ -21,6 +24,8 @@ import java.util.Locale
  *       - `enqueue()` — 줄 끝에 말을 더한다
  *       - `stop()` — 지금 말을 끊고 줄을 비운다(시연을 처음으로 돌릴 때)
  *       - `speaking` — 말하는 중인지(시연이 말이 끝나길 기다릴 때)
+ *       - `starts` — 말 하나가 시작될 때 그 말의 꼬리표(화면이 패널을 그
+ *         말과 함께 띄울 때)
  * 인자: context — 앱 Context. 녹음본과 TTS에 쓴다
  * 근거: 측정 — 녹음본만 줄을 서고 TTS는 바로 읽던 때는 녹음본이 없는 문장이
  *       앞 문장보다 먼저 나갈 수 있었고, 시연을 처음으로 돌려도 남은 녹음본이
@@ -42,12 +47,15 @@ class VoicePlayer(context: Context) : AutoCloseable {
 
     /**
      * 작성: 2026-11-12 14:55:00 · 박건준
+     * 수정: 2026-11-12 20:06:00 · 박건준
      * 클래스: Line
      * 목적: 줄에 선 말 하나.
      * 인자: text — 말(로그와 TTS에 쓴다)
      *       asset — 녹음본 assets 경로. null이면 TTS로 읽는다
+     *       tag — 말과 함께 보일 것(그때 떠 있던 질문). 말이 시작되면
+     *       `starts`로 내보낸다. 없으면 null
      */
-    data class Line(val text: String, val asset: String?)
+    class Line(val text: String, val asset: String?, val tag: Any? = null)
 
     /** 앱 assets. 녹음본을 연다 */
     private val assets = context.applicationContext.assets
@@ -78,6 +86,12 @@ class VoicePlayer(context: Context) : AutoCloseable {
 
     /** 말하는 중이거나 기다리는 말이 있으면 true(값이 바뀌면 알려주는 상태) */
     val speaking: StateFlow<Boolean> = busy
+
+    /** 시작한 말의 꼬리표를 내보내는 곳. 늦게 받는 쪽도 최근 몇 개는 받는다 */
+    private val started = MutableSharedFlow<Any?>(replay = 4)
+
+    /** 말 하나가 시작될 때마다 그 말의 꼬리표(한 번씩 흘러가는 값). 건너뛴 말도 낸다 */
+    val starts: SharedFlow<Any?> = started
 
     /** 기본 TTS. 준비가 끝나면 한국어로 맞추고, 기다리던 줄을 다시 돌린다 */
     private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status ->
@@ -127,8 +141,10 @@ class VoicePlayer(context: Context) : AutoCloseable {
 
     /**
      * 작성: 2026-11-12 14:55:00 · 박건준
+     * 수정: 2026-11-12 20:06:00 · 박건준
      * 함수: playNext
-     * 목적: 줄 맨 앞 말을 낸다. 녹음본은 재생하고, 아니면 TTS로 읽는다.
+     * 목적: 줄 맨 앞 말을 낸다. 녹음본은 재생하고, 아니면 TTS로 읽는다. 내기
+     *       전에 그 말의 꼬리표를 `starts`로 알린다.
      *       - TTS가 아직 준비 중이면 그 말에서 멈춰 기다린다(준비되면 다시 부른다)
      *       - TTS를 쓸 수 없거나 녹음본을 열지 못하면 그 말은 건너뛴다
      *       - 줄이 비면 쉰다
@@ -146,6 +162,7 @@ class VoicePlayer(context: Context) : AutoCloseable {
         if (next.asset == null && ttsReady == null) return
         queue.removeFirst()
         current = next
+        started.tryEmit(next.tag)
         val started = if (next.asset != null) playRecorded(next.asset) else speak(next) // 시작했는지
         if (!started) {
             Log.w(TAG, "소리 없이 건너뜀(${if (next.asset == null) "녹음본 없음" else "재생 실패"}): ${next.text}")
