@@ -1,8 +1,11 @@
 package com.westone.sunstone.routines
 
 import com.westone.sunstone.routines.dialog.Asking
+import com.westone.sunstone.routines.dialog.Choice
+import com.westone.sunstone.routines.dialog.Fact
 import com.westone.sunstone.routines.dialog.QuestionKind
 import com.westone.sunstone.routines.dialog.QuestionRow
+import com.westone.sunstone.routines.dialog.Reply
 import com.westone.sunstone.routines.dialog.TripDialog
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.RoutineId
@@ -40,13 +43,14 @@ import java.time.LocalDate
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
- * 수정: 2026-11-12 18:36:00 · 박건준
+ * 수정: 2026-11-13 03:25:00 · 박건준
  * 클래스: TripScenarioTest
- * 목적: 시나리오 ① 길안내 대화에서 대사집에 없는 경우(연료 넉넉, 거절, 최근
- *       세차, 비 소식 등)와 질문 패널(`Asking`) 값을 가짜 차·가짜 내비·고정
- *       정보로 본다. 대사집 장면 S1~S10 자체는 `ScriptTest`가 돌린다.
+ * 목적: 시나리오 ① 길안내 대화에서 대사집에 없는 경우(연료 넉넉, 거절, 주유만,
+ *       최근 세차, 비 소식, 세차 입구 취소 등)와 질문 카드(`Asking`) 값을 가짜
+ *       차·가짜 내비·고정 정보로 본다. 대사집 장면 S1~S9 자체는 `ScriptTest`가
+ *       돌린다.
  *       기본 준비: P단, 연료 18%, 마지막 세차 36일 전
- * 근거: 인용 — Tab 1 4.3 시나리오 ① 준비 줄, docs/SCREEN.md 3장
+ * 근거: 인용 — Tab 1 4.3 시나리오 ① 준비 줄, docs/SCREEN.md 6장
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TripScenarioTest {
@@ -144,7 +148,7 @@ class TripScenarioTest {
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 11:58:00 · 박희정
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: say
      * 목적: 운전자 말 하나를 앱처럼 처리한다. `AppGraph.handle()`과 같은 순서로
      *       길안내 → 루틴 권하기의 대답 → 길안내 대화의 대답을 본다.
@@ -155,15 +159,16 @@ class TripScenarioTest {
     private suspend fun say(runner: RoutineRunner, text: String): Boolean =
         when (val action = PhraseMatcher.match(text)) {
             is VoiceAction.Navigate -> { trip.navigate(action.destination); true }
-            is VoiceAction.Answer -> runner.answer(action.yes) || trip.answer(action.yes)
+            is VoiceAction.Answer -> runner.answer(action.reply) || trip.answer(action.reply)
             else -> false
         }
 
     /**
      * 작성: 2026-11-12 18:36:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: stopAtStationTwice
      * 목적: 주유소에 들어와 주유 정차를 하고, 조금 움직였다가 다시 선다(세차
-     *       입구). 대사집 S6~S8 준비와 같다.
+     *       입구). 대사집 S4~S6 준비와 같다.
      */
     private fun TestScope.stopAtStationTwice() {
         car.update { it.copy(gear = Gear.DRIVE, speedKmh = 60f) }; runCurrent()
@@ -177,7 +182,7 @@ class TripScenarioTest {
      * 작성: 2026-11-11 15:14:38 · 박희정
      * 수정: 2026-11-12 18:36:00 · 박건준
      * 함수: 연료가 넉넉하면 길안내만 하고 묻지 않는다
-     * 목적: 연료가 기준보다 많으면 길안내 문장만 말하고 패널도 올리지 않으며,
+     * 목적: 연료가 기준보다 많으면 길안내 문장만 말하고 카드도 올리지 않으며,
      *       뒤이은 "응"은 대답할 것이 없어 처리하지 않는지 본다.
      */
     @Test
@@ -229,30 +234,41 @@ class TripScenarioTest {
     }
 
     /**
-     * 작성: 2026-11-12 18:36:00 · 박건준
-     * 함수: 주유 제안 패널에 세차 되는 가장 싼 주유소를 보인다
-     * 목적: 연료가 낮으면 길안내 말과 주유 질문을 따로 말하고, 패널에 세차
-     *       되는 곳 중 가장 싼 주유소와 "세차 가능"을 올리는지 본다.
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 함수: 주유와 세차를 한 카드로 묻는다
+     * 목적: 연료가 낮고 세차할 때면 길안내 말 뒤에 주유·세차를 한 번에
+     *       권하고, 카드에 세차 되는 가장 싼 주유소(굵게), 근거 칸 셋, 버튼
+     *       [주유하고 세차] [주유만]을 올리는지 본다.
      */
     @Test
-    fun `주유 제안 패널에 세차 되는 가장 싼 주유소를 보인다`() = runTest {
+    fun `주유와 세차를 한 카드로 묻는다`() = runTest {
         trip.navigate("파라다이스 호텔 부산")
 
-        assertEquals(listOf("파라다이스 호텔 부산으로 안내할게요.", "연료가 18%예요. 출발 전에 주유하고 가실래요?"), said)
+        assertEquals(
+            listOf(
+                "파라다이스 호텔 부산으로 안내할게요.",
+                "연료가 18%예요. 가는 길에 말죽거리주유소가 있어요. " +
+                    "세차 안 하신 지 36일 됐고 일주일간 비 소식이 없어서 세차도 추천드려요.",
+            ),
+            said,
+        )
         val q = asking.question.value!! // 올린 질문
         assertEquals(QuestionKind.FUEL_STOP, q.kind)
-        assertEquals("연료가 부족해요", q.title)
-        assertEquals("가는 길에 들를 주유소를 찾았어요.", q.detail)
-        assertEquals(listOf(QuestionRow("fuel", "말죽거리주유소", note = "세차 가능")), q.rows)
-        assertEquals("경유지로 넣기", q.yesLabel)
-        assertEquals("괜찮아요", q.noLabel)
+        assertEquals("주유하고 세차할까요?", q.title)
+        assertEquals("가는 길에 말죽거리주유소가 있어요. 세차도 되는 곳이에요.", q.detail)
+        assertEquals("말죽거리주유소", q.emphasis)
+        assertEquals(
+            listOf(Fact("fuel", "연료 18%"), Fact("calendar", "세차 36일 전"), Fact("sun", "7일 동안 비 없음")),
+            q.facts,
+        )
+        assertEquals(listOf(Choice("주유하고 세차", Reply.ALL), Choice("주유만", Reply.ONLY)), q.choices)
     }
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 18:36:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: 주유 제안을 거절하면 경유지를 넣지 않는다
-     * 목적: 주유 질문에 "괜찮아"라고 하면 알았다고만 하고 패널을 내리며
+     * 목적: 주유 질문에 "괜찮아"라고 하면 알았다고만 하고 카드를 내리며
      *       경유지·세차 예약을 하지 않는지 본다.
      */
     @Test
@@ -272,13 +288,14 @@ class TripScenarioTest {
 
     /**
      * 작성: 2026-11-12 18:36:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: 새 길안내를 시작하면 거절한 질문도 다시 묻는다
      * 목적: 거절 기록은 그 길안내 안에서만 남는지 본다.
      */
     @Test
     fun `새 길안내를 시작하면 거절한 질문도 다시 묻는다`() = runTest {
         trip.navigate("파라다이스 호텔 부산")
-        trip.answer(yes = false)
+        trip.answer(Reply.NO)
 
         trip.navigate("파라다이스 호텔 부산")
 
@@ -286,58 +303,67 @@ class TripScenarioTest {
     }
 
     /**
-     * 작성: 2026-11-12 18:36:00 · 박건준
-     * 함수: 주유소를 넣으면 토스트를 내고 세차를 묻는다
-     * 목적: 주유 질문에 "그래"면 경유지를 넣고 토스트를 내며, 세차 추천 패널을
-     *       올리고 추천 말을 하는지 본다.
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 함수: 세차도 할게면 경유지를 넣고 세차를 예약한다
+     * 목적: "응, 세차도 할게"면 말 없이 경유지를 넣고 세차를 예약하며 판에
+     *       토스트를 내는지, 같은 대답을 또 하면 물은 게 없어 처리하지 않는지
+     *       본다.
      */
     @Test
-    fun `주유소를 넣으면 토스트를 내고 세차를 묻는다`() = runTest {
+    fun `세차도 할게면 경유지를 넣고 세차를 예약한다`() = runTest {
         val runner = runner()
         runCurrent()
         say(runner, "파라다이스 호텔 부산까지 길안내 해 줘")
 
         said.clear()
-        say(runner, "그래"); runCurrent()
+        assertTrue(say(runner, "응, 세차도 할게")); runCurrent()
 
-        assertEquals(
-            listOf(
-                "말죽거리주유소를 경유지로 넣었어요.",
-                "세차 안 하신 지 36일 됐어요. 일주일간 비 소식이 없는데, 거기서 세차도 하실래요?",
-            ),
-            said,
-        )
-        assertEquals(listOf("경유지에 넣었어요"), noticed)
+        assertTrue(said.isEmpty())
+        assertEquals(listOf("경유지에 넣고 세차를 예약했어요"), noticed)
         assertEquals(listOf(WASH_STATION.place), navi.waypoints)
-        val q = asking.question.value!! // 올린 질문
-        assertEquals(QuestionKind.WASH_RECOMMEND, q.kind)
-        assertEquals("세차하기 좋은 날이에요", q.title)
-        assertEquals(listOf(QuestionRow("calendar", "마지막 세차 36일 전"), QuestionRow("sun", "7일 동안 비 없음")), q.rows)
-        assertEquals("세차도 할게요", q.yesLabel)
-        assertFalse(booking.atGasStation) // 대답 전에는 예약하지 않는다
+        assertTrue(booking.atGasStation)
+        assertNull(asking.question.value)
+        assertFalse(say(runner, "응, 세차도 할게"))
     }
 
     /**
-     * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 18:36:00 · 박건준
-     * 함수: 최근에 세차했으면 추천도 예약도 하지 않는다
-     * 목적: 마지막 세차가 3일 전이면 경유지만 넣고 세차를 묻지 않으며, 그
-     *       주유소에 두 번 서도 세차 모드를 권하지 않는지 본다.
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 함수: 세차 카드에 응이면 세차까지 한다
+     * 목적: 주유·세차 카드에 그냥 "응"이라고 하면 첫 번째 버튼(주유하고 세차)을
+     *       고른 것과 같은지 본다.
      */
     @Test
-    fun `최근에 세차했으면 추천도 예약도 하지 않는다`() = runTest {
-        memory.recordWash(TODAY.minusDays(3))
+    fun `세차 카드에 응이면 세차까지 한다`() = runTest {
+        val runner = runner()
+        runCurrent()
+        say(runner, "파라다이스 호텔 부산까지 길안내 해 줘")
+
+        assertTrue(say(runner, "응")); runCurrent()
+
+        assertEquals(listOf("경유지에 넣고 세차를 예약했어요"), noticed)
+        assertTrue(booking.atGasStation)
+    }
+
+    /**
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 함수: 주유만이면 경유지만 넣고 주유소에서 세차를 권하지 않는다
+     * 목적: "주유만"이면 경유지만 넣고 예약하지 않아, 주유소에 두 번 서도 세차
+     *       모드를 권하지 않는지 본다.
+     */
+    @Test
+    fun `주유만이면 경유지만 넣고 주유소에서 세차를 권하지 않는다`() = runTest {
         val runner = runner()
         runCurrent()
         say(runner, "파라다이스 호텔 부산까지 길안내 해 줘")
 
         said.clear()
-        say(runner, "그래")
-        assertEquals(listOf("말죽거리주유소를 경유지로 넣었어요."), said)
-        assertNull(asking.question.value)
+        assertTrue(say(runner, "주유만")); runCurrent()
+
+        assertTrue(said.isEmpty())
+        assertEquals(listOf("경유지에 넣었어요"), noticed)
+        assertEquals(listOf(WASH_STATION.place), navi.waypoints)
         assertFalse(booking.atGasStation)
 
-        said.clear()
         stopAtStationTwice()
         assertNull(runner.ui.value.suggestion)
         assertTrue(said.isEmpty())
@@ -345,66 +371,91 @@ class TripScenarioTest {
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 18:36:00 · 박건준
-     * 함수: 비 소식이 있으면 세차를 추천하지 않는다
-     * 목적: 일주일 안에 비가 오면 경유지만 넣고 세차는 묻지 않는지 본다.
+     * 수정: 2026-11-13 03:25:00 · 박건준
+     * 함수: 최근에 세차했으면 주유만 묻는다
+     * 목적: 마지막 세차가 3일 전이면 세차 근거 칸과 세차 버튼 없이 "주유할까요?"
+     *       카드를 올리고, "그래"면 경유지만 넣어 주유소에 두 번 서도 세차 모드를
+     *       권하지 않는지 본다.
      */
     @Test
-    fun `비 소식이 있으면 세차를 추천하지 않는다`() = runTest {
-        info.rain = true
-        trip.navigate("파라다이스 호텔 부산")
+    fun `최근에 세차했으면 주유만 묻는다`() = runTest {
+        memory.recordWash(TODAY.minusDays(3))
+        val runner = runner()
+        runCurrent()
+        say(runner, "파라다이스 호텔 부산까지 길안내 해 줘")
+
+        assertEquals("연료가 18%예요. 가는 길에 말죽거리주유소가 있어요.", said.last())
+        val q = asking.question.value!! // 올린 질문
+        assertEquals("주유할까요?", q.title)
+        assertEquals("가는 길에 말죽거리주유소가 있어요.", q.detail)
+        assertEquals(listOf(Fact("fuel", "연료 18%")), q.facts)
+        assertEquals(listOf(Choice("경유지로 넣기", Reply.YES), Choice("괜찮아요", Reply.NO)), q.choices)
 
         said.clear()
-        trip.answer(yes = true)
+        assertTrue(say(runner, "그래")); runCurrent()
+        assertEquals(listOf("경유지에 넣었어요"), noticed)
+        assertFalse(booking.atGasStation)
 
-        assertEquals(listOf("말죽거리주유소를 경유지로 넣었어요."), said)
-        assertNull(asking.question.value)
+        stopAtStationTwice()
+        assertNull(runner.ui.value.suggestion)
+        assertTrue(said.isEmpty())
     }
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 18:36:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
+     * 함수: 비 소식이 있으면 세차를 추천하지 않는다
+     * 목적: 일주일 안에 비가 오면 주유만 묻는지 본다.
+     */
+    @Test
+    fun `비 소식이 있으면 세차를 추천하지 않는다`() = runTest {
+        info.rain = true
+
+        trip.navigate("파라다이스 호텔 부산")
+
+        assertEquals("주유할까요?", asking.question.value?.title)
+    }
+
+    /**
+     * 작성: 2026-11-11 15:14:38 · 박희정
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: 세차 기록이 없으면 세차를 묻지 않는다
-     * 목적: 마지막 세차일을 모르면 경유지만 넣고 세차는 묻지 않는지 본다(모르는
-     *       사실로 판단하지 않는다, Tab 1 2장).
+     * 목적: 마지막 세차일을 모르면 주유만 묻는지 본다(모르는 사실로 판단하지
+     *       않는다, Tab 1 2장).
      */
     @Test
     fun `세차 기록이 없으면 세차를 묻지 않는다`() = runTest {
         val noMemory = InMemoryMemory(lastWash = null) // 세차 기록 없음
         val fresh = TripDialog(car, navi, info, noMemory, booking, asking, { said += it }, { TODAY }) // 기록 없는 대화
+
         fresh.navigate("파라다이스 호텔 부산")
 
-        said.clear()
-        fresh.answer(yes = true)
-
-        assertEquals(listOf("말죽거리주유소를 경유지로 넣었어요."), said)
-        assertNull(asking.question.value)
+        assertEquals("주유할까요?", asking.question.value?.title)
     }
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 18:36:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: 세차 되는 주유소가 없으면 가장 싼 곳을 넣는다
-     * 목적: 세차 되는 곳이 하나도 없으면 가장 싼 주유소를 "세차 가능" 없이
-     *       보이고, 넣은 뒤 세차를 묻지 않는지 본다.
+     * 목적: 세차 되는 곳이 하나도 없으면 가장 싼 주유소로 주유만 묻고, 받아들이면
+     *       그곳을 경유지로 넣는지 본다.
      */
     @Test
     fun `세차 되는 주유소가 없으면 가장 싼 곳을 넣는다`() = runTest {
         info.stations = listOf(CHEAP_STATION)
         trip.navigate("파라다이스 호텔 부산")
-        assertEquals(listOf(QuestionRow("fuel", "서울석유양재주유소")), asking.question.value?.rows)
+        assertEquals("가는 길에 서울석유양재주유소가 있어요.", asking.question.value?.detail)
 
-        said.clear()
-        trip.answer(yes = true)
+        assertTrue(trip.answer(Reply.YES))
 
-        assertEquals(listOf("서울석유양재주유소를 경유지로 넣었어요."), said)
         assertEquals(listOf(CHEAP_STATION.place), navi.waypoints)
         assertNull(asking.question.value)
+        assertFalse(booking.atGasStation)
     }
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 18:36:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: 주유소를 못 찾으면 묻지 않는다
      * 목적: 근처 주유소가 없으면 주유를 묻지 않고 길안내 말만 하는지 본다.
      */
@@ -416,7 +467,7 @@ class TripScenarioTest {
 
         assertEquals(listOf("파라다이스 호텔 부산으로 안내할게요."), said)
         assertNull(asking.question.value)
-        assertFalse(trip.answer(yes = true))
+        assertFalse(trip.answer(Reply.YES))
     }
 
     /**
@@ -435,6 +486,7 @@ class TripScenarioTest {
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: 경로를 시작하지 못하면 알린다
      * 목적: 내비가 경로를 시작하지 못하면 주유를 권하지 않고 알리기만 하는지
      *       본다.
@@ -446,82 +498,63 @@ class TripScenarioTest {
         trip.navigate("파라다이스 호텔 부산")
 
         assertEquals(listOf("길안내를 시작하지 못했어요. 다시 말해 주세요."), said)
-        assertFalse(trip.answer(yes = true))
+        assertFalse(trip.answer(Reply.YES))
     }
 
     /**
-     * 작성: 2026-11-12 11:58:00 · 박희정
-     * 수정: 2026-11-12 18:36:00 · 박건준
-     * 함수: 세차 추천에 그래 그러자면 예약하고 세차 입구에서 묻는다
-     * 목적: 세차 추천에 "그래 그러자"면 예약하고 토스트를 내며, 주유 정차에서는
-     *       말 없이 토스트만, 세차 입구 정차에서 세차 모드를 묻는지 본다. 같은
-     *       대답을 또 하면 물은 게 없어 처리하지 않는다.
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 함수: 세차를 예약하면 세차 입구에서 5초 뒤 켠다
+     * 목적: 세차를 예약했으면 주유 정차에서는 말 없이 토스트만, 세차 입구에서는
+     *       다시 묻지 않고 "곧 세차 모드 켤게요." 카드를 올리고, 5초가 지나면
+     *       대답 없이도 세차 모드를 켜는지 본다.
      */
     @Test
-    fun `세차 추천에 그래 그러자면 예약하고 세차 입구에서 묻는다`() = runTest {
+    fun `세차를 예약하면 세차 입구에서 5초 뒤 켠다`() = runTest {
         val runner = runner()
         runCurrent()
         say(runner, "파라다이스 호텔 부산까지 길안내 해 줘")
-        say(runner, "그래"); runCurrent()
-
-        said.clear(); noticed.clear()
-        assertTrue(say(runner, "그래 그러자")); runCurrent()
-        assertEquals(listOf("네, 세차 입구에 서시면 세차 모드 맞춰 드릴게요."), said)
-        assertEquals(listOf("세차 예약했어요"), noticed)
-        assertTrue(booking.atGasStation)
-        assertNull(asking.question.value)
-        assertFalse(say(runner, "그래 그러자"))
+        say(runner, "응, 세차도 할게"); runCurrent()
 
         said.clear(); noticed.clear()
         stopAtStationTwice()
         assertEquals(listOf("세차 입구에서 맞춰 드릴게요"), noticed)
-        assertEquals(listOf("세차 모드 켤까요?"), said)
-        assertEquals(RoutineId.WASH, runner.ui.value.suggestion?.id)
-        assertEquals(QuestionKind.WASH_MODE, asking.question.value?.kind)
-    }
+        assertEquals(listOf("곧 세차 모드 켤게요."), said)
+        val q = asking.question.value!! // 올린 카드
+        assertEquals(QuestionKind.WASH_MODE, q.kind)
+        assertEquals("곧 세차 모드를 켤게요", q.title)
+        assertEquals("창문, 와이퍼, 공조, 문을 세차용으로 맞춰요.", q.detail)
+        assertEquals(listOf(Choice("지금 켜기", Reply.YES, 5_000), Choice("취소", Reply.NO)), q.choices)
+        assertEquals(listOf("창문", "와이퍼", "내기 순환", "문 잠금", "미러"), q.rows.map { it.text })
+        assertEquals(QuestionRow("mirror", "미러", manual = true, note = "직접"), q.rows.last())
 
-    /**
-     * 작성: 2026-11-12 11:58:00 · 박희정
-     * 수정: 2026-11-12 18:36:00 · 박건준
-     * 함수: 세차 추천을 거절하면 주유소에서 묻지 않는다
-     * 목적: 세차 추천에 "아니 괜찮아"면 알았다고 하고 예약하지 않아, 주유소에
-     *       두 번 서도 세차 모드를 묻지 않는지 본다.
-     */
-    @Test
-    fun `세차 추천을 거절하면 주유소에서 묻지 않는다`() = runTest {
-        val runner = runner()
-        runCurrent()
-        say(runner, "파라다이스 호텔 부산까지 길안내 해 줘")
-        say(runner, "그래")
+        advanceTimeBy(4_900); runCurrent()
+        assertNull(runner.ui.value.runs[RoutineId.WASH])
 
-        said.clear()
-        assertTrue(say(runner, "아니 괜찮아"))
-        assertEquals(listOf("알겠어요."), said)
-        assertFalse(booking.atGasStation)
+        advanceTimeBy(200); runCurrent()
+        assertEquals("세차 모드 맞췄어요. 사이드미러는 직접 접어 주세요.", said.last())
+        assertEquals(true, car.value(Target.Recirculation))
         assertNull(asking.question.value)
-
-        stopAtStationTwice()
-        assertNull(runner.ui.value.suggestion)
     }
 
     /**
-     * 작성: 2026-11-12 18:36:00 · 박건준
-     * 함수: 세차 모드를 거절하면 같은 길에서 다시 묻지 않는다
-     * 목적: 세차 입구에서 "괜찮아"라고 하면, 권하기 간격(10분)이 지나 다시 서도
-     *       묻지 않는지 본다(docs/SCREEN.md 3장 대화 규칙).
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 함수: 세차 입구에서 취소라고 하면 켜지 않는다
+     * 목적: 5초가 지나기 전에 "취소"라고 하면 켜지 않고, 권하기 간격(10분)이
+     *       지나 다시 서도 같은 길에서는 다시 권하지 않는지 본다.
      */
     @Test
-    fun `세차 모드를 거절하면 같은 길에서 다시 묻지 않는다`() = runTest {
+    fun `세차 입구에서 취소라고 하면 켜지 않는다`() = runTest {
         val runner = runner()
         runCurrent()
         say(runner, "파라다이스 호텔 부산까지 길안내 해 줘")
-        say(runner, "그래")
-        say(runner, "그래 그러자")
+        say(runner, "응, 세차도 할게"); runCurrent()
         stopAtStationTwice()
 
         said.clear()
-        assertTrue(say(runner, "괜찮아"))
+        assertTrue(say(runner, "취소"))
+        advanceTimeBy(10_000); runCurrent()
         assertEquals(listOf("알겠어요."), said)
+        assertNull(runner.ui.value.runs[RoutineId.WASH])
         assertNull(asking.question.value)
 
         advanceTimeBy(11 * 60_000L)

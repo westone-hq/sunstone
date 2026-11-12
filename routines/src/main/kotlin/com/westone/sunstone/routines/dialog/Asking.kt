@@ -7,50 +7,119 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * 작성: 2026-11-12 18:10:00 · 박건준
+ * 수정: 2026-11-13 03:25:00 · 박건준
  * 클래스: QuestionKind
- * 목적: 앱이 먼저 묻는 질문의 종류. 같은 길안내 안에서 "괜찮아요"로 끝난
- *       질문을 다시 묻지 않을 때 이 값으로 가린다.
- *       - `FUEL_STOP` — 주유소를 경유지로 넣을까요(길안내 대화)
- *       - `WASH_RECOMMEND` — 거기서 세차도 할까요(길안내 대화)
- *       - `WASH_MODE` — 세차 모드 켤까요(세차 모드 권하기)
- * 근거: 인용 — docs/SCREEN.md 3장 패널 세 가지(연료 제안, 세차 추천, 세차 모드)
+ * 목적: 앱이 먼저 묻는 질문의 종류. 같은 길안내 안에서 거절한 질문을 다시
+ *       묻지 않을 때 이 값으로 가린다.
+ *       - `FUEL_STOP` — 주유(조건이 맞으면 세차도 같이) 할까요(길안내 대화)
+ *       - `WASH_MODE` — 세차 모드를 켤게요/켤까요(세차 모드 권하기)
+ * 근거: 인용 — docs/SCREEN.md 6장 시나리오 ① 다시 짠 흐름: 질문을 세 번에서
+ *       한 번으로 줄이고 세차 추천은 주유 질문 안에 넣는다
  */
-enum class QuestionKind { FUEL_STOP, WASH_RECOMMEND, WASH_MODE }
+enum class QuestionKind { FUEL_STOP, WASH_MODE }
+
+/**
+ * 작성: 2026-11-13 03:25:00 · 박건준
+ * 클래스: Reply
+ * 목적: 질문에 대한 대답 값. 말로 해도 버튼으로 해도 이 값 하나가 된다.
+ *       - `YES` — 받아들임("응", "그래"). 질문의 첫 번째(채운) 고를 것이 된다
+ *       - `ALL` — 권한 것을 다 함("응, 세차도 할게")
+ *       - `ONLY` — 앞의 것만 함("주유만")
+ *       - `NO` — 거절("괜찮아", "취소", 닫기)
+ * 근거: 인용 — docs/SCREEN.md 6장: 주유 질문은 대답이 두 가지(세차까지,
+ *       주유만)가 된다
+ */
+enum class Reply { YES, ALL, ONLY, NO }
+
+/**
+ * 작성: 2026-11-13 03:25:00 · 박건준
+ * 클래스: Fact
+ * 목적: 제안 카드의 근거 칸 하나. 왜 권하는지 숫자로 한눈에 보인다.
+ * 인자: icon — 아이콘 이름(fuel, calendar, sun). 화면이 그림으로 바꾼다
+ *       text — 칸 글자("연료 18%", "세차 36일 전")
+ * 근거: 인용 — docs/SCREEN.md 6장 NHTSA 2/12 규칙: 카드는 제목, 근거 칸 셋,
+ *       버튼 둘로 2초 안에 읽히게
+ */
+data class Fact(val icon: String, val text: String)
+
+/**
+ * 작성: 2026-11-13 03:25:00 · 박건준
+ * 클래스: Choice
+ * 목적: 카드 버튼 하나(고를 것). 첫 번째가 채운 버튼이다.
+ * 인자: label — 버튼 글자("주유하고 세차")
+ *       reply — 누르면 되는 대답
+ *       waitMs — 0보다 크면 이 시간(밀리초)이 지나면 저절로 고른 것으로 본다.
+ *       화면은 버튼 안에 시간이 차오르게 그린다
+ * 근거: 인용 — docs/SCREEN.md 6장 Pleos 기본 내비 '안내 시작': 기다리는 시간이
+ *       버튼에 차오른 뒤 스스로 시작한다
+ */
+data class Choice(val label: String, val reply: Reply, val waitMs: Long = 0)
 
 /**
  * 작성: 2026-11-12 18:10:00 · 박건준
+ * 수정: 2026-11-13 03:25:00 · 박건준
  * 클래스: QuestionRow
- * 목적: 질문 패널의 항목 한 줄.
- * 인자: icon — 아이콘 이름(fuel, wash, calendar, sun, window, wiper, air, lock,
- *       mirror). 화면이 그림으로 바꾼다
- *       text — 줄 글자("말죽거리주유소", "창문 닫기")
- *       manual — 사람이 직접 해야 하는 줄이면 true(사이드미러)
- *       note — 줄 오른쪽 작은 글자("세차 가능", "직접 접어 주세요"). 없으면 null
- * 근거: 인용 — docs/SCREEN.md 1장 "칸이 뜻하는 것": "직접 ~ 주세요"는 제안할
- *       때부터 미리 보여 준다
+ * 목적: 제안 카드의 할 일 칸 하나(세차 모드 다섯 칸).
+ * 인자: icon — 아이콘 이름(window, wiper, air, lock, mirror). 화면이 그림으로
+ *       바꾼다
+ *       text — 칸 글자("창문", "미러")
+ *       manual — 사람이 직접 해야 하는 칸이면 true(사이드미러)
+ *       note — 칸 아래 작은 글자("직접"). 없으면 null
+ * 근거: 인용 — docs/SCREEN.md 6장 할 일 보여 주기: 가로 5칸 한 줄, "직접"은
+ *       사람 몫
  */
 data class QuestionRow(val icon: String, val text: String, val manual: Boolean = false, val note: String? = null)
 
 /**
  * 작성: 2026-11-12 18:10:00 · 박건준
+ * 수정: 2026-11-13 03:25:00 · 박건준
  * 클래스: Question
- * 목적: 대답을 기다리는 질문 하나. 화면은 이 값으로 패널을 그리고, 말로 해도
- *       버튼으로 해도 같은 대답이 된다.
+ * 목적: 대답을 기다리는 질문 하나. 화면은 이 값으로 카드를 그리고, 말로 해도
+ *       버튼으로 해도 같은 대답(`Reply`)이 된다.
  * 인자: kind — 질문 종류
- *       title — 패널 제목
- *       detail — 설명줄. 비어 있으면 그리지 않는다
- *       rows — 항목 줄들
- *       yesLabel — 채운 버튼(받아들이기)
- *       noLabel — 흰 버튼(괜찮아요)
+ *       title — 카드 제목
+ *       detail — 설명(최대 2줄). 비어 있으면 그리지 않는다
+ *       emphasis — 설명 안에서 굵게 보일 낱말(주유소 이름). 없으면 null
+ *       facts — 근거 칸들. 없으면 빈 목록
+ *       rows — 할 일 칸들. 없으면 빈 목록
+ *       choices — 버튼들. 첫 번째가 채운 버튼. 닫기는 늘 거절(`Reply.NO`)
+ * 근거: 인용 — docs/SCREEN.md 6장 카드 짜임(앱 아이콘, 제목, 설명, 근거 칸,
+ *       버튼 둘)
  */
 data class Question(
     val kind: QuestionKind,
     val title: String,
     val detail: String,
-    val rows: List<QuestionRow>,
-    val yesLabel: String,
-    val noLabel: String,
-)
+    val emphasis: String? = null,
+    val facts: List<Fact> = emptyList(),
+    val rows: List<QuestionRow> = emptyList(),
+    val choices: List<Choice>,
+) {
+    /**
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 함수: pick
+     * 목적: 대답 값에 맞는 고를 것을 찾는다.
+     *       - `YES` — 첫 번째(채운 버튼)
+     *       - `ALL`·`ONLY` — 그 값의 버튼. 없으면 거절이 아닌 첫 번째
+     *       - `NO` — 거절 버튼. 없으면 null(닫기와 같다)
+     * 인자: reply — 대답 값
+     * 반환: 고른 버튼. 거절이면 거절 버튼이나 null
+     */
+    fun pick(reply: Reply): Choice? = when (reply) {
+        Reply.YES -> choices.firstOrNull()
+        Reply.NO -> choices.firstOrNull { it.reply == Reply.NO }
+        else -> choices.firstOrNull { it.reply == reply } ?: choices.firstOrNull { it.reply != Reply.NO }
+    }
+
+    /**
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 함수: accepts
+     * 목적: 그 대답이 받아들인 것인지 본다.
+     * 인자: reply — 대답 값
+     * 반환: 고른 버튼이 있고 거절이 아니면 true
+     */
+    fun accepts(reply: Reply): Boolean = pick(reply)?.reply.let { it != null && it != Reply.NO }
+}
 
 /**
  * 작성: 2026-11-12 18:10:00 · 박건준

@@ -27,6 +27,7 @@ import com.westone.sunstone.routines.understand.VoiceAction
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -36,15 +37,16 @@ import java.time.LocalDate
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
- * 수정: 2026-11-12 18:34:00 · 박건준
+ * 수정: 2026-11-13 03:25:00 · 박건준
  * 클래스: ScriptTest
  * 목적: 대사집(`ScriptBook`) 전체를 가짜 차 + 고정 응답으로 차례로 돌려 기대 말·
  *       토스트·질문·기대 변화와 비교한다(Tab 1 4.2 실행 방식 3 자동 테스트).
  *       장면 묶음(준비나 말이 있는 장면 + 뒤에 이어지는 장면)마다
  *       1. 준비를 한 단계씩 넣는다
  *       2. 대표 문장과 변형이 모두 같은 요청으로 알아들어지는지 본다
- *       3. 대표 문장을 앱처럼 처리하고, 한 말·토스트·질문과 차·내비 값을
- *          대사집과 비교한다
+ *       3. 대표 문장을 앱처럼 처리하고, 이어지는 장면의 기다리는 시간
+ *          (`Scene.afterMs`, 세차 모드 5초)을 앞당긴 뒤 한 말·토스트·질문과
+ *          차·내비 값을 대사집과 비교한다
  *       대사집을 고치면 이 테스트가 그대로 따라간다.
  * 근거: 인용 — Tab 1 4.2 "가짜 차 + 고정 응답으로 대사집 전체를 돌려 기대 말·
  *       기대 변화와 비교한다. 코드를 고칠 때마다 돌린다"
@@ -141,7 +143,7 @@ class ScriptTest {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-12 11:58:00 · 박희정
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: handle
      * 목적: 알아들은 요청을 앱(`AppGraph.handle()`)과 같은 순서로 처리한다.
      * 인자: runner — 실행기
@@ -150,7 +152,7 @@ class ScriptTest {
     private suspend fun handle(runner: RoutineRunner, action: VoiceAction) {
         when (action) {
             is VoiceAction.Navigate -> trip.navigate(action.destination)
-            is VoiceAction.Answer -> if (!runner.answer(action.yes)) trip.answer(action.yes)
+            is VoiceAction.Answer -> if (!runner.answer(action.reply)) trip.answer(action.reply)
             is VoiceAction.Run -> runner.request(action.request)
             else -> error("대사집 테스트가 다루지 않는 요청: $action")
         }
@@ -181,13 +183,13 @@ class ScriptTest {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-12 18:34:00 · 박건준
-     * 함수: 시나리오 1 대사집 S1부터 S10까지
+     * 수정: 2026-11-13 03:25:00 · 박건준
+     * 함수: 시나리오 1 대사집 S1부터 S9까지
      * 목적: 시나리오 ① 장면을 묶음별로 차례로 돌린다. 마지막에 오늘이 마지막
      *       세차일로 남았는지 본다.
      */
     @Test
-    fun `시나리오 1 대사집 S1부터 S10까지`() = runTest {
+    fun `시나리오 1 대사집 S1부터 S9까지`() = runTest {
         val runner = runner()
         runCurrent()
         val groups = mutableListOf<MutableList<Scene>>() // 장면 묶음, 이어지는 장면은 앞 묶음에 붙인다
@@ -204,6 +206,7 @@ class ScriptTest {
                 handle(runner, line.intent)
                 runCurrent()
             }
+            group.filter { it.afterMs > 0 }.forEach { advanceTimeBy(it.afterMs); runCurrent() }
             check(group)
         }
         assertEquals(TODAY, memory.lastWashDate())
@@ -211,7 +214,7 @@ class ScriptTest {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-12 18:34:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: 장면 ID는 겹치지 않는다
      * 목적: adb `scene S3`가 장면을 하나로 찾을 수 있는지, 첫 장면이 P단에서
      *       시작하고 이어지는 장면이 아닌지 본다.
@@ -220,7 +223,7 @@ class ScriptTest {
     fun `장면 ID는 겹치지 않는다`() {
         val ids = ScriptBook.scenarioOne.map { it.id } // 장면 ID들
         assertEquals(ids.distinct(), ids)
-        assertEquals(10, ids.size)
+        assertEquals(9, ids.size)
         assertEquals(Gear.PARK, ScriptBook.scenarioOne.first().prep.first().gear) // 첫 장면은 P단에서 시작
         assertFalse(ScriptBook.scenarioOne.first().follows)
     }

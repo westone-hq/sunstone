@@ -22,14 +22,12 @@ data class RunRequest(
 sealed interface Step {
     val title: String
 
-    /** 화면 줄 아이콘 이름(`QuestionRow.icon`과 같은 이름). 없으면 null */
+    /** 화면 칸 아이콘 이름(`QuestionRow.icon`과 같은 이름). 없으면 null */
     val icon: String?
-
-    /** 끝난 뒤 화면 줄 글자("창문 닫음"). 없으면 null(`title` 그대로) */
-    val done: String? get() = null
 
     /**
      * 작성: 2026-11-12 18:12:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 클래스: Control
      * 목적: 앱이 차를 바꾸는 단계. 실패하거나 지원하지 않으면 [fallback]을
      *       말하고 다음 단계로 간다.
@@ -38,8 +36,7 @@ sealed interface Step {
      *       fallback — 실패하면 할 안내
      *       restoreOnUndo — false면 되돌릴 때 건드리지 않는다(창문은 다시 열지
      *       않는다)
-     *       icon — 화면 줄 아이콘 이름. 없으면 null
-     *       done — 끝난 뒤 화면 줄 글자("창문 닫음"). 없으면 title 그대로
+     *       icon — 화면 칸 아이콘 이름. 없으면 null
      */
     data class Control(
         override val title: String,
@@ -47,7 +44,6 @@ sealed interface Step {
         val fallback: String,
         val restoreOnUndo: Boolean = true,
         override val icon: String? = null,
-        override val done: String? = null,
     ) : Step
 
     /**

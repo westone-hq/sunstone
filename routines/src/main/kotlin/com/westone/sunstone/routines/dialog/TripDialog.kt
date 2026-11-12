@@ -14,12 +14,12 @@ import java.time.temporal.ChronoUnit
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
- * 수정: 2026-11-12 18:28:00 · 박건준
+ * 수정: 2026-11-13 03:25:00 · 박건준
  * 클래스: TripDialog
- * 목적: 길안내 대화(docs/SCREEN.md 3장 ①-2~①-6). 목적지를 말하면 길안내를
- *       시작하고, 연료가 낮으면 주유소를 찾아 묻는다. "네"를 받으면 그
- *       주유소를 경유지로 넣고, 마지막 세차일과 날씨를 보고 세차를 묻는다.
- *       세차도 하겠다면 예약해 두고, 세차 입구에 서면 세차 모드가 묻는다
+ * 목적: 길안내 대화(docs/SCREEN.md 6장 시나리오 ① 1~3단계). 목적지를 말하면
+ *       길안내를 시작하고, 연료가 낮으면 주유소를 찾아 한 번 묻는다. 마지막
+ *       세차일과 날씨가 맞으면 같은 카드에서 세차도 묻는다. 세차까지 하겠다면
+ *       예약해 두고, 세차 입구에 서면 세차 모드가 5초 뒤 켜진다
  *       (`WashRoutine`).
  *       - 차를 바꾸지 않는다. 경로·경유지만 바꾼다
  *       - 경유지를 넣는 것은 경로를 바꾸므로 "네"를 받은 뒤에만 한다
@@ -83,17 +83,16 @@ class TripDialog(
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 18:28:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: navigate
      * 목적: 목적지를 찾아 길안내를 시작하고 "○○으로 안내할게요."만 말한다.
-     *       연료가 낮고 정차 중이면 주유소를 먼저 찾아, 찾았을 때만 주유를
-     *       묻는다(①-3). 새 길안내를 시작하면 이전 질문·거절 기록·세차 예약을
-     *       지운다.
+     *       연료가 낮고 정차 중이면 주유소를 찾아, 찾았을 때만 한 번 묻는다.
+     *       세차 되는 곳이고 세차할 때(`washDays()`)면 같은 카드에서 세차도
+     *       묻는다. 새 길안내를 시작하면 이전 질문·거절 기록·세차 예약을 지운다.
      * 인자: query — 운전자가 말한 목적지("파라다이스 호텔 부산")
      * 식: 주유 제안 = fuel ≤ LOW_FUEL_PERCENT 이고 정차 중이고 주유소를 찾음
      *     fuel — `CarState.fuelPercent`(모르면 제안하지 않음)
-     * 근거: 인용 — docs/SCREEN.md 3장 ①-2·①-3. 2장 다듬을 점 3: S1은 한 번에
-     *       길안내·연료·제안 3가지를 말했다
+     * 근거: 인용 — docs/SCREEN.md 6장 시나리오 ① 다시 짠 흐름 1·2
      */
     suspend fun navigate(query: String) = lock.withLock {
         asking.newTrip() // → 로직 이동: Asking.newTrip()
@@ -114,95 +113,115 @@ class TripDialog(
         if (fuel == null || fuel > LOW_FUEL_PERCENT || !state.stopped) return@withLock
         val pick = pickStation(info.gasStations()) ?: return@withLock // 넣을 주유소, 못 찾으면 묻지 않는다
         offered = pick
-        asking.ask( // → 로직 이동: Asking.ask()
-            Question(
+        val days = if (pick.carWash) washDays() else null // 세차도 권할 때 마지막 세차 뒤 날 수, 아니면 null
+        asking.ask(fuelQuestion(pick, fuel, days)) // → 로직 이동: Asking.ask()
+        speaker.say(TripLines.fuelOffer(fuel, pick.place.name, days))
+    }
+
+    /**
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 함수: fuelQuestion
+     * 목적: 주유 카드를 만든다.
+     *       - 세차도 권하면 "주유하고 세차할까요?", 근거 칸 셋, [주유하고 세차]
+     *         [주유만]. 닫기가 거절이다
+     *       - 아니면 "주유할까요?", 근거 칸 연료 하나, [경유지로 넣기] [괜찮아요]
+     * 인자: pick — 넣을 주유소
+     *       fuel — 연료(%)
+     *       days — 마지막 세차 뒤 날 수. 세차를 권하지 않으면 null
+     * 반환: 주유 질문
+     * 근거: 인용 — docs/SCREEN.md 6장 2단계, 2026-11-13 박건준 2차 업그레이드
+     *       지시(세차 조건이 안 맞을 때 카드)
+     */
+    private fun fuelQuestion(pick: GasStation, fuel: Int, days: Long?): Question {
+        val name = pick.place.name // 주유소 이름, 설명에서 굵게
+        val fuelFact = Fact("fuel", TripLines.fuelFact(fuel)) // 연료 근거 칸
+        if (days == null) {
+            return Question(
                 kind = QuestionKind.FUEL_STOP,
                 title = TripLines.FUEL_TITLE,
-                detail = TripLines.FUEL_DETAIL,
-                rows = listOf(
-                    QuestionRow("fuel", pick.place.name, note = if (pick.carWash) TripLines.CAR_WASH_OK else null),
-                ),
-                yesLabel = TripLines.FUEL_YES,
-                noLabel = TripLines.NO_THANKS,
+                detail = TripLines.fuelDetail(name, carWash = false),
+                emphasis = name,
+                facts = listOf(fuelFact),
+                choices = listOf(Choice(TripLines.FUEL_YES, Reply.YES), Choice(TripLines.NO_THANKS, Reply.NO)),
+            )
+        }
+        return Question(
+            kind = QuestionKind.FUEL_STOP,
+            title = TripLines.FUEL_WASH_TITLE,
+            detail = TripLines.fuelDetail(name, carWash = true),
+            emphasis = name,
+            facts = listOf(
+                fuelFact,
+                Fact("calendar", TripLines.washFact(days)),
+                Fact("sun", TripLines.noRainFact(RAIN_DAYS)),
             ),
+            choices = listOf(Choice(TripLines.FUEL_WASH_ALL, Reply.ALL), Choice(TripLines.FUEL_WASH_ONLY, Reply.ONLY)),
         )
-        speaker.say(TripLines.fuelOffer(fuel))
+    }
+
+    /**
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 함수: washDays
+     * 목적: 세차를 권할 때인지 보고, 그렇다면 마지막 세차 뒤 날 수를 준다.
+     *       마지막 세차가 `WASH_DUE_DAYS`일 이상 전이고 `RAIN_DAYS`일 안에 비
+     *       소식이 없을 때다. 마지막 세차일·날씨를 모르면 권하지 않는다.
+     * 반환: 마지막 세차 뒤 날 수. 권하지 않으면 null
+     * 근거: 인용 — Tab 1 2장 모르는 사실로 판단하지 않는다. docs/SCREEN.md 6장 2단계
+     */
+    private suspend fun washDays(): Long? {
+        val last = memory.lastWashDate() ?: return null // 마지막 세차일
+        val days = ChronoUnit.DAYS.between(last, today()) // 마지막 세차 뒤 날 수
+        if (days < WASH_DUE_DAYS) return null
+        return if (info.rainWithin(RAIN_DAYS) == false) days else null
     }
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 18:28:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: answer
-     * 목적: 길안내 대화가 올린 질문(`Asking`)에 대한 대답을 처리한다. 말로 한
-     *       대답과 패널 버튼이 모두 여기로 온다.
-     *       - 주유 제안: "네"면 주유소를 경유지로 넣는다
-     *       - 세차 추천: "네"면 세차를 예약하고 세차 입구에서 맞춰 드린다고 한다
-     *       - "아니요"면 거절로 남겨(이번 길에서 다시 묻지 않음) 알았다고 한다
-     * 인자: yes — 받아들이면 true
+     * 목적: 주유 질문(`Asking`)에 대한 대답을 처리한다. 말로 한 대답과 카드
+     *       버튼·닫기가 모두 여기로 온다.
+     *       - 주유하고 세차(`ALL`, 또는 세차 카드에 "응") — 경유지를 넣고 세차를
+     *         예약한다
+     *       - 주유만·경유지로 넣기 — 경유지만 넣는다
+     *       - 거절·닫기 — 거절로 남겨(이번 길에서 다시 묻지 않음) 알았다고 한다
+     * 인자: reply — 대답 값
      * 반환: 물은 것이 있어서 대답으로 처리했으면 true. 아니면 아무것도 하지
      *       않고 false(부르는 쪽이 "못 알아들었어요"로 처리)
+     * 근거: 인용 — docs/SCREEN.md 6장 3단계. 받아들이면 말 없이 판에만 알린다
      */
-    suspend fun answer(yes: Boolean): Boolean = lock.withLock {
-        val kind = when { // 기다리는 질문
-            asking.waiting(QuestionKind.FUEL_STOP) -> QuestionKind.FUEL_STOP
-            asking.waiting(QuestionKind.WASH_RECOMMEND) -> QuestionKind.WASH_RECOMMEND
-            else -> return@withLock false
-        }
-        if (!yes) {
-            asking.decline(kind) // → 로직 이동: Asking.decline()
+    suspend fun answer(reply: Reply): Boolean = lock.withLock {
+        val q = asking.question.value?.takeIf { it.kind == QuestionKind.FUEL_STOP } // 기다리는 주유 질문
+            ?: return@withLock false
+        if (!q.accepts(reply)) {
+            asking.decline(QuestionKind.FUEL_STOP) // → 로직 이동: Asking.decline()
             offered = null
             speaker.say(TripLines.DECLINED)
             return@withLock true
         }
-        asking.answered(kind) // → 로직 이동: Asking.answered()
-        if (kind == QuestionKind.FUEL_STOP) {
-            addGasStop()
-        } else {
-            booking.reserve()
-            speaker.say(TripLines.WASH_BOOKED)
-            asking.notice(TripLines.WASH_BOOKED_NOTICE)
-        }
+        asking.answered(QuestionKind.FUEL_STOP) // → 로직 이동: Asking.answered()
+        addGasStop(wash = q.pick(reply)?.reply == Reply.ALL)
         true
     }
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 18:28:00 · 박건준
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: addGasStop
-     * 목적: 물었던 주유소를 경유지로 넣고, 세차를 추천할지 정해 묻는다.
-     *       1. 경유지를 넣고 "○○를 경유지로 넣었어요." + 토스트
-     *       2. 세차 되는 곳이고, 마지막 세차가 `WASH_DUE_DAYS`일 이상 전이고,
-     *          `RAIN_DAYS`일 안에 비 소식이 없으면 세차를 묻는다(①-5)
-     *       3. 마지막 세차일·날씨를 모르면 묻지 않는다
-     * 근거: 인용 — docs/SCREEN.md 3장 ①-4·①-5
+     * 목적: 물었던 주유소를 경유지로 넣고, 세차도 하면 예약한다. 끝나면 판에
+     *       토스트("경유지에 넣고 세차를 예약했어요")만 내고 말은 하지 않는다.
+     * 인자: wash — 세차도 예약하면 true
+     * 근거: 인용 — docs/SCREEN.md 6장 3단계
      */
-    private suspend fun addGasStop() {
+    private suspend fun addGasStop(wash: Boolean) {
         val pick = offered ?: return // 넣을 주유소
         offered = null
         if (navi.addWaypoint(pick.place) == null) { // → 로직 이동: NaviPort.addWaypoint()
             speaker.say(TripLines.WAYPOINT_FAILED)
             return
         }
-        speaker.say(TripLines.waypointAdded(pick.place.name))
-        asking.notice(TripLines.WAYPOINT_NOTICE)
-        val days = memory.lastWashDate()?.let { ChronoUnit.DAYS.between(it, today()) } // 마지막 세차 뒤 날 수
-        val rain = if (pick.carWash) info.rainWithin(RAIN_DAYS) else null // 비 소식, 모르면 null
-        if (!pick.carWash || days == null || days < WASH_DUE_DAYS || rain != false) return
-        // → 로직 이동: Asking.ask()
-        val asked = asking.ask( // 세차 추천 패널을 올렸는지
-            Question(
-                kind = QuestionKind.WASH_RECOMMEND,
-                title = TripLines.WASH_TITLE,
-                detail = "",
-                rows = listOf(
-                    QuestionRow("calendar", TripLines.lastWashRow(days)),
-                    QuestionRow("sun", TripLines.noRainRow(RAIN_DAYS)),
-                ),
-                yesLabel = TripLines.WASH_YES,
-                noLabel = TripLines.NO_THANKS,
-            ),
-        )
-        if (asked) speaker.say(TripLines.washRecommend(days))
+        if (wash) booking.reserve()
+        asking.notice(if (wash) TripLines.WAYPOINT_WASH_NOTICE else TripLines.WAYPOINT_NOTICE)
     }
 
     /**
