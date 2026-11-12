@@ -95,8 +95,10 @@ class PanelPresenter(
 
         /**
          * 작성: 2026-11-12 18:44:00 · 박건준
+         * 수정: 2026-11-12 20:20:00 · 박건준
          * 변수: TOAST_MS
-         * 목적: 토스트를 보여 주는 시간(밀리초).
+         * 목적: 토스트를 보여 주는 가장 짧은 시간(밀리초). 함께 나온 말이 더
+         *       길면 말이 끝날 때까지 둔다.
          * 근거: 인용 — 시안 template.html `toast()` 3200
          */
         const val TOAST_MS = 3_200L
@@ -259,15 +261,23 @@ class PanelPresenter(
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
+     * 수정: 2026-11-12 20:20:00 · 박건준
      * 함수: showToast
-     * 목적: 토스트 문장을 `TOAST_MS` 동안 보여 준다. 새 문장이 오면 바로 바꾼다.
+     * 목적: 토스트 문장을 보여 준다. 새 문장이 오면 바로 바꾼다.
+     *       - 함께 나온 말이 있으면(말을 줄에 세운 뒤 토스트가 온다) 그 말이
+     *         끝날 때까지 두고, 말이 `TOAST_MS`보다 짧으면 `TOAST_MS`를 채운다
+     *       - 말 없이 온 토스트(①-8 주유 정차)는 `TOAST_MS`
+     *       새 패널이 뜨면 `clearToast()`가 먼저 지운다.
      * 인자: text — 토스트 문장
+     * 근거: 인용 — 2026-11-12 박건준 검토: 경유지 말(3초 남짓)이 토스트보다
+     *       길어 다음 패널 전까지 빈 화면이 생겼다(r4-S3)
      */
     private fun showToast(text: String) {
         toastJob?.cancel()
         toast.value = text
         toastJob = scope.launch {
             delay(TOAST_MS)
+            speaking.first { !it }
             toast.value = null
         }
     }
