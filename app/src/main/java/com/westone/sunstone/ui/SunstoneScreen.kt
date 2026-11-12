@@ -405,11 +405,12 @@ private fun ChatLog(lines: List<ChatLine>) {
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
- * 수정: 2026-11-12 11:45:00 · 박희정
+ * 수정: 2026-11-12 20:20:00 · 박건준
  * 함수: SceneBar
  * 목적: 시연 모드 줄(Tab 1 4.2 실행 방식 1). 지금 장면, 그 장면 대사 버튼,
  *       [다음 장면]·[처음] 버튼을 둔다. 대사 버튼을 누르면 그 말을 한 것으로
- *       넣는다(음성 인식이 안 될 때 쓴다). 준비 상황을 넣는 동안은 버튼을 막는다.
+ *       넣는다(음성 인식이 안 될 때 쓴다). 준비 상황을 넣는 동안은 버튼을 막고
+ *       [다음 장면]을 "준비 중"으로 바꾼다.
  *       대사 버튼은 장면마다 한 번만 보인다. 같은 대답을 두 번 넣으면 물은 게
  *       없어 "잘 못 알아들었어요"가 나오기 때문이다
  * 인자: graph — 앱 조립부
@@ -448,7 +449,12 @@ private fun SceneBar(graph: AppGraph, scenes: SceneControls) {
         }
         // → 로직 이동: SceneControls.next()
         Button(onClick = { scenes.next() }, enabled = s == null || (!s.busy && !s.last)) {
-            Text(stringResource(if (s == null) R.string.scene_start else R.string.scene_next))
+            val label = when { // 버튼 글자: 준비 중이면 "준비 중"
+                s == null -> R.string.scene_start
+                s.busy -> R.string.scene_preparing
+                else -> R.string.scene_next
+            }
+            Text(stringResource(label))
         }
         // → 로직 이동: SceneControls.restart()
         OutlinedButton(onClick = { scenes.restart() }, enabled = s?.busy != true) {

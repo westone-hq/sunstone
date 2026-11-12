@@ -107,21 +107,26 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
+     * 수정: 2026-11-12 20:20:00 · 박건준
      * 함수: next
-     * 목적: 다음 장면으로 간다. 준비 중이거나 마지막 장면이면 하지 않는다.
+     * 목적: 다음 장면으로 간다. 준비 중이면 "준비 중"을 남기고 하지 않는다.
+     *       마지막 장면이면 하지 않는다.
      */
     override fun next() {
-        if (job?.isActive == true || index + 1 >= scenes.size) return
+        if (preparing("next")) return
+        if (index + 1 >= scenes.size) return
         job = g.scope.launch { enter(index + 1) } // → 로직 이동: ScenePlayer.enter()
     }
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
+     * 수정: 2026-11-12 20:20:00 · 박건준
      * 함수: restart
      * 목적: 처음(S1 전)으로 돌린다. 켜진 루틴·길안내·대화 기록을 지운다.
+     *       준비 중이면 "준비 중"을 남기고 하지 않는다.
      */
     override fun restart() {
-        if (job?.isActive == true) return
+        if (preparing("restart")) return
         job = g.scope.launch {
             index = -1
             view.value = null
@@ -131,28 +136,46 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-12 19:14:00 · 박건준
+     * 수정: 2026-11-12 20:20:00 · 박건준
      * 함수: goTo
      * 목적: 그 장면으로 건너뛴다. 처음부터 다시 시작해 앞 장면들의 준비와 대사를
      *       차례로 넣고(앱이 답할 때까지 기다린다) 그 장면을 준비한다. 대사 뒤에
      *       이어지는 장면(주유 제안·세차 추천)의 말까지 기다린다. 건너뛴 장면의
      *       말은 그 장면에 들어가기 전에 끊어, 앞 장면 말이 뒤늦게 이어 나오지
-     *       않게 한다.
+     *       않게 한다. 건너뛰는 동안 화면 버튼은 "준비 중"이다. 준비 중이면
+     *       "준비 중"을 남기고 하지 않는다.
      * 인자: id — 장면 ID("S3")
-     * 반환: 그런 장면이 있으면 true
+     * 반환: 그런 장면이 있으면 true(준비 중이라 하지 않았어도 true)
      */
     fun goTo(id: String): Boolean {
         val target = scenes.indexOfFirst { it.id.equals(id, ignoreCase = true) } // 갈 장면 번호
-        if (target < 0 || job?.isActive == true) return false
+        if (target < 0) return false
+        if (preparing("scene $id")) return true
         job = g.scope.launch {
             g.restartTrip() // → 로직 이동: AppGraph.restartTrip()
             for (k in 0 until target) {
                 enter(k)
+                view.value = view.value?.copy(busy = true) // 건너뛰는 동안은 계속 준비 중
                 scenes[k].driver?.let { sayAndWait(it.text, replies(k)) }
             }
             g.stopVoice() // → 로직 이동: AppGraph.stopVoice()
             enter(target)
         }
+        return true
+    }
+
+    /**
+     * 작성: 2026-11-12 20:20:00 · 박건준
+     * 함수: preparing
+     * 목적: 장면 준비·건너뛰기가 도는 중인지 보고, 그렇다면 받은 명령을
+     *       "준비 중"으로 logcat에 남긴다. 화면 버튼은 그동안 "준비 중"으로
+     *       막혀 있고, adb `scene`은 여기서 걸러진다.
+     * 인자: what — 받은 명령(로그에 쓴다)
+     * 반환: 준비 중이면 true(명령을 하지 않는다)
+     */
+    private fun preparing(what: String): Boolean {
+        if (job?.isActive != true) return false
+        Log.i(TAG, "준비 중이라 하지 않음: $what")
         return true
     }
 

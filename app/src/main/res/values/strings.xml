@@ -98,6 +98,8 @@
     <string name="scene_title">%1$s · %2$s</string>
     <string name="scene_start">시연 시작</string>
     <string name="scene_next">다음 장면</string>
+    <!-- 장면 준비(Prep)를 넣는 동안 [다음 장면] 버튼 글자 -->
+    <string name="scene_preparing">준비 중</string>
     <string name="scene_restart">처음</string>
     <string name="gleo_navigate">%1$s 길안내</string>
     <string name="gleo_ask">기능 설명</string>
