@@ -47,8 +47,15 @@ enum class SeatAxis(val label: String) {
     HEADREST_HEIGHT("헤드레스트 높이"),
 }
 
-/** 지금 있는 곳의 성격. 차가 아니라 앱이 장소 검색으로 채운다. */
-enum class Place { CAR_WASH, GAS_STATION, KIDS, NONE }
+/**
+ * 수정: 2026-11-12 16:10:00 · 박희정
+ * 클래스: Place
+ * 목적: 장소의 성격. 지금 있는 곳(차 상태)과 내비 목적지(`PlaceHit.kind`)에
+ *       쓴다. 차가 아니라 앱이 시연 장소 목록으로 채운다.
+ *       - `HOME` — 차일드락이 "집에 가는 길"을 알아볼 때 쓴다
+ * 근거: 인용 — Tab 1 4.3 시나리오 ② #5 "집 판단: 내비 목적지"
+ */
+enum class Place { CAR_WASH, GAS_STATION, KIDS, HOME, NONE }
 
 /**
  * 루틴이 판단에 쓰는 차 상태 한 장면.

@@ -35,15 +35,20 @@ data class Scene(
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
+ * 수정: 2026-11-12 16:10:00 · 박희정
  * 클래스: Prep
  * 목적: 장면 준비 한 단계. 값이 null인 칸은 바꾸지 않는다. 가짜 차는 앱이,
- *       Pleos 차는 Virtual Console·데모 입력이 넣는다.
+ *       Pleos 차는 Virtual Console·데모 입력이 넣는다. 뒷좌석은 아이가 타는
+ *       왼쪽 한 자리만 다룬다.
  * 인자: gear — 기어
  *       speedKmh — 속도(km/h)
  *       place — 지금 장소(가짜 차·데모 입력. Pleos 차는 근접 알림으로도 바뀐다)
  *       fuelPercent — 연료(%)
  *       washedDaysAgo — 마지막 세차가 며칠 전인지
  *       resetTrip — true면 길안내·대화 기록·권하기 대기를 지우고 새로 시작한다
+ *       rearDoorOpen — 뒷좌석 왼쪽 문이 열렸는지
+ *       rearOccupied — 뒷좌석 왼쪽에 사람이 탔는지
+ *       rearBelt — 뒷좌석 왼쪽 벨트를 맸는지
  */
 data class Prep(
     val gear: Gear? = null,
@@ -52,6 +57,9 @@ data class Prep(
     val fuelPercent: Int? = null,
     val washedDaysAgo: Long? = null,
     val resetTrip: Boolean = false,
+    val rearDoorOpen: Boolean? = null,
+    val rearOccupied: Boolean? = null,
+    val rearBelt: Boolean? = null,
 )
 
 /**

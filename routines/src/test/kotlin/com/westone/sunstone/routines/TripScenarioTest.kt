@@ -1,5 +1,6 @@
 package com.westone.sunstone.routines
 
+import com.westone.sunstone.routines.dialog.CurrentRoute
 import com.westone.sunstone.routines.dialog.TripDialog
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.RoutineId
@@ -104,8 +105,11 @@ class TripScenarioTest {
     /** 세차 예약. 길안내 대화와 세차 모드가 함께 쓴다 */
     private val booking = WashBooking()
 
+    /** 지금 길안내 목적지. 길안내 대화와 차일드락이 함께 쓴다 */
+    private val route = CurrentRoute()
+
     /** 길안내 대화 */
-    private val trip = TripDialog(car, navi, info, memory, booking, { said += it }, { TODAY })
+    private val trip = TripDialog(car, navi, info, memory, booking, { said += it }, { TODAY }, route)
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
@@ -117,7 +121,7 @@ class TripScenarioTest {
         car = car,
         routines = listOf(
             WashRoutine(booking, memory, { TODAY }),
-            ChildLockRoutine(),
+            ChildLockRoutine(route, memory, { TODAY }),
             SeatMemoryRoutine(InMemorySeatProfiles()),
         ),
         speaker = { said += it },
@@ -280,7 +284,7 @@ class TripScenarioTest {
     @Test
     fun `세차 기록이 없으면 날 수 문장을 뺀다`() = runTest {
         val noMemory = InMemoryMemory(lastWash = null) // 세차 기록 없음
-        val fresh = TripDialog(car, navi, info, noMemory, booking, { said += it }, { TODAY }) // 기록 없는 대화
+        val fresh = TripDialog(car, navi, info, noMemory, booking, { said += it }, { TODAY }, route) // 기록 없는 대화
         fresh.navigate("파라다이스 호텔 부산")
 
         said.clear()

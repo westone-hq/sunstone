@@ -238,6 +238,15 @@ class RoutineRunner(
 
     // ---------------------------------------------------------------- 되돌리기
 
+    /**
+     * 수정: 2026-11-12 16:10:00 · 박희정
+     * 함수: undoLocked
+     * 목적: 켜진 루틴을 저장한 원래 값으로 되돌리고 끝낸다. 끝나면 그 루틴의
+     *       권하기 기록(10분에 한 번)도 지운다. 한 번 쓰고 끝난 뒤 다시 생긴
+     *       상황(아이가 내렸다가 다시 탐)은 새로 권해야 한다.
+     * 인자: id — 되돌릴 루틴
+     * 근거: 인용 — Tab 1 4.3 시나리오 ② #4 뒤 #5 "차일드락 이어서 할까요?"
+     */
     private suspend fun undoLocked(id: RoutineId) {
         val run = active[id] ?: return
         if (run.phase != Phase.ACTIVE) return
@@ -248,6 +257,7 @@ class RoutineRunner(
         }
         run.routine.afterUndo.forEach(::say)
         run.phase = Phase.FINISHED
+        lastSuggestedAt.remove(id)
         publish(run)
     }
 

@@ -14,6 +14,7 @@ import java.time.temporal.ChronoUnit
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
+ * 수정: 2026-11-12 16:10:00 · 박희정
  * 클래스: TripDialog
  * 목적: 길안내 대화(Tab 1 시나리오 ① #1~#2). 목적지를 말하면 길안내를 시작하고,
  *       연료가 낮으면 주유를 권한다. "네"를 받으면 세차 되는 주유소 중 가장 싼
@@ -29,6 +30,7 @@ import java.time.temporal.ChronoUnit
  *       booking — 세차 예약. `WashRoutine`과 같은 것을 넘긴다
  *       speaker — 말하기
  *       today — 오늘 날짜. 테스트에서 고정한다
+ *       currentRoute — 지금 길안내 목적지. `ChildLockRoutine`과 같은 것을 넘긴다
  * 근거: 인용 — Tab 1 2장 결정 규칙: 앱이 먼저 권한 것·경로를 바꾸는 것은 "네"
  *       받고 실행. 대화 정책: 주행 중 새 제안 금지
  */
@@ -40,6 +42,7 @@ class TripDialog(
     private val booking: WashBooking,
     private val speaker: Speaker,
     private val today: () -> LocalDate,
+    private val currentRoute: CurrentRoute,
 ) {
 
     private companion object {
@@ -82,10 +85,11 @@ class TripDialog(
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 11:58:00 · 박희정
+     * 수정: 2026-11-12 16:10:00 · 박희정
      * 함수: navigate
      * 목적: 목적지를 찾아 길안내를 시작하고, 연료가 낮으면 주유를 권한다
      *       (#1). 새 길안내를 시작하면 이전 세차 예약과 주유 제안은 지운다.
+     *       경로를 시작하면 목적지를 `CurrentRoute`에 남긴다.
      * 인자: query — 운전자가 말한 목적지("파라다이스 호텔 부산")
      * 식: 주유 제안 = fuel ≤ LOW_FUEL_PERCENT 이고 정차 중
      *     fuel — `CarState.fuelPercent`(모르면 제안하지 않음)
@@ -98,6 +102,7 @@ class TripDialog(
         offeringFuel = false
         askingWash = false
         booking.clear()
+        currentRoute.clear()
         val destination = navi.findPlace(query) // 찾은 목적지, 못 찾으면 null
         if (destination == null) {
             speaker.say(TripLines.notFound(query)) // → 로직 이동: Speaker.say()
@@ -108,6 +113,7 @@ class TripDialog(
             speaker.say(TripLines.ROUTE_FAILED)
             return@withLock
         }
+        currentRoute.start(destination)
         val state = car.state.value // 지금 차 상태
         val fuel = state.fuelPercent // 연료(%), 모르면 null
         if (fuel == null || fuel > LOW_FUEL_PERCENT || !state.stopped) {

@@ -17,11 +17,13 @@ import com.westone.sunstone.routines.model.Seat
 import com.westone.sunstone.routines.model.SeatAxis
 import com.westone.sunstone.routines.model.Window
 import com.westone.sunstone.routines.model.WiperMode
+import com.westone.sunstone.routines.dialog.CurrentRoute
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.port.InMemoryMemory
 import com.westone.sunstone.routines.port.InMemorySeatProfiles
 import java.time.LocalDate
 import com.westone.sunstone.routines.port.Target
+import com.westone.sunstone.routines.speech.ChildLockLines
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -43,7 +45,7 @@ class RoutineRunnerTest {
         car = car,
         routines = listOf(
             WashRoutine(WashBooking(), InMemoryMemory(), { LocalDate.of(2026, 11, 11) }),
-            ChildLockRoutine(),
+            ChildLockRoutine(CurrentRoute(), InMemoryMemory(), { LocalDate.of(2026, 11, 11) }),
             seatRoutine,
         ),
         speaker = { said += it },
@@ -168,7 +170,7 @@ class RoutineRunnerTest {
     }
 
     /**
-     * 수정: 2026-11-09 14:29:54 · 박건준
+     * 수정: 2026-11-12 16:10:00 · 박희정
      * 함수: 차일드락 - 달리는 중 뒷좌석 벨트가 풀리면 알린다
      * 목적: 차일드락이 켜진 채 달리다가 뒷좌석 안전벨트가 풀리면 알리는지 본다.
      * 근거: 표준 — kotlinx-coroutines-test 1.8.1에서 `backgroundScope` 작업만
@@ -183,7 +185,7 @@ class RoutineRunnerTest {
         car.update { it.copy(gear = Gear.DRIVE, speedKmh = 50f) }; runCurrent()
         car.update { it.copy(beltBuckled = emptyMap()) }; runCurrent()
 
-        assertTrue(said.any { it.contains("안전벨트가 풀렸어요") })
+        assertTrue(said.contains(ChildLockLines.BELT_OFF))
     }
 
     /**

@@ -13,6 +13,7 @@ import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.routines.model.Window
 import com.westone.sunstone.routines.model.WiperMode
+import com.westone.sunstone.routines.dialog.CurrentRoute
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.port.InMemoryMemory
 import com.westone.sunstone.routines.port.InMemorySeatProfiles
@@ -56,6 +57,9 @@ class WashScenarioTest {
     /** 세차 예약. 시나리오 ①은 #2에서 길안내 대화가 예약한 상태로 #3을 시작한다 */
     private val booking = WashBooking().apply { reserve() }
 
+    /** 지금 길안내 목적지. 길안내 대화와 차일드락이 함께 쓴다 */
+    private val route = CurrentRoute()
+
     /** 마지막 세차일 기억 */
     private val memory = InMemoryMemory(lastWash = TODAY.minusDays(36))
 
@@ -76,7 +80,7 @@ class WashScenarioTest {
         car = car,
         routines = listOf(
             WashRoutine(booking, memory, { TODAY }),
-            ChildLockRoutine(),
+            ChildLockRoutine(route, memory, { TODAY }),
             SeatMemoryRoutine(InMemorySeatProfiles()),
         ),
         speaker = { said += it },
