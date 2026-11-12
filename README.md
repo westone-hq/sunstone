@@ -82,6 +82,7 @@ routines/   순수 Kotlin. 루틴, 실행 엔진, 말 알아듣기, 가짜 차. 
 app/        Pleos SDK 연결, 음성, 화면, 시연 입력
 ```
 자세한 내용은 [docs/STRUCTURE.md](docs/STRUCTURE.md).
+화면 규격과 시나리오 ① 장면별 상세는 [docs/SCREEN.md](docs/SCREEN.md)에 있습니다.
 
 ## 팀
 
