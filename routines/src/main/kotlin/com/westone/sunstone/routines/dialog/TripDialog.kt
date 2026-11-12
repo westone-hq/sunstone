@@ -8,6 +8,7 @@ import com.westone.sunstone.routines.port.NaviPort
 import com.westone.sunstone.routines.port.Speaker
 import com.westone.sunstone.routines.speech.TripLines
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -33,6 +34,7 @@ import java.time.temporal.ChronoUnit
  *       asking — 질문·토스트. `RoutineRunner`·`WashRoutine`과 같은 것을 넘긴다
  *       speaker — 말하기
  *       today — 오늘 날짜. 테스트에서 고정한다
+ *       log — 실패를 남길 곳(앱은 logcat). 없으면 버린다
  * 근거: 인용 — Tab 1 2장 결정 규칙: 앱이 먼저 권한 것·경로를 바꾸는 것은 "네"
  *       받고 실행. 대화 정책: 주행 중 새 제안 금지. docs/SCREEN.md 3장 대화 규칙
  */
@@ -45,6 +47,7 @@ class TripDialog(
     private val asking: Asking,
     private val speaker: Speaker,
     private val today: () -> LocalDate,
+    private val log: (String) -> Unit = {},
 ) {
 
     private companion object {
@@ -72,6 +75,16 @@ class TripDialog(
          * 근거: 인용 — Tab 1 4.3 시나리오 ① #2 "일주일간 비 소식이 없어"
          */
         const val RAIN_DAYS = 7
+
+        /**
+         * 작성: 2026-11-13 04:20:00 · 박건준
+         * 변수: WAYPOINT_WAIT_MS
+         * 목적: 내비가 경유지를 넣기를 기다리는 가장 긴 시간(밀리초). 넘으면
+         *       실패로 본다.
+         * 근거: 인용 — 2026-11-13 박건준 결정 20초. 측정 — 에뮬레이터에서 대답 뒤
+         *       `onWaypointChanged`까지 약 9초(docs/api-spike.md 경유지 넣기 시간 행)
+         */
+        const val WAYPOINT_WAIT_MS = 20_000L
     }
 
     /** 한 번에 한 요청만 처리한다. 경로 요청은 10초 넘게 걸릴 수 있다 */
@@ -206,22 +219,36 @@ class TripDialog(
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-13 03:25:00 · 박건준
+     * 수정: 2026-11-13 04:20:00 · 박건준
      * 함수: addGasStop
-     * 목적: 물었던 주유소를 경유지로 넣고, 세차도 하면 예약한다. 끝나면 판에
-     *       토스트("경유지에 넣고 세차를 예약했어요")만 내고 말은 하지 않는다.
+     * 목적: 물었던 주유소를 경유지로 넣고, 세차도 하면 예약한다. 넣는 동안은
+     *       처리 중(`Asking.work`)으로 알리고, 끝나면 판에 토스트("경유지에 넣고
+     *       세차를 예약했어요")만 내고 말은 하지 않는다. 내비가 실패하거나
+     *       `WAYPOINT_WAIT_MS` 안에 답하지 않으면 실패 토스트와 로그를 남기고
+     *       예약하지 않는다.
      * 인자: wash — 세차도 예약하면 true
-     * 근거: 인용 — docs/SCREEN.md 6장 3단계
+     * 근거: 인용 — docs/SCREEN.md 6장 3단계, 2026-11-13 박건준 결정(진행 중 판,
+     *       20초)
      */
     private suspend fun addGasStop(wash: Boolean) {
         val pick = offered ?: return // 넣을 주유소
         offered = null
-        if (navi.addWaypoint(pick.place) == null) { // → 로직 이동: NaviPort.addWaypoint()
-            speaker.say(TripLines.WAYPOINT_FAILED)
-            return
+        asking.work(true) // → 로직 이동: Asking.work()
+        try {
+            var answered = false // 내비가 시간 안에 답했는지
+            val added = withTimeoutOrNull(WAYPOINT_WAIT_MS) { // 넣은 경로, 실패나 시간 넘김이면 null
+                navi.addWaypoint(pick.place).also { answered = true } // → 로직 이동: NaviPort.addWaypoint()
+            }
+            if (added == null) {
+                log(if (answered) "경유지 넣기 실패: ${pick.place.name}" else "경유지 넣기 20초 넘김: ${pick.place.name}")
+                asking.notice(TripLines.WAYPOINT_FAILED_NOTICE)
+                return
+            }
+            if (wash) booking.reserve()
+            asking.notice(if (wash) TripLines.WAYPOINT_WASH_NOTICE else TripLines.WAYPOINT_NOTICE)
+        } finally {
+            asking.work(false)
         }
-        if (wash) booking.reserve()
-        asking.notice(if (wash) TripLines.WAYPOINT_WASH_NOTICE else TripLines.WAYPOINT_NOTICE)
     }
 
     /**

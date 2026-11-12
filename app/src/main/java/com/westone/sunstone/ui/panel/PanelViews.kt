@@ -10,6 +10,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -36,10 +37,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -508,10 +513,11 @@ fun PlateView(plate: Plate, onHold: () -> Unit) {
 
 /**
  * 작성: 2026-11-12 18:50:00 · 박건준
- * 수정: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 04:20:00 · 박건준
  * 함수: ListenRow
  * 목적: 듣는 중 판 안쪽. 듣는 중이면 마이크 칸 초록·파형 움직임·"듣고
  *       있어요" 한 줄, 들은 뒤면 #2A2C31·파형 멈춤·들은 말 아래 앱이 할 일.
+ *       처리 중이면 들은 뒤와 같고 마이크 대신 도는 표시를 둔다.
  * 인자: listen — 판 값
  *       onHold — 마이크 칸을 길게 누르면 부른다
  * 근거: 인용 — 시안 template2.html `.voice`, `.wave`(padding 0 24 0 32)
@@ -519,17 +525,21 @@ fun PlateView(plate: Plate, onHold: () -> Unit) {
 @Composable
 private fun ListenRow(listen: ListenUi, onHold: () -> Unit) {
     val c = panelColors() // 색 토큰
-    val heard = listen.state == ListenState.HEARD // 들은 뒤인지
+    val heard = listen.state != ListenState.LISTENING // 들은 뒤인지(처리 중 포함)
     Box(
         Modifier.size(PLATE_HEIGHT.dp).background(if (heard) BAR_HEARD else c.green).holdOrTap(null, onHold),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            painterResource(R.drawable.ic_panel_mic),
-            null,
-            Modifier.size(48.dp),
-            tint = if (heard) Color.White else BAR_BLACK,
-        )
+        if (listen.state == ListenState.WORKING) {
+            Spinner()
+        } else {
+            Icon(
+                painterResource(R.drawable.ic_panel_mic),
+                null,
+                Modifier.size(48.dp),
+                tint = if (heard) Color.White else BAR_BLACK,
+            )
+        }
     }
     Wave(moving = !heard, Modifier.padding(start = 32.dp, end = 24.dp))
     Column(Modifier.padding(end = 32.dp)) {
@@ -543,6 +553,32 @@ private fun ListenRow(listen: ListenUi, onHold: () -> Unit) {
             Spacer(Modifier.height(4.dp))
             Text(it, style = text(24, 30, FontWeight.Normal, Color.White.copy(alpha = .64f)), maxLines = 1)
         }
+    }
+}
+
+/**
+ * 작성: 2026-11-13 04:20:00 · 박건준
+ * 함수: Spinner
+ * 목적: 처리 중 표시. 지름 44(마이크 아이콘 48 칸 안), 테두리 5, 흰색 24% 원 위에
+ *       흰 호가 0.9초에 한 바퀴 돈다.
+ * 근거: 인용 — 1차 시안 template.html `.spin`(0.9초 한 바퀴, 테두리 5)을 판
+ *       색(검정 바탕 흰색)으로 옮겼다. 2차 시안에는 처리 중 표시가 없다
+ */
+@Composable
+private fun Spinner() {
+    val turn by rememberInfiniteTransition(label = "spin").animateFloat(
+        0f, 360f, infiniteRepeatable(tween(900, easing = LinearEasing)), label = "turn",
+    )
+    Canvas(Modifier.size(44.dp).rotate(turn)) {
+        val w = 5.dp.toPx() // 테두리 굵기
+        val r = size.minDimension / 2 - w / 2 // 원 반지름
+        drawCircle(Color.White.copy(alpha = .24f), radius = r, style = Stroke(w))
+        drawArc(
+            Color.White, -90f, 100f, false,
+            topLeft = Offset(w / 2, w / 2),
+            size = Size(size.width - w, size.height - w),
+            style = Stroke(w, cap = StrokeCap.Butt),
+        )
     }
 }
 

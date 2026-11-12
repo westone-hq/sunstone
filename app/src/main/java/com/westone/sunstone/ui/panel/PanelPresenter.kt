@@ -29,7 +29,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 작성: 2026-11-12 18:44:00 · 박건준
- * 수정: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 04:20:00 · 박건준
  * 클래스: PanelPresenter
  * 목적: 왼쪽 구역에 그릴 값(`ScreenUi`)을 만든다. 판단은 하지 않고 routines가
  *       준 값을 화면 모양으로만 바꾼다.
@@ -41,8 +41,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  *         `CHIP_MS` 뒤에는 "세차 모드 켜짐" 한 줄로 접는다
  *       - `Asking.notices` → 토스트(판 자리)
  *       - 카드가 뜨면 듣는 중 판(LISTENING, "듣고 있어요"), 들은 말(`heard()`)은
- *         HEARD로 1초 보인 뒤 내린다. 질문 말이 끝나고 8초 안에 대답이 없으면
- *         판만 닫고 카드는 남긴다
+ *         HEARD로 1초 보인 뒤 내린다. 그때 대답을 처리하는 중(`Asking.working`,
+ *         내비가 경유지를 넣는 중)이면 내리지 않고 WORKING(도는 표시)으로 둔다.
+ *         질문 말이 끝나고 8초 안에 대답이 없으면 판만 닫고 카드는 남긴다
  *       - 새 카드가 뜨거나 시연 장면이 바뀌면 남은 토스트를 바로 지운다
  * 인자: context — 화면 문구(strings.xml)를 읽는다
  *       scope — 타이머와 구독을 돌린다(화면 스레드)
@@ -192,17 +193,24 @@ class PanelPresenter(
         scope.launch { asking.question.collect { onQuestion(it) } }
         scope.launch { asking.notices.collect { showToast(it) } }
         scope.launch { runner.map { it.runs[RoutineId.WASH] }.collect { onRun(it) } }
+        // 처리가 끝나면(결과 토스트가 먼저 온다) 도는 표시 판을 내린다
+        scope.launch {
+            asking.working.collect { on ->
+                if (!on && listen.value.state == ListenState.WORKING) listen.value = ListenUi(ListenState.OFF)
+            }
+        }
         // 새 카드(제목이 바뀜)가 뜨면 앞 장면 토스트가 남지 않게 지운다
         scope.launch { ui.map { it.card?.title }.distinctUntilChanged().collect { if (it != null) clearToast() } }
     }
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
-     * 수정: 2026-11-12 22:45:00 · 박건준
+     * 수정: 2026-11-13 04:20:00 · 박건준
      * 함수: heard
-     * 목적: 운전자가 한 말을 판에 HEARD로 보여 준다. 음성·시연 버튼·adb
+     * 목적: 운전자가 한 말을 판에 HEARD로 보여 준다. 음성·시연 녹음본·adb
      *       `say`가 모두 `AppGraph.hear()`를 거쳐 여기로 온다. `HEARD_MS` 뒤
-     *       아직 질문이 남아 있으면(못 알아들음) 다시 듣고, 없으면 판을 닫는다.
+     *       아직 질문이 남아 있으면(못 알아들음) 다시 듣고, 대답을 처리하는
+     *       중이면 같은 글자로 WORKING(도는 표시)을 두고, 아니면 판을 닫는다.
      * 인자: text — 들은 말
      *       next — 들은 말 아래에 보일, 앱이 이어서 하는 일("세차 모드를
      *       켤게요"). 없으면 null(줄을 비운다)
@@ -214,7 +222,11 @@ class PanelPresenter(
         listenJob = scope.launch {
             delay(HEARD_MS)
             val q = shown.value // 아직 떠 있는 질문(못 알아들었을 때), 없으면 null
-            if (q != null) startListening() else listen.value = ListenUi(ListenState.OFF)
+            listen.value = when {
+                q != null -> return@launch startListening()
+                asking.working.value -> listen.value.copy(state = ListenState.WORKING)
+                else -> ListenUi(ListenState.OFF)
+            }
         }
     }
 

@@ -285,6 +285,7 @@ class AppGraph(val app: Context) {
         asking = asking,
         speaker = speaker,
         today = { LocalDate.now() },
+        log = { Log.w(TAG, it) },
     )
 
     /** AAOS 에너지 속성과 연료 종류. 값을 Pleos 차 창구에 넣는다. 가짜 차일 때는 버린다 */

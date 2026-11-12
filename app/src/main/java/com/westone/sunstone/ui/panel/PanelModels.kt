@@ -111,14 +111,17 @@ data class CardUi(
 
 /**
  * 작성: 2026-11-12 18:40:00 · 박건준
+ * 수정: 2026-11-13 04:20:00 · 박건준
  * 클래스: ListenState
  * 목적: 듣는 중 판의 상태.
  *       - `OFF` — 판 없음
  *       - `LISTENING` — 대답을 기다림(초록 마이크 칸, 움직이는 파형)
  *       - `HEARD` — 들은 말을 보여 줌(회색 마이크 칸, 멈춘 파형)
- * 근거: 인용 — docs/SCREEN.md 1장 상태 흐름
+ *       - `WORKING` — 들은 말을 처리하는 중(회색 칸에 도는 표시, 글자는 그대로)
+ * 근거: 인용 — docs/SCREEN.md 1장 상태 흐름. 2026-11-13 박건준 결정: 내비가
+ *       경유지를 넣는 동안 들음 판을 내리지 않고 마이크 칸 자리에 도는 표시
  */
-enum class ListenState { OFF, LISTENING, HEARD }
+enum class ListenState { OFF, LISTENING, HEARD, WORKING }
 
 /**
  * 작성: 2026-11-12 18:40:00 · 박건준
@@ -133,7 +136,7 @@ data class ListenUi(val state: ListenState, val text: String = "", val next: Str
 
 /**
  * 작성: 2026-11-12 18:40:00 · 박건준
- * 수정: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 04:20:00 · 박건준
  * 클래스: ScreenUi
  * 목적: 왼쪽 구역에 그릴 것 전부. 카드, 듣는 중 판, 토스트, 마이크 칸.
  *       판과 토스트는 같은 자리를 번갈아 쓴다(`plate`).
@@ -146,8 +149,9 @@ data class ScreenUi(val card: CardUi?, val listen: ListenUi, val toast: String?)
     /**
      * 작성: 2026-11-13 03:40:00 · 박건준
      * 함수: plate
-     * 목적: 아래 판 자리에 무엇을 보일지 고른다. 들은 말 → 토스트 → 듣는 중
-     *       순서다. 들은 말을 1초 보인 뒤 결과 토스트가 이어 나온다.
+     * 목적: 아래 판 자리에 무엇을 보일지 고른다. 들은 말 → 토스트 → 처리
+     *       중·듣는 중 순서다. 들은 말을 1초 보인 뒤 처리 중(도는 표시)이었다가
+     *       결과 토스트로 바뀐다.
      * 반환: 판에 보일 것. 없으면 null
      * 근거: 인용 — 시안 template2.html `toast()`는 판을 내리고 같은 자리에 뜬다
      */
@@ -155,7 +159,7 @@ data class ScreenUi(val card: CardUi?, val listen: ListenUi, val toast: String?)
         get() = when {
             listen.state == ListenState.HEARD -> Plate.Listen(listen)
             toast != null -> Plate.Toast(toast)
-            listen.state == ListenState.LISTENING -> Plate.Listen(listen)
+            listen.state != ListenState.OFF -> Plate.Listen(listen)
             else -> null
         }
 

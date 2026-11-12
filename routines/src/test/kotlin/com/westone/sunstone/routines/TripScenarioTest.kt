@@ -564,4 +564,55 @@ class TripScenarioTest {
         assertNull(runner.ui.value.suggestion)
         assertTrue(said.isEmpty())
     }
+
+    /**
+     * 작성: 2026-11-13 04:20:00 · 박건준
+     * 함수: 경유지를 넣는 동안 진행 중으로 알린다
+     * 목적: 내비가 경유지를 넣는 동안(9초) `Asking.working`이 켜져 있다가, 넣고
+     *       나면 꺼지고 결과 토스트가 나오는지 본다. 화면은 그동안 들은 말 판을
+     *       내리지 않는다.
+     */
+    @Test
+    fun `경유지를 넣는 동안 진행 중으로 알린다`() = runTest {
+        val runner = runner()
+        runCurrent()
+        say(runner, "파라다이스 호텔 부산까지 길안내 해 줘")
+        navi.waypointDelayMs = 9_000
+
+        launch { say(runner, "응, 세차도 할게") }
+        runCurrent()
+        assertTrue(asking.working.value)
+        assertTrue(noticed.isEmpty())
+
+        advanceTimeBy(9_001); runCurrent()
+        assertFalse(asking.working.value)
+        assertEquals(listOf("경유지에 넣고 세차를 예약했어요"), noticed)
+        assertTrue(booking.atGasStation)
+    }
+
+    /**
+     * 작성: 2026-11-13 04:20:00 · 박건준
+     * 함수: 경유지를 20초 안에 못 넣으면 실패를 알린다
+     * 목적: 내비가 20초 넘게 답하지 않으면 기다리기를 그만두고 "경유지를 넣지
+     *       못했어요" 토스트와 로그를 남기며, 세차도 예약하지 않는지 본다.
+     */
+    @Test
+    fun `경유지를 20초 안에 못 넣으면 실패를 알린다`() = runTest {
+        val logged = mutableListOf<String>() // 남긴 로그
+        val slow = TripDialog(car, navi, info, memory, booking, asking, { said += it }, { TODAY }) { logged += it }
+        backgroundScope.launch { asking.notices.collect { noticed += it } }
+        slow.navigate("파라다이스 호텔 부산")
+        navi.waypointDelayMs = 30_000
+
+        launch { slow.answer(Reply.ALL) }
+        advanceTimeBy(19_900); runCurrent()
+        assertTrue(asking.working.value)
+
+        advanceTimeBy(200); runCurrent()
+        assertFalse(asking.working.value)
+        assertEquals(listOf("경유지를 넣지 못했어요"), noticed)
+        assertEquals(listOf("경유지 넣기 20초 넘김: 말죽거리주유소"), logged)
+        assertFalse(booking.atGasStation)
+        assertTrue(navi.waypoints.isEmpty())
+    }
 }

@@ -123,11 +123,14 @@ data class Question(
 
 /**
  * 작성: 2026-11-12 18:10:00 · 박건준
+ * 수정: 2026-11-13 04:20:00 · 박건준
  * 클래스: Asking
  * 목적: 앱이 지금 묻고 있는 질문과 토스트 문장을 한곳에 둔다. 길안내 대화와
  *       루틴 권하기가 같은 것 하나에 질문을 올리고, 대답이 오면 내린다.
  *       - `question` — 대답을 기다리는 질문. null이면 패널 없음
  *       - `notices` — 토스트로 잠깐 보일 문장
+ *       - `working` — 대답을 받아 처리하는 중(내비가 경유지를 넣는 중). 화면은
+ *         그동안 들은 말 판을 내리지 않고 진행 중을 보인다
  *       - "괜찮아요"·닫기로 끝난 종류는 `newTrip()` 전까지 다시 묻지 않는다
  * 근거: 인용 — docs/SCREEN.md 3장 대화 규칙: "괜찮아요"나 닫기를 누른 제안은
  *       이번 길에서 다시 하지 않는다
@@ -145,6 +148,12 @@ class Asking {
 
     /** 토스트 문장들(한 번씩 흘러가는 값) */
     val notices: SharedFlow<String> = toasts
+
+    /** 대답을 처리하는 중인지 바꾸는 곳. 길안내 대화가 쓴다 */
+    private val busy = MutableStateFlow(false)
+
+    /** 대답을 받아 처리하는 중이면 true(값이 바뀌면 알려주는 상태) */
+    val working: StateFlow<Boolean> = busy
 
     /** 이번 길안내에서 "괜찮아요"로 끝난 질문 종류. `newTrip()`이 비운다 */
     private val declined = mutableSetOf<QuestionKind>()
@@ -208,14 +217,29 @@ class Asking {
     }
 
     /**
+     * 작성: 2026-11-13 04:20:00 · 박건준
+     * 함수: work
+     * 목적: 대답을 처리하는 중인지 알린다. 끝나면(성공이든 실패든) 결과 토스트를
+     *       먼저 내고 끈다.
+     * 인자: on — 처리하는 중이면 true
+     * 근거: 인용 — 2026-11-13 박건준 결정: 내비가 경유지를 넣는 동안(약 9초)
+     *       들음 판을 내리지 않고 진행 중을 보인다
+     */
+    fun work(on: Boolean) {
+        busy.value = on
+    }
+
+    /**
      * 작성: 2026-11-12 18:10:00 · 박건준
+     * 수정: 2026-11-13 04:20:00 · 박건준
      * 함수: newTrip
-     * 목적: 새 길안내를 시작하거나 시연을 처음으로 돌릴 때 질문과 거절 기록을
-     *       지운다.
+     * 목적: 새 길안내를 시작하거나 시연을 처음으로 돌릴 때 질문과 거절 기록,
+     *       처리 중 표시를 지운다.
      */
     @Synchronized
     fun newTrip() {
         declined.clear()
         current.value = null
+        busy.value = false
     }
 }
