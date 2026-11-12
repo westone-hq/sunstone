@@ -18,6 +18,7 @@
     <string name="place_car_wash">세차장</string>
     <string name="place_gas_station">주유소</string>
     <string name="place_kids">아이 시설</string>
+    <string name="place_home">집</string>
     <string name="place_none">없음</string>
 
     <!-- 권하기 카드 -->
@@ -56,6 +57,8 @@
         <item>세차 모드가 뭐야?</item>
         <item>세차할게</item>
         <item>세차 끝났어</item>
+        <item>유치원까지 길안내 해줘</item>
+        <item>집으로 안내해 줘</item>
         <item>애 태웠어</item>
         <item>지금 자세 엄마로 저장해줘</item>
         <item>엄마 자세로</item>

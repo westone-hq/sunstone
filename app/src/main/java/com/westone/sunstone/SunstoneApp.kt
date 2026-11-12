@@ -14,6 +14,7 @@ import com.westone.sunstone.demo.installDemo
 import com.westone.sunstone.info.FixedInfo
 import com.westone.sunstone.ui.SceneControls
 import com.westone.sunstone.navi.PleosNaviPort
+import com.westone.sunstone.routines.dialog.CurrentRoute
 import com.westone.sunstone.routines.dialog.TripDialog
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.fake.FakeNavi
@@ -99,7 +100,7 @@ data class ChatLine(val fromDriver: Boolean, val text: String)
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-11 15:14:38 · 박희정
+ * 수정: 2026-11-12 16:10:00 · 박희정
  * 클래스: AppGraph
  * 목적: 기능 구현(routines)과 앱 연결을 한곳에서 잇는 조립부. 의존성 주입
  *       라이브러리 없이 손으로 만든다.
@@ -156,13 +157,15 @@ class AppGraph(private val app: Context) {
 
         /**
          * 작성: 2026-11-11 17:40:00 · 박희정
-         * 변수: NO_SUNROOF
-         * 목적: 가짜 차가 지원하지 않는 대상(선루프 두 개).
-         * 근거: 측정 — Pleos 에뮬레이터 v2.1.0에는 선루프가 없다(docs/api-spike.md
-         *       세차 선루프 행). 안전 경로도 실제 경로와 같은 말을 해야 한다(Tab 1
-         *       1장 시연 통과 조건 1)
+         * 수정: 2026-11-12 16:10:00 · 박희정
+         * 변수: FAKE_UNSUPPORTED
+         * 목적: 가짜 차가 지원하지 않는 대상(선루프 두 개, 뒷유리 블라인드).
+         * 근거: 측정 — Pleos 에뮬레이터 v2.1.0에는 선루프와 뒷유리 블라인드가
+         *       없다(docs/api-spike.md 세차 선루프·차일드락 블라인드 행). 안전
+         *       경로도 실제 경로와 같은 말을 해야 한다(Tab 1 1장 시연 통과 조건 1)
          */
-        val NO_SUNROOF = setOf(Target.WindowPosition(Window.ROOF_1), Target.WindowPosition(Window.ROOF_2))
+        val FAKE_UNSUPPORTED =
+            setOf(Target.WindowPosition(Window.ROOF_1), Target.WindowPosition(Window.ROOF_2), Target.RearBlind)
 
         /**
          * 작성: 2026-11-11 17:40:00 · 박희정
@@ -188,9 +191,9 @@ class AppGraph(private val app: Context) {
 
     /**
      * 가짜 차. 데모 설정(`fake on`)이거나 Pleos 연결에 실패하면 만든다(안전 경로). Pleos 에뮬레이터 차처럼
-     * 선루프가 없어서 대사집과 같은 말을 한다. Pleos를 쓰면 null
+     * 선루프·뒷유리 블라인드가 없어서 대사집과 같은 말을 한다. Pleos를 쓰면 null
      */
-    val fake: FakeCar? = if (pleos == null) FakeCar().apply { unsupported = NO_SUNROOF } else null
+    val fake: FakeCar? = if (pleos == null) FakeCar().apply { unsupported = FAKE_UNSUPPORTED } else null
 
     /** 루틴이 쓰는 차. Pleos 차, 없으면 가짜 차 */
     val car: CarPort = pleos ?: fake!!
@@ -225,10 +228,17 @@ class AppGraph(private val app: Context) {
     /** 세차 예약. 길안내 대화가 주유소에 예약하고 세차 모드가 본다. 둘이 같은 것을 쓴다 */
     private val booking = WashBooking()
 
+    /** 지금 길안내 목적지. 길안내 대화가 넣고 차일드락이 "집에 가는 길"인지 본다. 둘이 같은 것을 쓴다 */
+    private val route = CurrentRoute()
+
     /** 루틴 실행기. 만들 때 상황 감지를 시작한다 */
     val runner = RoutineRunner(
         car = car,
-        routines = listOf(WashRoutine(booking, memory) { LocalDate.now() }, ChildLockRoutine(), seatRoutine),
+        routines = listOf(
+            WashRoutine(booking, memory) { LocalDate.now() },
+            ChildLockRoutine(route, memory) { LocalDate.now() },
+            seatRoutine,
+        ),
         speaker = speaker,
         scope = scope,
     ).also { it.start() } // → 로직 이동: RoutineRunner.start()
@@ -251,13 +261,14 @@ class AppGraph(private val app: Context) {
      */
     val trip = TripDialog(
         car = car,
-        navi = navi?.let { n -> PleosNaviPort(n) { places?.spots?.map { it.hit }.orEmpty() } }
+        navi = navi?.let { n -> PleosNaviPort(n) { places?.spots.orEmpty() } }
             ?: FakeNavi(fixedPlaces()),
         info = FixedInfo(),
         memory = memory,
         booking = booking,
         speaker = speaker,
         today = { LocalDate.now() },
+        currentRoute = route,
     )
 
     /** 앱을 깨어 있게 하는 중인지. 같은 값으로 서비스를 다시 켜고 끄지 않으려고 둔다 */
@@ -388,27 +399,31 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-11 19:10:34 · 박희정
+     * 수정: 2026-11-12 16:10:00 · 박희정
      * 함수: restartTrip
      * 목적: 시연을 처음부터 다시 할 수 있게 지운다.
      *       1. 켜진 루틴을 되돌린다(차 값을 원래대로)
      *       2. 길안내 중이면 취소한다. 안내가 없을 때 취소를 보내면 지도 앱이
      *          앞으로 나와 앱 화면을 가린다
-     *       3. 대화 기록, 권하기 기록(10분에 한 번), 끝난 실행 기록을 지운다
+     *       3. 대화 기록, 권하기 기록(10분에 한 번), 끝난 실행 기록, 길안내
+     *          목적지를 지운다
      */
     suspend fun restartTrip() {
         runner.activeIds().forEach { runner.undo(it).join() } // → 로직 이동: RoutineRunner.undo()
         if (navi?.routing?.value == true) navi.cancelRoute() // → 로직 이동: PleosNavi.cancelRoute()
         runner.forgetSuggestions() // → 로직 이동: RoutineRunner.forgetSuggestions()
         runner.forgetFinished() // → 로직 이동: RoutineRunner.forgetFinished()
+        route.clear()
         chatLines.value = emptyList()
     }
 
     /**
      * 작성: 2026-11-11 17:40:00 · 박희정
+     * 수정: 2026-11-12 16:10:00 · 박희정
      * 함수: fixedPlaces
      * 목적: 시연 장소 고정 목록(assets/places.json)을 읽어 가짜 내비가 찾을 장소로
-     *       만든다. 읽지 못하면 빈 목록(목적지를 "찾지 못했어요"로 답한다).
+     *       만든다. 장소의 성격(집·유치원)도 읽는다. 읽지 못하면 빈
+     *       목록(목적지를 "찾지 못했어요"로 답한다).
      * 반환: 장소들
      * 미구현: 프로토타입이라 장소 검색 API 대신 고정 목록을 쓴다. Pleos 차는 같은
      *       파일을 `PlaceWatcher`가 읽는다
@@ -418,7 +433,8 @@ class AppGraph(private val app: Context) {
         val array = json.getJSONArray("places") // 장소 배열
         (0 until array.length()).map { i ->
             val o = array.getJSONObject(i) // 장소 하나
-            PlaceHit(o.getString("name"), GeoPoint(o.getDouble("lat"), o.getDouble("lng")))
+            val kind = Place.entries.firstOrNull { it.name == o.optString("place") } ?: Place.NONE // 장소 성격
+            PlaceHit(o.getString("name"), GeoPoint(o.getDouble("lat"), o.getDouble("lng")), kind)
         }
     }.onFailure { Log.w(TAG, "시연 장소 읽기 실패: ${it.message}") }.getOrDefault(emptyList())
 

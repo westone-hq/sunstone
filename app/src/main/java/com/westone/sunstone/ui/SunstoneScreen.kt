@@ -140,7 +140,7 @@ fun SunstoneScreen(graph: AppGraph) {
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-11 16:02:00 · 박희정
+ * 수정: 2026-11-12 16:10:00 · 박희정
  * 함수: StatusLine
  * 목적: 차 상태 한 줄(기어·속도·장소·열린 문·탑승, 받은 경우 연료). 시연 때
  *       차가 무엇을 알아챘는지 보여준다. 기어·장소는 영어 이름 대신 화면
@@ -170,6 +170,7 @@ private fun StatusLine(car: CarState, fuel: FuelState?, fake: Boolean) {
             Place.CAR_WASH -> R.string.place_car_wash
             Place.GAS_STATION -> R.string.place_gas_station
             Place.KIDS -> R.string.place_kids
+            Place.HOME -> R.string.place_home
             Place.NONE -> R.string.place_none
         },
     )

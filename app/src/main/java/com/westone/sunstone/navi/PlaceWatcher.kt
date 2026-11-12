@@ -44,11 +44,12 @@ class PlaceWatcher(
 
     /**
      * 작성: 2026-11-11 12:04:00 · 박건준
+     * 수정: 2026-11-12 16:10:00 · 박희정
      * 클래스: Spot
      * 목적: 고정 장소 하나.
      * 인자: id — 목록 안 이름(데모 명령에서 부른다)
      *       hit — 이름·좌표
-     *       place — 루틴이 보는 장소. 맞는 것이 없으면(집) NONE
+     *       place — 루틴이 보는 장소(주유소·유치원·집). 맞는 것이 없으면 NONE
      */
     data class Spot(val id: String, val hit: PlaceHit, val place: Place)
 

@@ -3,7 +3,9 @@ package com.westone.sunstone.demo
 import android.util.Log
 import com.westone.sunstone.AppGraph
 import com.westone.sunstone.routines.engine.Source
+import com.westone.sunstone.routines.model.Door
 import com.westone.sunstone.routines.model.Gear
+import com.westone.sunstone.routines.model.Seat
 import com.westone.sunstone.routines.script.Prep
 import com.westone.sunstone.routines.script.Scene
 import com.westone.sunstone.routines.script.ScriptBook
@@ -20,24 +22,27 @@ import java.time.LocalDate
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
+ * 수정: 2026-11-12 16:10:00 · 박희정
  * 함수: installDemo
- * 목적: debug 빌드에서 시연 모드를 붙인다. 앱이 켜질 때 한 번 부른다.
+ * 목적: debug 빌드에서 시연 모드를 붙인다. 앱이 켜질 때 한 번 부른다. 시나리오
+ *       ①·② 장면을 이어서 넣는다.
  * 인자: graph — 앱 조립부
  */
 fun installDemo(graph: AppGraph) {
-    graph.scenes = ScenePlayer(graph, ScriptBook.scenarioOne)
+    graph.scenes = ScenePlayer(graph, ScriptBook.all)
 }
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
+ * 수정: 2026-11-12 16:10:00 · 박희정
  * 클래스: ScenePlayer
  * 목적: 대사집 장면을 실제 앱에 하나씩 넣는다(Tab 1 4.2 실행 방식 1·2).
  *       - `next()` — 화면 [다음 장면]. 다음 장면의 준비 상황을 넣고 대사를 띄운다
- *       - `goTo()` — adb `scene S3`. 처음부터 그 장면 앞까지 대사를 차례로 넣어
- *         건너뛰고, 그 장면을 준비한다. 앞 장면 ID를 주면 되돌린다
+ *       - `goTo()` — adb `scene S3`. 그 시나리오 첫 장면부터 그 장면 앞까지 대사를
+ *         차례로 넣어 건너뛰고, 그 장면을 준비한다. 앞 장면 ID를 주면 되돌린다
  *       - `restart()` — 처음(S1 전)으로
- *       Pleos 차면 기어·속도는 Virtual Console로, 장소·연료·세차일은 데모 입력으로
- *       넣는다. 가짜 차면 가짜 차 값을 바꾼다. Pleos 차일 때는 콘솔 연결 신호를
+ *       Pleos 차면 기어·속도·뒷문·뒷좌석 탑승은 Virtual Console로, 장소·연료·
+ *       세차일·벨트는 데모 입력으로 넣는다. 가짜 차면 가짜 차 값을 바꾼다. Pleos 차일 때는 콘솔 연결 신호를
  *       1초마다 보낸다.
  * 인자: g — 앱 조립부
  *       scenes — 대사집 장면들
@@ -122,18 +127,22 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
+     * 수정: 2026-11-12 16:10:00 · 박희정
      * 함수: goTo
-     * 목적: 그 장면으로 건너뛴다. 처음부터 다시 시작해 앞 장면들의 준비와 대사를
-     *       차례로 넣고(앱이 답할 때까지 기다린다) 그 장면을 준비한다.
+     * 목적: 그 장면으로 건너뛴다. 처음부터 다시 시작해 그 시나리오 첫 장면(준비에
+     *       `resetTrip`이 있는 장면)부터 앞 장면들의 준비와 대사를 차례로 넣고
+     *       (앱이 답할 때까지 기다린다) 그 장면을 준비한다. ②로 건너뛸 때 ①을
+     *       다시 돌리지 않는다.
      * 인자: id — 장면 ID("S3")
      * 반환: 그런 장면이 있으면 true
      */
     fun goTo(id: String): Boolean {
         val target = scenes.indexOfFirst { it.id.equals(id, ignoreCase = true) } // 갈 장면 번호
         if (target < 0 || job?.isActive == true) return false
+        val first = (target downTo 0).firstOrNull { k -> scenes[k].prep.any { it.resetTrip } } ?: 0 // 시나리오 첫 장면
         job = g.scope.launch {
             g.restartTrip() // → 로직 이동: AppGraph.restartTrip()
-            for (k in 0 until target) {
+            for (k in first until target) {
                 enter(k)
                 scenes[k].driver?.let { sayAndWait(it.text, scenes[k].expectSaid.size) }
             }
@@ -162,10 +171,17 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
+     * 수정: 2026-11-12 16:10:00 · 박희정
      * 함수: prepare
      * 목적: 준비 한 단계를 넣는다. 처음으로 돌리기 → 연료·세차일 → 장소 → 기어 →
-     *       속도 순서.
+     *       속도 → 뒷문 → 뒷좌석 탑승 → 벨트 순서. 뒷좌석은 왼쪽 자리다.
      * 인자: prep — 준비 한 단계
+     * 근거: 측정 — 콘솔 `PUT /vehicle/body?door_rl=`이 앱 `doorOpen`에 바로
+     *       반영된다(docs/api-spike.md 문 열기 행). `PUT /vehicle/seat?kind=
+     *       occupied&area=rear_left&value=`는 2026-11-12 콘솔 상태
+     *       `seat.occupied.rear_left`가 바뀌는 것을 확인했다
+     * 미구현: 프로토타입이라 벨트는 데모 입력으로 덮어쓴다. 에뮬레이터 SDK 벨트
+     *       값이 늘 false다(`AppGraph.overrideBelt()` 참고)
      */
     private suspend fun prepare(prep: Prep) {
         if (prep.resetTrip) g.restartTrip() // → 로직 이동: AppGraph.restartTrip()
@@ -180,6 +196,15 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
             if (g.pleos != null) VirtualConsole.put("/vehicle/controls?speed=${kmh.toInt()}")
             else g.overrideSpeed(kmh)
         }
+        prep.rearDoorOpen?.let { open ->
+            if (g.pleos != null) VirtualConsole.put("/vehicle/body?door_rl=$open")
+            else g.editFakeCar { it.copy(doorOpen = it.doorOpen + (Door.REAR_LEFT to open)) }
+        }
+        prep.rearOccupied?.let { on ->
+            if (g.pleos != null) VirtualConsole.put("/vehicle/seat?kind=occupied&area=rear_left&value=$on")
+            else g.editFakeCar { it.copy(seatOccupied = it.seatOccupied + (Seat.REAR_LEFT to on)) }
+        }
+        prep.rearBelt?.let { g.overrideBelt(Seat.REAR_LEFT, it) } // → 로직 이동: AppGraph.overrideBelt()
     }
 
     /**
