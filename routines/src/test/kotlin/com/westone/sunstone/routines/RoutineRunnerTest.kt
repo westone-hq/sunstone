@@ -1,5 +1,6 @@
 package com.westone.sunstone.routines
 
+import com.westone.sunstone.routines.dialog.Asking
 import com.westone.sunstone.routines.engine.Phase
 import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RoutineRunner
@@ -42,7 +43,7 @@ class RoutineRunnerTest {
     private fun TestScope.runner(car: FakeCar) = RoutineRunner(
         car = car,
         routines = listOf(
-            WashRoutine(WashBooking(), InMemoryMemory(), { LocalDate.of(2026, 11, 11) }),
+            WashRoutine(WashBooking(), InMemoryMemory(), Asking(), { LocalDate.of(2026, 11, 11) }),
             ChildLockRoutine(),
             seatRoutine,
         ),
