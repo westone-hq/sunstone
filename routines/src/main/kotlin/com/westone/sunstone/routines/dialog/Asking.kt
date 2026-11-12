@@ -33,6 +33,7 @@ data class QuestionRow(val icon: String, val text: String, val manual: Boolean =
 
 /**
  * 작성: 2026-11-12 18:10:00 · 박건준
+ * 수정: 2026-11-12 20:00:00 · 박건준
  * 클래스: Question
  * 목적: 대답을 기다리는 질문 하나. 화면은 이 값으로 패널을 그리고, 말로 해도
  *       버튼으로 해도 같은 대답이 된다.
@@ -42,6 +43,8 @@ data class QuestionRow(val icon: String, val text: String, val manual: Boolean =
  *       rows — 항목 줄들
  *       yesLabel — 채운 버튼(받아들이기)
  *       noLabel — 흰 버튼(괜찮아요)
+ *       hint — 듣는 중 막대에 보일 대답 예("“그래” 또는 “괜찮아”"). 시연
+ *       대사와 같게 둔다. null이면 화면이 기본 안내를 쓴다
  */
 data class Question(
     val kind: QuestionKind,
@@ -50,6 +53,7 @@ data class Question(
     val rows: List<QuestionRow>,
     val yesLabel: String,
     val noLabel: String,
+    val hint: String? = null,
 )
 
 /**

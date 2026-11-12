@@ -234,6 +234,7 @@ class WashRoutine(
 
     /**
      * 작성: 2026-11-12 18:22:00 · 박건준
+     * 수정: 2026-11-12 20:00:00 · 박건준
      * 함수: question
      * 목적: 세차 모드를 권할 때 올릴 패널. 줄은 세차 단계(창문은 한 줄)이고
      *       사이드미러는 사람이 할 일로 미리 보인다.
@@ -254,6 +255,7 @@ class WashRoutine(
         ),
         yesLabel = WashLines.ASK_MODE_YES,
         noLabel = WashLines.ASK_MODE_NO,
+        hint = WashLines.ASK_MODE_HINT,
     )
 
     /**

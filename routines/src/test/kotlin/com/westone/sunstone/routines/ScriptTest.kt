@@ -210,6 +210,30 @@ class ScriptTest {
     }
 
     /**
+     * 작성: 2026-11-12 20:02:00 · 박건준
+     * 함수: 듣는 중 안내는 다음 장면 대사와 같다
+     * 목적: 질문이 뜨는 장면마다, 질문의 듣는 중 안내(`Question.hint`)가 바로
+     *       다음 대사 장면의 대표 문장 + "또는 “괜찮아”"인지 본다. 대사를 고치면
+     *       안내도 같이 고쳐야 한다.
+     */
+    @Test
+    fun `듣는 중 안내는 다음 장면 대사와 같다`() = runTest {
+        val runner = runner()
+        runCurrent()
+        val scenes = ScriptBook.scenarioOne // 장면들
+        var checked = 0 // 확인한 질문 수
+        scenes.forEachIndexed { i, scene ->
+            scene.prep.forEach { prepare(it); runCurrent() }
+            scene.driver?.let { handle(runner, it.intent); runCurrent() }
+            val kind = scene.expectQuestion ?: return@forEachIndexed // 이 장면 뒤 질문
+            val next = scenes.drop(i + 1).first { it.driver != null }.driver!!.text // 다음 대사
+            assertEquals("${scene.id} $kind 안내", "“$next” 또는 “괜찮아”", asking.question.value?.hint)
+            checked++
+        }
+        assertEquals(3, checked)
+    }
+
+    /**
      * 작성: 2026-11-11 16:42:25 · 박희정
      * 수정: 2026-11-12 18:34:00 · 박건준
      * 함수: 장면 ID는 겹치지 않는다
