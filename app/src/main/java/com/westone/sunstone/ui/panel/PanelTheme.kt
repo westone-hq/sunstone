@@ -13,6 +13,7 @@ import com.westone.sunstone.R
 
 /**
  * 작성: 2026-11-12 18:48:00 · 박건준
+ * 수정: 2026-11-12 19:48:00 · 박건준
  * 클래스: PanelColors
  * 목적: 패널 색 토큰. 검정·흰색·회색만 쓰고, 초록은 마이크 칸, 주황은 앱
  *       아이콘 안에서만 쓴다.
@@ -24,6 +25,7 @@ import com.westone.sunstone.R
  *       toast, onToast — 토스트 바탕과 글자
  *       green — 마이크 켜짐 칸
  *       sun — 앱 아이콘 로고 칸
+ *       driveTop, driveBottom — 왼쪽 구역 배경 그라데이션 위(20%까지)·아래 색
  * 근거: 인용 — 시안 template.html `:root`(낮)과 `[data-theme="dark"]`(밤)
  *       토큰, docs/SCREEN.md 1장 색
  */
@@ -42,13 +44,17 @@ data class PanelColors(
     val onToast: Color,
     val green: Color,
     val sun: Color,
+    val driveTop: Color,
+    val driveBottom: Color,
 )
 
 /**
  * 작성: 2026-11-12 18:48:00 · 박건준
+ * 수정: 2026-11-12 19:48:00 · 박건준
  * 변수: LIGHT, DARK
  * 목적: 낮·밤 색 토큰.
- * 근거: 인용 — 시안 template.html 토큰 값 그대로
+ * 근거: 인용 — 시안 template.html 토큰 값 그대로(`--panel-top`,
+ *       `--panel-bottom`은 `.drive` 배경)
  */
 private val LIGHT = PanelColors(
     surface = Color(0xFFFFFFFF),
@@ -64,6 +70,8 @@ private val LIGHT = PanelColors(
     onToast = Color(0xFFFFFFFF),
     green = Color(0xFF02C265),
     sun = Color(0xFFF09A1C),
+    driveTop = Color(0xFFFFFFFF),
+    driveBottom = Color(0xFFEEF0F2),
 )
 private val DARK = PanelColors(
     surface = Color(0xFF26282D),
@@ -79,6 +87,8 @@ private val DARK = PanelColors(
     onToast = Color(0xFF131417),
     green = Color(0xFF00E074),
     sun = Color(0xFFFFAE3D),
+    driveTop = Color(0xFF1D1E21),
+    driveBottom = Color(0xFF17181B),
 )
 
 /**

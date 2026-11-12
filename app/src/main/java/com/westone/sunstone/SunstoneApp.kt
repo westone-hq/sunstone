@@ -17,6 +17,7 @@ import com.westone.sunstone.navi.PleosNavi
 import com.westone.sunstone.navi.PleosNaviPort
 import com.westone.sunstone.navi.Proximity
 import com.westone.sunstone.routines.dialog.Asking
+import com.westone.sunstone.routines.dialog.QuestionKind
 import com.westone.sunstone.routines.dialog.TripDialog
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.Phase
@@ -354,10 +355,11 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-11 16:02:00 · 박희정
-     * 수정: 2026-11-12 19:06:00 · 박건준
+     * 수정: 2026-11-12 19:56:00 · 박건준
      * 함수: hear
      * 목적: 운전자가 한 말 한마디를 받는다. 대화 기록과 듣는 중 막대(HEARD)에
-     *       남기고, 알아들으면 `handle()`로, 못 알아들으면 그렇다고 말한다.
+     *       남기고(아래 줄에 앱이 이어서 할 일), 알아들으면 `handle()`로, 못
+     *       알아들으면 그렇다고 말한다.
      *       화면 입력칸, 시연 대사 버튼, 데모 `say`(talk.ps1)가 함께 쓴다.
      * 인자: text — 운전자가 한 말
      *       source — 어디서 들어온 말인지(화면, 데모)
@@ -366,8 +368,8 @@ class AppGraph(private val app: Context) {
         val said = text.trim() // 앞뒤 빈칸을 뺀 말
         if (said.isEmpty()) return
         addChat(ChatLine(fromDriver = true, text = said))
-        panels.heard(said) // → 로직 이동: PanelPresenter.heard()
         val action = PhraseMatcher.match(said, source) // 알아들은 요청, 못 알아들으면 null
+        panels.heard(said, nextOf(action)) // → 로직 이동: PanelPresenter.heard()
         // → 로직 이동: AppGraph.handle(), AppGraph.notUnderstood()
         if (action != null) handle(action) else notUnderstood()
     }
@@ -396,6 +398,29 @@ class AppGraph(private val app: Context) {
      */
     fun showPanels() {
         overlayOn.value = overlay.show() // → 로직 이동: LeftZoneOverlay.show()
+    }
+
+    /**
+     * 작성: 2026-11-12 19:56:00 · 박건준
+     * 함수: nextOf
+     * 목적: 들은 말 아래에 보일, 앱이 이어서 하는 일을 짧게 고른다. 대답이면
+     *       지금 묻는 질문 종류로, 길안내면 길안내로 정한다. 실행 결정은 하지
+     *       않고 보여 줄 글자만 고른다.
+     * 인자: action — 알아들은 요청. 못 알아들었으면 null
+     * 반환: 안내 글자. 고를 것이 없으면 null(줄을 비운다)
+     * 근거: 인용 — 시안 sunstone-ui.html 들음 상태 "세차 모드를 켤게요"
+     */
+    private fun nextOf(action: VoiceAction?): String? {
+        val kind = asking.question.value?.kind // 지금 묻는 질문 종류, 없으면 null
+        val res = when { // 고른 문구
+            action is VoiceAction.Navigate -> R.string.next_navigate
+            action !is VoiceAction.Answer || kind == null -> return null
+            !action.yes -> R.string.next_declined
+            kind == QuestionKind.FUEL_STOP -> R.string.next_fuel_stop
+            kind == QuestionKind.WASH_RECOMMEND -> R.string.next_wash_booked
+            else -> R.string.next_wash_mode
+        }
+        return app.getString(res)
     }
 
     /**

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -52,11 +53,9 @@ import com.westone.sunstone.routines.engine.StepStatus
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
-import com.westone.sunstone.ui.panel.AlertPanel
-import com.westone.sunstone.ui.panel.ListenBar
-import com.westone.sunstone.ui.panel.ListenState
-import com.westone.sunstone.ui.panel.MicCell
+import com.westone.sunstone.ui.panel.LeftZone
 import com.westone.sunstone.ui.panel.PanelToast
+import com.westone.sunstone.ui.panel.zoneFull
 import kotlinx.coroutines.delay
 
 /**
@@ -152,9 +151,10 @@ fun SunstoneScreen(graph: AppGraph) {
 
 /**
  * 작성: 2026-11-12 19:10:00 · 박건준
+ * 수정: 2026-11-12 19:56:00 · 박건준
  * 함수: PanelsInApp
- * 목적: 왼쪽 구역 창을 띄우지 못했을 때 같은 패널·막대·토스트·마이크 칸을 앱
- *       화면 왼쪽(폭 853)에 겹쳐 그린다.
+ * 목적: 왼쪽 구역 창을 띄우지 못했을 때 같은 구역(패널·막대·마이크 칸)과
+ *       토스트를 앱 화면 왼쪽(853×1210)에 겹쳐 그린다.
  * 인자: graph — 앱 조립부
  * 미구현: 프로토타입이라 다른 앱 위에 그리기 허가가 없을 때의 대안이다. 이때
  *       패널은 왼쪽 구역이 아니라 앱 영역 안에 보인다
@@ -162,16 +162,14 @@ fun SunstoneScreen(graph: AppGraph) {
 @Composable
 private fun PanelsInApp(graph: AppGraph) {
     val screen by graph.panels.ui.collectAsStateWithLifecycle() // 그릴 값
-    Box(Modifier.width(853.dp).fillMaxSize()) {
-        screen.panel?.let { Box(Modifier.padding(24.dp)) { AlertPanel(it, graph.panels::press) } }
-        Column(Modifier.align(Alignment.BottomStart), horizontalAlignment = Alignment.CenterHorizontally) {
-            screen.toast?.let { PanelToast(it) }
-            Spacer(Modifier.width(1.dp).padding(bottom = 24.dp))
-            if (screen.listen.state == ListenState.OFF) {
-                Box(Modifier.fillMaxWidth().padding(24.dp)) { MicCell(graph.panels::tapMic) }
-            } else {
-                ListenBar(screen.listen)
-            }
+    Box(Modifier.width(853.dp).height(1210.dp)) {
+        Box(Modifier.align(if (zoneFull(screen)) Alignment.TopStart else Alignment.BottomStart).padding(
+            if (zoneFull(screen)) 0.dp else 24.dp,
+        )) {
+            LeftZone(screen, graph.panels::press, graph.panels::tapMic)
+        }
+        screen.toast?.let {
+            Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 184.dp)) { PanelToast(it) }
         }
     }
 }

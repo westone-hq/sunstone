@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,6 +36,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.StrokeCap
@@ -390,5 +392,50 @@ fun MicCell(onTap: () -> Unit) {
             Modifier.size(56.dp),
             tint = Color.White,
         )
+    }
+}
+
+/**
+ * 작성: 2026-11-12 19:50:00 · 박건준
+ * 함수: zoneFull
+ * 목적: 왼쪽 구역 전체를 덮을 때인지 본다. 패널이나 듣는 중 막대가 떠 있으면
+ *       덮는다.
+ * 인자: ui — 왼쪽 구역 값
+ * 반환: 덮으면 true. 아니면 마이크 칸만 보인다
+ */
+fun zoneFull(ui: ScreenUi): Boolean = ui.panel != null || ui.listen.state != ListenState.OFF
+
+/**
+ * 작성: 2026-11-12 19:50:00 · 박건준
+ * 함수: LeftZone
+ * 목적: 왼쪽 구역(상태줄 아래부터 하단 막대 위까지)을 그린다.
+ *       - 덮을 때 — 불투명 배경(시안 `.drive` 세로 그라데이션) 위에 위쪽 패널,
+ *         맨 아래 듣는 중 막대. 막대가 없으면 왼쪽 아래 마이크 칸
+ *       - 덮지 않을 때 — 마이크 칸만
+ *       배경으로 시스템 주행 화면(차 그림, 빠른 버튼, 미디어 줄)이 패널 사이로
+ *       보이지 않게 한다. 토스트는 따로 그린다(`PanelToast`).
+ * 인자: ui — 왼쪽 구역 값
+ *       onPress — 패널 버튼·닫기
+ *       onMic — 마이크 칸
+ * 근거: 인용 — 시안 template.html `.drive`(낮 #FFFFFF 20% → #EEF0F2, 밤
+ *       #1D1E21 → #17181B), `.drive.busy`는 패널이 뜨면 원래 내용을 숨긴다
+ */
+@Composable
+fun LeftZone(ui: ScreenUi, onPress: (PanelAction) -> Unit, onMic: () -> Unit) {
+    if (!zoneFull(ui)) {
+        MicCell(onMic)
+        return
+    }
+    val c = panelColors() // 색 토큰
+    val drive = Brush.verticalGradient(0f to c.driveTop, .2f to c.driveTop, 1f to c.driveBottom) // 구역 배경
+    Box(Modifier.fillMaxSize().background(drive)) {
+        ui.panel?.let { Box(Modifier.padding(24.dp)) { AlertPanel(it, onPress) } }
+        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth()) {
+            if (ui.listen.state != ListenState.OFF) {
+                ListenBar(ui.listen)
+            } else {
+                Box(Modifier.padding(24.dp)) { MicCell(onMic) }
+            }
+        }
     }
 }

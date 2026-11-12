@@ -73,6 +73,12 @@
     <string name="listen_on">듣고 있어요</string>
     <string name="listen_hint">“응” 또는 “괜찮아”라고 말씀해 주세요</string>
     <string name="listen_heard">“%1$s”</string>
+    <!-- 들은 말 아래 안내: 앱이 이어서 하는 일 -->
+    <string name="next_navigate">길안내를 시작할게요</string>
+    <string name="next_fuel_stop">경유지로 넣을게요</string>
+    <string name="next_wash_booked">세차 예약할게요</string>
+    <string name="next_wash_mode">세차 모드를 켤게요</string>
+    <string name="next_declined">알겠어요</string>
     <string name="mic_cell">말 걸기</string>
 
     <!-- 앱이 말하는 안내 -->

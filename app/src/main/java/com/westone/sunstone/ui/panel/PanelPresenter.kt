@@ -17,13 +17,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 작성: 2026-11-12 18:44:00 · 박건준
+ * 수정: 2026-11-12 19:44:00 · 박건준
  * 클래스: PanelPresenter
  * 목적: 왼쪽 구역에 그릴 값(`ScreenUi`)을 만든다. 판단은 하지 않고 routines가
  *       준 값을 화면 모양으로만 바꾼다.
@@ -32,8 +35,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  *       - `RunnerUi.runs`의 세차 모드 → 맞추는 중·준비됨 패널. 단계 상태를
  *         WAITING=TODO, RUNNING=NOW, DONE=DONE, GUIDED=MANUAL로 옮긴다
  *       - `Asking.notices` → 토스트
- *       - 질문이 뜨면 듣는 중 막대(LISTENING), 들은 말(`heard()`)은 HEARD.
- *         질문 말이 끝나고 8초 안에 대답이 없으면 막대만 닫고 패널은 남긴다
+ *       - 질문이 뜨면 듣는 중 막대(LISTENING), 들은 말(`heard()`)은 HEARD로
+ *         1초 보인 뒤 내린다. 질문 말이 끝나고 8초 안에 대답이 없으면 막대만
+ *         닫고 패널은 남긴다
+ *       - 새 패널이 뜨거나 시연 장면이 바뀌면 남은 토스트를 바로 지운다
  * 인자: context — 화면 문구(strings.xml)를 읽는다
  *       scope — 타이머와 구독을 돌린다(화면 스레드)
  *       asking — 질문·토스트
@@ -74,12 +79,13 @@ class PanelPresenter(
 
         /**
          * 작성: 2026-11-12 18:44:00 · 박건준
+         * 수정: 2026-11-12 19:44:00 · 박건준
          * 변수: HEARD_MS
-         * 목적: 들은 말을 막대에 보여 주는 시간(밀리초).
-         * 근거: 미정 — 시안(sunstone-ui.html)은 들은 뒤 약 2.2초 뒤 다음
-         *       상태로 넘어간다. 시연 영상에서 읽을 수 있게 조금 길게 잡았다
+         * 목적: 들은 말을 막대에 보여 주는 시간(밀리초). 지나면 막대를 내린다.
+         * 근거: 인용 — 2026-11-12 박건준 검토: 말을 알아듣고 1초 뒤 내린다
+         *       (실행 중에도 들은 말 막대가 남아 있었다)
          */
-        const val HEARD_MS = 2_500L
+        const val HEARD_MS = 1_000L
 
         /**
          * 작성: 2026-11-12 18:44:00 · 박건준
@@ -116,23 +122,40 @@ class PanelPresenter(
     init {
         scope.launch { asking.question.collect { onQuestion(it) } }
         scope.launch { asking.notices.collect { showToast(it) } }
+        // 새 패널(제목이 바뀜)이 뜨면 앞 장면 토스트가 남지 않게 지운다
+        scope.launch { ui.map { it.panel?.title }.distinctUntilChanged().collect { if (it != null) clearToast() } }
     }
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
+     * 수정: 2026-11-12 19:44:00 · 박건준
      * 함수: heard
      * 목적: 운전자가 한 말을 막대에 HEARD로 보여 준다. 음성·시연 버튼·adb
-     *       `say`가 모두 `AppGraph.hear()`를 거쳐 여기로 온다. 보여 준 뒤 아직
-     *       질문이 있으면 다시 듣고, 없으면 막대를 닫는다.
+     *       `say`가 모두 `AppGraph.hear()`를 거쳐 여기로 온다. `HEARD_MS` 뒤
+     *       아직 질문이 남아 있으면(못 알아들음) 다시 듣고, 없으면 막대를 닫는다.
      * 인자: text — 들은 말
+     *       hint — 들은 말 아래에 보일, 앱이 이어서 하는 일("세차 모드를
+     *       켤게요"). 없으면 null(줄을 비운다)
+     * 근거: 인용 — 시안 sunstone-ui.html 들음 상태 `.vh`
      */
-    fun heard(text: String) {
+    fun heard(text: String, hint: String?) {
         listenJob?.cancel()
-        listen.value = ListenUi(ListenState.HEARD, context.getString(R.string.listen_heard, text))
+        listen.value = ListenUi(ListenState.HEARD, context.getString(R.string.listen_heard, text), hint)
         listenJob = scope.launch {
             delay(HEARD_MS)
             if (asking.question.value != null) startListening() else listen.value = ListenUi(ListenState.OFF)
         }
+    }
+
+    /**
+     * 작성: 2026-11-12 19:44:00 · 박건준
+     * 함수: clearToast
+     * 목적: 남은 토스트를 바로 지운다. 새 패널이 뜰 때와 시연 장면이 바뀔 때
+     *       부른다.
+     */
+    fun clearToast() {
+        toastJob?.cancel()
+        toast.value = null
     }
 
     /**
@@ -280,6 +303,7 @@ class PanelPresenter(
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
+     * 수정: 2026-11-12 19:44:00 · 박건준
      * 함수: mergeSteps
      * 목적: 이어지는 같은 이름 단계를 한 줄로 묶고 상태를 옮긴다.
      *       - 하나라도 RUNNING → NOW
@@ -287,6 +311,7 @@ class PanelPresenter(
      *       - 하나라도 GUIDED → MANUAL(오른쪽에 사람이 할 일)
      *       - 모두 WAITING·SKIPPED → TODO
      *       - 일부만 DONE(단계 사이) → NOW
+     *       DONE 줄은 끝난 꼴 글자(`StepView.done`, "창문 닫음")로 바꾼다
      * 인자: steps — 실행 단계들, 실행 순서대로
      * 반환: (줄, 사람이 할 줄인지) 목록
      */
@@ -304,7 +329,8 @@ class PanelPresenter(
                 else -> RowState.NOW
             }
             val note = if (state == RowState.MANUAL) g.firstNotNullOfOrNull { it.note } else null // 사람이 할 일
-            RowUi(g.first().icon, g.first().title, state, note) to g.first().guide
+            val text = if (state == RowState.DONE) g.first().done ?: g.first().title else g.first().title // 줄 글자
+            RowUi(g.first().icon, text, state, note) to g.first().guide
         }
     }
 }
