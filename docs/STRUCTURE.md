@@ -57,8 +57,10 @@ sunstone/
       │  ├─ car/           PleosCarPort(차량 SDK·제어), Callbacks(SDK 콜백 기다리기),
       │  │                 AaosSpeedSource(속도), AaosEnergySource(주행 가능 거리·배터리·연료 종류),
       │  │                 FuelState(연료·배터리·차 종류 값 묶음)
-      │  ├─ connect/       GleoEntry, AndroidSpeaker, PrefsSeatProfiles, PrefsMemory(마지막 세차일),
-      │  │                 KeepAwakeService(길안내·루틴 중 앱을 깨어 있게 하는 알림)
+      │  ├─ connect/       GleoEntry, PrefsSeatProfiles, PrefsMemory(마지막 세차일),
+      │  │                 AndroidSpeaker(말하기 창구) ← VoiceLibrary(문장 → 녹음본),
+      │  │                 VoicePlayer(녹음본·TTS를 순서대로 내기·끊기),
+      │  │                 KeepAwakeService(Pleos 차에서 앱을 깨어 있게 하는 알림)
       │  ├─ navi/          PleosNavi(내비 경로·경유지·남은 거리·도착), Proximity(근접 알림),
       │  │                 PlaceWatcher(시연 장소 도착 → 장소), NaviModels(좌표·경로 값),
       │  │                 PleosNaviPort(기능 쪽 내비 창구를 PleosNavi로 채움)

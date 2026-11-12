@@ -140,7 +140,7 @@ NaviHelper 3.0.5(`ai.pleos.playground:NaviHelper:3.0.5`, navi-data 3.0.4 함께 
 
 ## 앱 얼림 대응과 시연 이동 (2026-11-11, navi/live)
 
-- **깨어 있기 서비스:** 길안내 중이거나 루틴이 진행 중이면 `KeepAwakeService`(포그라운드 서비스, 종류 `specialUse`, 알림 하나)를 켠다. 에뮬레이터 `cached_apps_freezer`를 기본값으로 되돌리고 재부팅한 뒤 시험했다.
+- **깨어 있기 서비스:** (2026-11-12 바꿈: 아래 시나리오 ① 실측 "앱 얼림" 행. 지금은 Pleos 차에서 앱 화면이 뜰 때 켜고 끄지 않는다) 처음에는 길안내 중이거나 루틴이 진행 중이면 `KeepAwakeService`(포그라운드 서비스, 종류 `specialUse`, 알림 하나)를 켰다. 에뮬레이터 `cached_apps_freezer`를 기본값으로 되돌리고 재부팅한 뒤 시험했다.
   - 서비스 켜짐: 내비 화면이 앞에 있어도 앱이 얼지 않고(`isFrozen=false`, `isForeground=true`), 경로 시작·경유지 이벤트와 근접 알림이 바로 왔다. 주유소로 geo fix를 옮기고 약 2초 안에 장소 도착·경유지 도착
   - 서비스 꺼짐(안내 취소 뒤 내비 화면을 앞에 둠): 앱이 얼어 있어(`isFrozen=true`) 유치원 도착이 20초 넘게 오지 않다가, 앱을 앞으로 가져온 순간 왔다
   - 경유지를 더하면 내비가 경로를 취소했다 다시 시작해서 길안내 상태가 1초 남짓 꺼진다. 그때 서비스를 끄니 앱이 뒤에 있어 다시 켜지 못했다(`startForegroundService() not allowed due to mAllowStartForeground false`). 그래서 이유가 사라져도 15초 기다렸다 끄고, 경로 요청 전에(앱이 아직 앞에 있을 때) 길안내 중으로 먼저 올린다
@@ -158,7 +158,7 @@ NaviHelper 3.0.5(`ai.pleos.playground:NaviHelper:3.0.5`, navi-data 3.0.4 함께 
 | 첫 경로 시작 시간 | 에뮬레이터를 켠 직후 첫 `requestRoute` → `onRouteStarted` 24.5초. 그다음부터는 1초 안 | 실제 | 기다리다 다시 `requestRoute`를 보내면 내비가 앞 계산을 취소(`onRouteCancelled`)하고 처음부터 다시 해서 더 늦어졌다. `PleosNavi.ROUTE_MS`를 15초 → 45초로 늘리고 다시 요청하지 않는다 |
 | 경로가 없을 때 `cancelRoute` | 지도 앱이 앞으로 나와 앱 화면을 가림 | — | 시연을 처음으로 돌릴 때는 길안내 중일 때만 취소한다(`AppGraph.restartTrip`) |
 | 콘솔 세션 신호가 끊긴 뒤 제어 | 창문·와이퍼는 Done, 내기 순환 Failed, 문 잠금 3초 응답 없음 | 실제(신호 유지) | 신호(`POST /browser/session`)를 1초마다 보내는 동안은 넷 다 Done. debug 빌드 시연 모드(`ScenePlayer`)와 `tools/talk.ps1`이 신호를 보낸다 |
-| 앱 얼림 | 지도 앱이 앞에 있고 길안내·루틴이 없을 때 앱이 얼어(`isFrozen=true`) 주유소 근접 알림을 못 받음 | 조작(에뮬레이터 설정) | 리허설 에뮬레이터는 `adb shell settings put global cached_apps_freezer disabled` 뒤 재부팅했다. 실제 차에서는 `KeepAwakeService` 범위를 다시 정해야 한다(미정) |
-| TTS | 엔진은 `ai.pleos.playground.caas` SpeechService 하나. 앱 `TextToSpeech` 초기화가 -1로 실패해 소리 없음 | 조작(녹음본) | `tools/make-voice.ps1`이 대사집 문장을 Windows 한국어 음성(Microsoft Heami)으로 `assets/voice/<문장 MD5>.wav`에 만들고, `AndroidSpeaker`가 녹음본을 `MediaPlayer`(USAGE_ASSISTANT)로 재생한다. 재생 중 `dumpsys audio`에 `state:started` 확인. 녹음본이 없는 문장은 소리가 없다 |
+| 앱 얼림 | 지도 앱이 앞에 있고 길안내·루틴이 없을 때 앱이 얼어(`isFrozen=true`) 주유소 근접 알림을 못 받음 | 실제(깨어 있기 서비스) | 리허설 에뮬레이터는 `adb shell settings put global cached_apps_freezer disabled` 뒤 재부팅했다. 2026-11-12 app/wash: Pleos 차에서 앱 화면이 뜰 때 `KeepAwakeService`를 켜고 끄지 않게 바꿨다. 얼림 기본값(`device_default`)에서 지도 앱을 앞에 두고 길안내 없이 40초 기다려도 `isFrozen=false`, 주유소로 geo fix하자 바로 장소 도착. 에뮬레이터 설정을 바꿀 필요가 없다 |
+| TTS | 엔진은 `ai.pleos.playground.caas` SpeechService 하나. 앱 `TextToSpeech` 초기화가 -1로 실패해 소리 없음 | 조작(녹음본) | `tools/make-voice.ps1`이 대사집 문장을 Windows 한국어 음성(Microsoft Heami)으로 `assets/voice/<문장 MD5>.wav`에 만들고, `AndroidSpeaker`가 녹음본을 `MediaPlayer`(USAGE_ASSISTANT)로 재생한다. 재생 중 `dumpsys audio`에 `state:started` 확인. 녹음본이 없는 문장은 소리가 없다 2026-11-12 app/wash: 녹음본과 TTS를 한 줄(`VoicePlayer`)에 세워 들어온 순서대로 낸다. 녹음본이 없는 말은 앞 녹음본이 끝날 때까지 기다렸다가 `소리 없이 건너뜀(녹음본 없음)`을 logcat에 남긴다(빠진 녹음본 찾기). 시연 [처음]·장면 건너뛰기 때는 나오던 말을 끊는다 |
 | 문 열기(콘솔) | `PUT /vehicle/body?door_rl=true\|false`가 앱 `doorOpen`에 바로 반영 | 실제(콘솔로 장면 준비) | 세차 모드는 문이 열려 있으면 시작하지 않는다("문을 모두 닫으시면 시작할게요.", 세차 모드 기능 카드 조건) |
 | 화면 읽기(uiautomator) | 화면 전환 중에는 `null root node`로 실패 | — | 자동 버튼 누르기는 실패하면 1초 뒤 다시 읽는다. 그래픽 오류(`Failed to find ColorBuffer`) 뒤 화면이 검게 멈추면 에뮬레이터를 다시 켠다 |
