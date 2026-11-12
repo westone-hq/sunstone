@@ -58,28 +58,28 @@ class TripScenarioTest {
          * 변수: RESORT
          * 목적: 시나리오 목적지.
          */
-        val RESORT = PlaceHit("부산 OO리조트", GeoPoint(35.1587, 129.1604))
+        val RESORT = PlaceHit("파라다이스 호텔 부산", GeoPoint(35.1602, 129.1652))
 
         /**
          * 작성: 2026-11-11 15:14:38 · 박희정
          * 변수: WASH_STATION
          * 목적: 세차 되는 주유소 중 가장 싼 곳. 시나리오가 경유지로 넣을 곳이다.
          */
-        val WASH_STATION = GasStation(PlaceHit("OO주유소", GeoPoint(37.4846, 127.0340)), 1650, carWash = true)
+        val WASH_STATION = GasStation(PlaceHit("말죽거리주유소", GeoPoint(37.4852, 127.0407)), 1650, carWash = true)
 
         /**
          * 작성: 2026-11-11 15:14:38 · 박희정
          * 변수: CHEAP_STATION
          * 목적: 가장 싸지만 세차가 안 되는 주유소. 고르면 안 된다.
          */
-        val CHEAP_STATION = GasStation(PlaceHit("△△주유소", GeoPoint(37.4900, 127.0300)), 1610, carWash = false)
+        val CHEAP_STATION = GasStation(PlaceHit("서울석유양재주유소", GeoPoint(37.4781, 127.0396)), 1610, carWash = false)
 
         /**
          * 작성: 2026-11-11 15:14:38 · 박희정
          * 변수: PRICEY_WASH_STATION
          * 목적: 세차는 되지만 더 비싼 주유소. 고르면 안 된다.
          */
-        val PRICEY_WASH_STATION = GasStation(PlaceHit("□□주유소", GeoPoint(37.4800, 127.0400)), 1690, carWash = true)
+        val PRICEY_WASH_STATION = GasStation(PlaceHit("S-OIL 중앙주유소", GeoPoint(37.4816, 127.0422)), 1690, carWash = true)
     }
 
     /** 앱이 한 말, 말한 순서대로. 장면마다 비우고 그 장면 말만 본다 */
@@ -91,7 +91,7 @@ class TripScenarioTest {
     /** 준비 상태의 가짜 차: P단, 연료 18% */
     private val car = FakeCar(CarState(gear = Gear.PARK, fuelPercent = 18)).apply { unsupported = roofs }
 
-    /** 가짜 내비. 목적지는 부산 OO리조트 하나, 경로에 통행료가 있다 */
+    /** 가짜 내비. 목적지는 파라다이스 호텔 부산 하나, 경로에 통행료가 있다 */
     private val navi = FakeNavi(listOf(RESORT))
 
     /** 고정 정보: 주유소 세 곳, 일주일 비 소식 없음 */
@@ -152,7 +152,7 @@ class TripScenarioTest {
         val runner = runner()
         runCurrent()
 
-        say(runner, "부산 OO리조트까지 길안내 해줘")
+        say(runner, "파라다이스 호텔 부산까지 길안내 해줘")
 
         assertEquals(listOf("네, 길안내 시작할게요."), said)
         assertFalse(say(runner, "응"))
@@ -169,7 +169,7 @@ class TripScenarioTest {
     fun `연료를 모르면 묻지 않는다`() = runTest {
         car.update { it.copy(fuelPercent = null) }
 
-        trip.navigate("부산 OO리조트")
+        trip.navigate("파라다이스 호텔 부산")
 
         assertEquals(listOf("네, 길안내 시작할게요."), said)
     }
@@ -184,7 +184,7 @@ class TripScenarioTest {
     fun `달리는 중에는 주유를 권하지 않는다`() = runTest {
         car.update { it.copy(gear = Gear.DRIVE, speedKmh = 50f) }
 
-        trip.navigate("부산 OO리조트")
+        trip.navigate("파라다이스 호텔 부산")
 
         assertEquals(listOf("네, 길안내 시작할게요."), said)
     }
@@ -199,7 +199,7 @@ class TripScenarioTest {
     fun `고속도로가 없으면 가시는 길에 주유를 권한다`() = runTest {
         navi.route = RouteSummary(distanceM = 12_000, durationSec = 1_500, tollWon = 0)
 
-        trip.navigate("부산 OO리조트")
+        trip.navigate("파라다이스 호텔 부산")
 
         assertEquals(
             listOf("네, 길안내 시작할게요. 연료가 부족해서 가시는 길에 주유하시는 게 좋겠어요. 근처 주유소 찾아 드릴까요?"),
@@ -217,7 +217,7 @@ class TripScenarioTest {
     fun `주유 제안을 거절하면 경유지를 넣지 않는다`() = runTest {
         val runner = runner()
         runCurrent()
-        say(runner, "부산 OO리조트까지 길안내 해줘")
+        say(runner, "파라다이스 호텔 부산까지 길안내 해줘")
 
         said.clear()
         assertTrue(say(runner, "괜찮아"))
@@ -238,11 +238,11 @@ class TripScenarioTest {
         memory.recordWash(TODAY.minusDays(3))
         val runner = runner()
         runCurrent()
-        say(runner, "부산 OO리조트까지 길안내 해줘")
+        say(runner, "파라다이스 호텔 부산까지 길안내 해줘")
 
         said.clear()
         say(runner, "그래")
-        assertEquals(listOf("가격이 괜찮고 세차도 되는 OO주유소를 경유지로 넣었어요. 세차 안 하신 지 3일 되셨습니다."), said)
+        assertEquals(listOf("가격이 괜찮고 세차도 되는 말죽거리주유소를 경유지로 넣었어요. 세차 안 하신 지 3일 되셨습니다."), said)
         assertFalse(booking.atGasStation)
 
         said.clear()
@@ -260,12 +260,12 @@ class TripScenarioTest {
     @Test
     fun `비 소식이 있으면 세차를 추천하지 않는다`() = runTest {
         info.rain = true
-        trip.navigate("부산 OO리조트")
+        trip.navigate("파라다이스 호텔 부산")
 
         said.clear()
         trip.answer(yes = true)
 
-        assertEquals(listOf("가격이 괜찮고 세차도 되는 OO주유소를 경유지로 넣었어요. 세차 안 하신 지 36일 되셨습니다."), said)
+        assertEquals(listOf("가격이 괜찮고 세차도 되는 말죽거리주유소를 경유지로 넣었어요. 세차 안 하신 지 36일 되셨습니다."), said)
         assertFalse(booking.atGasStation)
     }
 
@@ -279,12 +279,12 @@ class TripScenarioTest {
     fun `세차 기록이 없으면 날 수 문장을 뺀다`() = runTest {
         val noMemory = InMemoryMemory(lastWash = null) // 세차 기록 없음
         val fresh = TripDialog(car, navi, info, noMemory, booking, { said += it }, { TODAY }) // 기록 없는 대화
-        fresh.navigate("부산 OO리조트")
+        fresh.navigate("파라다이스 호텔 부산")
 
         said.clear()
         fresh.answer(yes = true)
 
-        assertEquals(listOf("가격이 괜찮고 세차도 되는 OO주유소를 경유지로 넣었어요."), said)
+        assertEquals(listOf("가격이 괜찮고 세차도 되는 말죽거리주유소를 경유지로 넣었어요."), said)
         assertFalse(booking.atGasStation)
     }
 
@@ -297,12 +297,12 @@ class TripScenarioTest {
     @Test
     fun `세차 되는 주유소가 없으면 가장 싼 곳을 넣는다`() = runTest {
         info.stations = listOf(CHEAP_STATION)
-        trip.navigate("부산 OO리조트")
+        trip.navigate("파라다이스 호텔 부산")
 
         said.clear()
         trip.answer(yes = true)
 
-        assertEquals(listOf("가격이 괜찮은 △△주유소를 경유지로 넣었어요."), said)
+        assertEquals(listOf("가격이 괜찮은 서울석유양재주유소를 경유지로 넣었어요."), said)
         assertEquals(listOf(CHEAP_STATION.place), navi.waypoints)
         assertFalse(booking.atGasStation)
     }
@@ -315,7 +315,7 @@ class TripScenarioTest {
     @Test
     fun `주유소를 못 찾으면 알린다`() = runTest {
         info.stations = emptyList()
-        trip.navigate("부산 OO리조트")
+        trip.navigate("파라다이스 호텔 부산")
 
         said.clear()
         trip.answer(yes = true)
@@ -348,7 +348,7 @@ class TripScenarioTest {
     fun `경로를 시작하지 못하면 알린다`() = runTest {
         navi.route = null
 
-        trip.navigate("부산 OO리조트")
+        trip.navigate("파라다이스 호텔 부산")
 
         assertEquals(listOf("길안내를 시작하지 못했어요. 다시 말해 주세요."), said)
         assertFalse(trip.answer(yes = true))

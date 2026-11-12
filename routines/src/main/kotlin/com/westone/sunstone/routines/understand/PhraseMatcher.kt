@@ -23,9 +23,10 @@ sealed interface VoiceAction {
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
+     * 수정: 2026-11-12 11:06:21 · 박희정
      * 클래스: Navigate
-     * 목적: 길안내 요청("부산 OO리조트까지 길안내 해줘").
-     * 인자: destination — 말에서 뽑은 목적지("부산 OO리조트")
+     * 목적: 길안내 요청("파라다이스 호텔 부산까지 길안내 해줘").
+     * 인자: destination — 말에서 뽑은 목적지("파라다이스 호텔 부산")
      */
     data class Navigate(val destination: String) : VoiceAction
 

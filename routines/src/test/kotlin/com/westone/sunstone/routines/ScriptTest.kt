@@ -64,14 +64,14 @@ class ScriptTest {
     }
 
     /** 가짜 내비. 앱의 시연 장소 목록(places.json)과 같은 목적지 */
-    private val navi = FakeNavi(listOf(PlaceHit("부산 OO리조트", GeoPoint(35.1587, 129.1604))))
+    private val navi = FakeNavi(listOf(PlaceHit("파라다이스 호텔 부산", GeoPoint(35.1602, 129.1652))))
 
     /** 고정 응답. 앱의 `FixedInfo`와 같은 주유소 세 곳, 일주일 비 소식 없음 */
     private val info = FakeInfo(
         listOf(
-            GasStation(PlaceHit("OO주유소", GeoPoint(37.4846, 127.0340)), 1650, carWash = true),
-            GasStation(PlaceHit("△△주유소", GeoPoint(37.4900, 127.0300)), 1610, carWash = false),
-            GasStation(PlaceHit("□□주유소", GeoPoint(37.4800, 127.0400)), 1690, carWash = true),
+            GasStation(PlaceHit("말죽거리주유소", GeoPoint(37.4852, 127.0407)), 1650, carWash = true),
+            GasStation(PlaceHit("서울석유양재주유소", GeoPoint(37.4781, 127.0396)), 1610, carWash = false),
+            GasStation(PlaceHit("S-OIL 중앙주유소", GeoPoint(37.4816, 127.0422)), 1690, carWash = true),
         ),
         rain = false,
     )
