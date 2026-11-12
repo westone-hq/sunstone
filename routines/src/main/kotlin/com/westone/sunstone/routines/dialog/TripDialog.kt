@@ -83,7 +83,7 @@ class TripDialog(
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 20:00:00 · 박건준
+     * 수정: 2026-11-12 18:28:00 · 박건준
      * 함수: navigate
      * 목적: 목적지를 찾아 길안내를 시작하고 "○○으로 안내할게요."만 말한다.
      *       연료가 낮고 정차 중이면 주유소를 먼저 찾아, 찾았을 때만 주유를
@@ -124,7 +124,6 @@ class TripDialog(
                 ),
                 yesLabel = TripLines.FUEL_YES,
                 noLabel = TripLines.NO_THANKS,
-                hint = TripLines.FUEL_HINT,
             ),
         )
         speaker.say(TripLines.fuelOffer(fuel))
@@ -168,7 +167,7 @@ class TripDialog(
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 20:00:00 · 박건준
+     * 수정: 2026-11-12 18:28:00 · 박건준
      * 함수: addGasStop
      * 목적: 물었던 주유소를 경유지로 넣고, 세차를 추천할지 정해 묻는다.
      *       1. 경유지를 넣고 "○○를 경유지로 넣었어요." + 토스트
@@ -201,7 +200,6 @@ class TripDialog(
                 ),
                 yesLabel = TripLines.WASH_YES,
                 noLabel = TripLines.NO_THANKS,
-                hint = TripLines.WASH_HINT,
             ),
         )
         if (asked) speaker.say(TripLines.washRecommend(days))
