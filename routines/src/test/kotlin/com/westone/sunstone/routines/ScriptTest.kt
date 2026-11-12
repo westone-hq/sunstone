@@ -123,6 +123,7 @@ class ScriptTest {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
+     * 수정: 2026-11-12 11:58:00 · 박희정
      * 함수: handle
      * 목적: 알아들은 요청을 앱(`AppGraph.handle()`)과 같은 순서로 처리한다.
      * 인자: runner — 실행기
@@ -131,7 +132,7 @@ class ScriptTest {
     private suspend fun handle(runner: RoutineRunner, action: VoiceAction) {
         when (action) {
             is VoiceAction.Navigate -> trip.navigate(action.destination)
-            is VoiceAction.Answer -> if (!trip.answer(action.yes)) runner.answer(action.yes)
+            is VoiceAction.Answer -> if (!runner.answer(action.yes)) trip.answer(action.yes)
             is VoiceAction.Run -> runner.request(action.request)
             else -> error("대사집 테스트가 다루지 않는 요청: $action")
         }
@@ -154,11 +155,12 @@ class ScriptTest {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 함수: 시나리오 1 대사집 S1부터 S5까지
+     * 수정: 2026-11-12 11:58:00 · 박희정
+     * 함수: 시나리오 1 대사집 S1부터 S6까지
      * 목적: 시나리오 ① 장면을 차례로 돌린다.
      */
     @Test
-    fun `시나리오 1 대사집 S1부터 S5까지`() = runTest {
+    fun `시나리오 1 대사집 S1부터 S6까지`() = runTest {
         val runner = runner()
         runCurrent()
         ScriptBook.scenarioOne.forEach { scene ->

@@ -76,9 +76,13 @@ class TripDialog(
     @Volatile
     private var offeringFuel = false
 
+    /** 세차를 추천하고 대답을 기다리는 중이면 true */
+    @Volatile
+    private var askingWash = false
+
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 11:06:21 · 박희정
+     * 수정: 2026-11-12 11:58:00 · 박희정
      * 함수: navigate
      * 목적: 목적지를 찾아 길안내를 시작하고, 연료가 낮으면 주유를 권한다
      *       (#1). 새 길안내를 시작하면 이전 세차 예약과 주유 제안은 지운다.
@@ -92,6 +96,7 @@ class TripDialog(
      */
     suspend fun navigate(query: String) = lock.withLock {
         offeringFuel = false
+        askingWash = false
         booking.clear()
         val destination = navi.findPlace(query) // 찾은 목적지, 못 찾으면 null
         if (destination == null) {
@@ -116,27 +121,45 @@ class TripDialog(
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
+     * 수정: 2026-11-12 11:58:00 · 박희정
      * 함수: answer
-     * 목적: 주유 제안에 대한 대답을 처리한다(#2). "네"면 주유소를 경유지로
-     *       넣고, "아니요"면 알았다고만 한다.
+     * 목적: 길안내 대화가 물은 것에 대한 대답을 처리한다.
+     *       - 주유 제안(#2): "네"면 주유소를 경유지로 넣고, "아니요"면 알았다고
+     *         한다
+     *       - 세차 추천: "네"면 예약을 두고 도착하면 맞춰 드린다고 하고,
+     *         "아니요"면 예약을 지우고 알았다고 한다
      * 인자: yes — 받아들이면 true
-     * 반환: 주유 제안이 떠 있어서 대답으로 처리했으면 true. 아니면 아무것도
-     *       하지 않고 false(부르는 쪽이 루틴 권하기에 넘긴다)
+     * 반환: 물은 것이 있어서 대답으로 처리했으면 true. 아니면 아무것도 하지
+     *       않고 false(부르는 쪽이 "못 알아들었어요"로 처리)
      */
     suspend fun answer(yes: Boolean): Boolean = lock.withLock {
-        if (!offeringFuel) return@withLock false
-        offeringFuel = false
-        if (yes) addGasStop() else speaker.say(TripLines.DECLINED)
+        when {
+            offeringFuel -> {
+                offeringFuel = false
+                if (yes) addGasStop() else speaker.say(TripLines.DECLINED)
+            }
+            askingWash && booking.atGasStation -> {
+                askingWash = false
+                if (!yes) booking.clear()
+                speaker.say(if (yes) TripLines.WASH_BOOKED else TripLines.DECLINED)
+            }
+            else -> {
+                askingWash = false
+                return@withLock false
+            }
+        }
         true
     }
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
+     * 수정: 2026-11-12 11:58:00 · 박희정
      * 함수: addGasStop
      * 목적: 주유소를 골라 경유지로 넣고, 세차를 추천할지 정해 말한다.
      *       1. 세차 되는 주유소 중 가장 싼 곳. 없으면 그냥 가장 싼 곳
      *       2. 세차 되는 곳이고, 마지막 세차가 `WASH_DUE_DAYS`일 이상 전이고,
-     *          `RAIN_DAYS`일 안에 비 소식이 없으면 세차를 추천하고 예약한다
+     *          `RAIN_DAYS`일 안에 비 소식이 없으면 세차를 추천하고 예약한다.
+     *          추천하면 대답("그래 그러자"·"아니 괜찮아")을 기다린다
      *       3. 마지막 세차일·날씨를 모르면 그 문장을 빼고 추천하지 않는다
      */
     private suspend fun addGasStop() {
@@ -154,6 +177,7 @@ class TripDialog(
         val rain = if (pick.carWash) info.rainWithin(RAIN_DAYS) else null // 비 소식, 모르면 null
         val recommend = pick.carWash && days != null && days >= WASH_DUE_DAYS && rain == false // 세차 추천
         if (recommend) booking.reserve()
+        askingWash = recommend
         speaker.say(TripLines.waypointAdded(pick.place.name, pick.carWash, days, recommend))
     }
 

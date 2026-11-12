@@ -9,22 +9,23 @@ import com.westone.sunstone.routines.understand.VoiceAction
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
- * 수정: 2026-11-12 11:06:21 · 박희정
+ * 수정: 2026-11-12 11:58:00 · 박희정
  * 클래스: ScriptBook
  * 목적: 시연 대사집. 장면 목록과, 말을 대사집에서 먼저 찾는 일을 맡는다.
- *       - `scenarioOne` — 시나리오 ① 출장 가는 길(S1~S5)
+ *       - `scenarioOne` — 시나리오 ① 출장 가는 길(S1~S6)
  *       - `lookup()` — 대표 문장·변형과 띄어쓰기·문장부호를 빼고 똑같으면 그
  *         장면의 요청을 돌려준다
  * 근거: 인용 — Tab 1 4.3 시나리오 ① 표와 준비 줄. 기대 말은 대사집 문장 그대로
  *       (#3은 2026-11-11 박희정이 "세차하시나요?"로 고쳤다. 목적지 "부산 OO리조트"와
  *       주유소 "OO주유소"는 2026-11-12 실제 장소 "파라다이스 호텔 부산"과
- *       "말죽거리주유소"로 바꿨다)
+ *       "말죽거리주유소"로 바꿨다. S3 "그래 그러자"는 대사집에 없는 단계로
+ *       2026-11-12 박희정이 넣었다)
  */
 object ScriptBook {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-12 11:06:21 · 박희정
+     * 수정: 2026-11-12 11:58:00 · 박희정
      * 변수: scenarioOne
      * 목적: 시나리오 ① 출장 가는 길: 길안내 → 주유 → 세차.
      *       준비: P단, 연료 18%(조작), 마지막 세차 36일 전(기억, 조작), 서울
@@ -66,6 +67,16 @@ object ScriptBook {
         ),
         Scene(
             id = "S3",
+            title = "세차 예약",
+            driver = Utterance(
+                text = "그래 그러자",
+                variants = listOf("응 그러자", "좋아 그렇게 해", "그래 그렇게 해"),
+                intent = VoiceAction.Answer(yes = true),
+            ),
+            expectSaid = listOf("네, 주유소 도착하면 세차 모드 맞춰 드릴게요."),
+        ),
+        Scene(
+            id = "S4",
             title = "주유소 도착",
             prep = listOf(
                 Prep(gear = Gear.DRIVE, speedKmh = 60f),
@@ -75,7 +86,7 @@ object ScriptBook {
             expectSaid = listOf("세차하시나요? 세차하실 거면 세차 모드로 맞춰 드릴까요?"),
         ),
         Scene(
-            id = "S4",
+            id = "S5",
             title = "세차 모드",
             driver = Utterance(
                 text = "응",
@@ -94,7 +105,7 @@ object ScriptBook {
             ),
         ),
         Scene(
-            id = "S5",
+            id = "S6",
             title = "세차 후 출발",
             prep = listOf(
                 Prep(gear = Gear.DRIVE),

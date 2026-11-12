@@ -50,6 +50,7 @@
     <string-array name="say_quick">
         <item>파라다이스 호텔 부산까지 길안내 해줘</item>
         <item>그래</item>
+        <item>그래 그러자</item>
         <item>응</item>
         <item>괜찮아</item>
         <item>세차 모드가 뭐야?</item>

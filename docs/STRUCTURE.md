@@ -48,7 +48,7 @@ sunstone/
 │     ├─ speech/           문장 틀 (세차·길안내·기능 카드 답, 조사 붙이기)
 │     ├─ dialog/           대화 흐름: 길안내 → 주유 제안 → 주유소 경유지 → 세차 예약(TripDialog, WashBooking)
 │     ├─ knowledge/        AI 참고 문서: 기능 카드(지금은 세차 모드 하나), 별칭 검색 상위 3개
-│     ├─ script/           대사집(ScriptBook: 시나리오 ① S1~S5). 자동 테스트·scene·[다음 장면]이 함께 쓴다
+│     ├─ script/           대사집(ScriptBook: 시나리오 ① S1~S6). 자동 테스트·scene·[다음 장면]이 함께 쓴다
 │     └─ fake/             가짜 차·내비·바깥 정보 (테스트·시연)
 │
 └─ app/                    ② 앱 연결 ─ 박건준
@@ -129,7 +129,7 @@ sunstone/
 |---|---|---|
 | 기능 테스트 | `.\gradlew :routines:test` | 박희정 |
 | 앱 설치 | `.\gradlew :app:installDebug` | 박건준 |
-| 대사집 자동 테스트 | `.\gradlew :routines:test` 안의 `ScriptTest`(지금은 시나리오 ① S1~S5) | 박희정 |
+| 대사집 자동 테스트 | `.\gradlew :routines:test` 안의 `ScriptTest`(지금은 시나리오 ① S1~S6) | 박희정 |
 | 실제 경로 확인 | 에뮬레이터 + Virtual Console | 박건준 |
 
 (예정) 빌드 2종: **시연 빌드**(가짜 차·고정 응답, 아무 에뮬레이터·폰에서 동작) / **Pleos 빌드**(실제 SDK).

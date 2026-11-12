@@ -304,7 +304,7 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-11 15:14:38 · 박희정
+     * 수정: 2026-11-12 11:58:00 · 박희정
      * 함수: handle
      * 목적: 말·Gleo·화면·데모 입력을 처리한다.
      *       - `Run` — 루틴 실행을 요청한다
@@ -342,9 +342,11 @@ class AppGraph(private val app: Context) {
                 action.cardId?.let(CardBook::byId)?.let(CardLines::answer) ?: CardLines.NO_CARD,
             )
             is VoiceAction.Answer -> scope.launch {
-                // → 로직 이동: TripDialog.answer(), RoutineRunner.answer(),
+                // → 로직 이동: RoutineRunner.answer(), TripDialog.answer(),
                 //   AppGraph.notUnderstood()
-                if (!trip.answer(action.yes) && !runner.answer(action.yes)) notUnderstood()
+                // 루틴 권하기(주유소 도착)를 먼저 본다. 길안내 대화의 세차 추천에
+                // 답하지 않고 도착했을 때 "응"이 세차 모드로 가게 한다
+                if (!runner.answer(action.yes) && !trip.answer(action.yes)) notUnderstood()
             }
         }
     }

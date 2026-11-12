@@ -2,6 +2,7 @@ package com.westone.sunstone.routines
 
 import com.westone.sunstone.routines.dialog.TripDialog
 import com.westone.sunstone.routines.dialog.WashBooking
+import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RoutineRunner
 import com.westone.sunstone.routines.fake.FakeCar
 import com.westone.sunstone.routines.fake.FakeInfo
@@ -38,7 +39,7 @@ import java.time.LocalDate
  * 클래스: TripScenarioTest
  * 목적: 시나리오 ① 길안내 대화에서 대사집에 없는 경우(연료 넉넉, 거절, 최근
  *       세차, 비 소식 등)를 가짜 차·가짜 내비·고정 정보로 본다. 대사집 장면
- *       S1~S5 자체는 `ScriptTest`가 돌린다.
+ *       S1~S6 자체는 `ScriptTest`가 돌린다.
  *       기본 준비: P단, 연료 18%, 마지막 세차 36일 전
  * 근거: 인용 — Tab 1 4.3 시나리오 ① 표와 준비 줄
  */
@@ -126,9 +127,10 @@ class TripScenarioTest {
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
+     * 수정: 2026-11-12 11:58:00 · 박희정
      * 함수: say
      * 목적: 운전자 말 하나를 앱처럼 처리한다. `AppGraph.handle()`과 같은 순서로
-     *       길안내 → 길안내 대화의 대답 → 루틴 권하기의 대답을 본다.
+     *       길안내 → 루틴 권하기의 대답 → 길안내 대화의 대답을 본다.
      * 인자: runner — 실행기
      *       text — 운전자가 한 말
      * 반환: 처리했으면 true, 못 알아들었으면 false
@@ -136,7 +138,7 @@ class TripScenarioTest {
     private suspend fun say(runner: RoutineRunner, text: String): Boolean =
         when (val action = PhraseMatcher.match(text)) {
             is VoiceAction.Navigate -> { trip.navigate(action.destination); true }
-            is VoiceAction.Answer -> trip.answer(action.yes) || runner.answer(action.yes)
+            is VoiceAction.Answer -> runner.answer(action.yes) || trip.answer(action.yes)
             else -> false
         }
 
@@ -352,5 +354,76 @@ class TripScenarioTest {
 
         assertEquals(listOf("길안내를 시작하지 못했어요. 다시 말해 주세요."), said)
         assertFalse(trip.answer(yes = true))
+    }
+
+    /**
+     * 작성: 2026-11-12 11:58:00 · 박희정
+     * 함수: 세차 추천에 그래 그러자면 예약을 두고 한 번만 답한다
+     * 목적: 세차 추천 뒤 "그래 그러자"에 도착하면 맞춰 드린다고 답하고, 예약이
+     *       남아 주유소에서 세차를 권하는지 본다. 같은 대답을 또 하면 물은 게
+     *       없어 처리하지 않는다.
+     */
+    @Test
+    fun `세차 추천에 그래 그러자면 예약을 두고 한 번만 답한다`() = runTest {
+        val runner = runner()
+        runCurrent()
+        say(runner, "파라다이스 호텔 부산까지 길안내 해줘")
+        say(runner, "그래")
+
+        said.clear()
+        assertTrue(say(runner, "그래 그러자"))
+        assertEquals(listOf("네, 주유소 도착하면 세차 모드 맞춰 드릴게요."), said)
+        assertTrue(booking.atGasStation)
+        assertFalse(say(runner, "그래 그러자"))
+
+        car.update { it.copy(gear = Gear.DRIVE, speedKmh = 60f) }; runCurrent()
+        car.update { it.copy(gear = Gear.PARK, speedKmh = 0f, place = Place.GAS_STATION) }; runCurrent()
+        assertEquals(RoutineId.WASH, runner.ui.value.suggestion?.id)
+    }
+
+    /**
+     * 작성: 2026-11-12 11:58:00 · 박희정
+     * 함수: 세차 추천을 거절하면 도착해도 권하지 않는다
+     * 목적: 세차 추천 뒤 "아니 괜찮아"면 알았다고 하고 예약을 지워, 주유소에
+     *       도착해도 세차를 권하지 않는지 본다.
+     */
+    @Test
+    fun `세차 추천을 거절하면 도착해도 권하지 않는다`() = runTest {
+        val runner = runner()
+        runCurrent()
+        say(runner, "파라다이스 호텔 부산까지 길안내 해줘")
+        say(runner, "그래")
+
+        said.clear()
+        assertTrue(say(runner, "아니 괜찮아"))
+        assertEquals(listOf("알겠어요."), said)
+        assertFalse(booking.atGasStation)
+
+        car.update { it.copy(gear = Gear.DRIVE, speedKmh = 60f) }; runCurrent()
+        car.update { it.copy(gear = Gear.PARK, speedKmh = 0f, place = Place.GAS_STATION) }; runCurrent()
+        assertNull(runner.ui.value.suggestion)
+    }
+
+    /**
+     * 작성: 2026-11-12 11:58:00 · 박희정
+     * 함수: 세차 추천에 답하지 않고 도착해도 응이면 세차 모드다
+     * 목적: 추천에 대답하지 않은 채 주유소에 도착해 세차 권하기에 "응"이라고
+     *       하면, 길안내 대화가 아니라 세차 모드가 받아 실행하는지 본다.
+     */
+    @Test
+    fun `세차 추천에 답하지 않고 도착해도 응이면 세차 모드다`() = runTest {
+        val runner = runner()
+        runCurrent()
+        say(runner, "파라다이스 호텔 부산까지 길안내 해줘")
+        say(runner, "그래")
+
+        car.update { it.copy(gear = Gear.DRIVE, speedKmh = 60f) }; runCurrent()
+        car.update { it.copy(gear = Gear.PARK, speedKmh = 0f, place = Place.GAS_STATION) }; runCurrent()
+        said.clear()
+        assertTrue(say(runner, "응"))
+        runCurrent()
+
+        assertTrue(RoutineId.WASH in runner.activeIds())
+        assertFalse(said.contains("네, 주유소 도착하면 세차 모드 맞춰 드릴게요."))
     }
 }
