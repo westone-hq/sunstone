@@ -37,6 +37,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 왼쪽 구역(시스템 주행 화면) 위에 패널을 띄운다. 시연에서는 adb appops로 허가한다(LeftZoneOverlay) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:name=".SunstoneApp"

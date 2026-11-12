@@ -62,6 +62,19 @@
         <item>원래대로</item>
     </string-array>
 
+    <!-- 왼쪽 구역 패널(docs/SCREEN.md 1장). 질문 패널 글자는 routines/의 문장 틀에 있다 -->
+    <string name="panel_close">닫기</string>
+    <string name="panel_running">%1$s 맞추는 중</string>
+    <string name="panel_ready">%1$s 준비됐어요</string>
+    <string name="panel_ready_detail">출발하면 원래대로 돌려놓을게요.</string>
+    <string name="panel_progress">%1$d개 중 %2$d개 맞췄어요.</string>
+    <string name="panel_finish">지금 끝내기</string>
+    <!-- 듣는 중 막대와 마이크 칸 -->
+    <string name="listen_on">듣고 있어요</string>
+    <string name="listen_hint">“응” 또는 “괜찮아”라고 말씀해 주세요</string>
+    <string name="listen_heard">“%1$s”</string>
+    <string name="mic_cell">말 걸기</string>
+
     <!-- 앱이 말하는 안내 -->
     <string name="voice_not_understood">잘 못 알아들었어요.</string>
     <string name="voice_nothing_to_undo">되돌릴 게 없어요.</string>
