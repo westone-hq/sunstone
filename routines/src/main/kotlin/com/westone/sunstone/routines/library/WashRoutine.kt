@@ -6,6 +6,7 @@ import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RunRequest
 import com.westone.sunstone.routines.engine.Step
 import com.westone.sunstone.routines.engine.StepOutcome
+import com.westone.sunstone.routines.engine.tally
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
@@ -13,9 +14,9 @@ import com.westone.sunstone.routines.model.Window
 import com.westone.sunstone.routines.model.WiperMode
 import com.westone.sunstone.routines.port.CarPort
 import com.westone.sunstone.routines.port.Command
-import com.westone.sunstone.routines.port.ControlResult
 import com.westone.sunstone.routines.port.MemoryPort
 import com.westone.sunstone.routines.port.Target
+import com.westone.sunstone.routines.speech.ReportLines
 import com.westone.sunstone.routines.speech.WashLines
 import com.westone.sunstone.routines.speech.WashPart
 import com.westone.sunstone.routines.speech.withObject
@@ -134,11 +135,11 @@ class WashRoutine(
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
-     * 수정: 2026-11-11 15:14:38 · 박희정
+     * 수정: 2026-11-12 16:10:00 · 박희정
      * 함수: report
      * 목적: 다 하고 나서 한 번에 할 말을 만든다. 대상마다 단계 결과를 모아
      *       모두 됐으면 "했어요" 쪽, 하나라도 안 됐으면 "직접 해 주세요" 쪽에
-     *       넣는다. 이 차에 없는 선루프(지원 안 함)는 말하지 않는다.
+     *       넣는다(`tally()`). 이 차에 없는 선루프(지원 안 함)는 말하지 않는다.
      *       앱이 하나라도 했으면 세차한 것으로 보고 오늘을 남기고 예약을 지운다.
      * 인자: outcomes — 단계마다의 결과
      * 반환: 말할 문장 하나
@@ -146,31 +147,13 @@ class WashRoutine(
      *       (docs/api-spike.md 세차 선루프 행). 안내하면 Tab 1 #4 문장과 달라진다
      */
     override fun report(outcomes: List<StepOutcome>): List<String> {
-        val results = linkedMapOf<WashPart, MutableList<ControlResult?>>() // 대상별 결과, 단계 순서대로
-        val extra = mutableListOf<String>() // 끝에 덧붙일 안내
-        outcomes.forEach { (step, result) ->
-            val part = partOf(step) // 이 단계의 대상, 따로 말할 안내면 null
-            if (part == null) {
-                if (step is Step.Guide) extra += step.say
-            } else {
-                results.getOrPut(part) { mutableListOf() } += result
-            }
-        }
-        val done = mutableListOf<WashPart>() // 앱이 한 대상
-        val manual = mutableListOf<WashPart>() // 사람이 해야 하는 대상
-        results.forEach { (part, list) ->
-            val present = if (part == WashPart.SUNROOF) list.filterNot { it is ControlResult.Unsupported } else list
-            when {
-                present.isEmpty() -> Unit
-                present.all { it?.ok == true } -> done += part
-                else -> manual += part
-            }
-        }
-        if (done.isNotEmpty()) {
+        val parts = tally(outcomes, ::partOf) { it == WashPart.SUNROOF } // → 로직 이동: tally()
+        if (parts.done.isNotEmpty()) {
             memory.recordWash(today()) // → 로직 이동: MemoryPort.recordWash()
             booking.clear()
         }
-        return listOf(WashLines.report(done, manual, extra)).filter { it.isNotEmpty() }
+        // → 로직 이동: ReportLines.report()
+        return listOf(ReportLines.report(parts.done, parts.manual, parts.extra)).filter { it.isNotEmpty() }
     }
 
     /**

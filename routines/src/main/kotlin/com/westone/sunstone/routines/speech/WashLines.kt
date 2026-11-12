@@ -2,17 +2,20 @@ package com.westone.sunstone.routines.speech
 
 /**
  * 작성: 2026-11-11 14:28:46 · 박희정
+ * 수정: 2026-11-12 16:10:00 · 박희정
  * 클래스: WashPart
- * 목적: 세차 모드가 맞추는 대상 하나와 그 대상을 말할 때 쓰는 낱말들. 끝에
- *       한 번에 말하는 문장([WashLines.report])을 만들 때 쓴다.
- * 인자: target — 대상 이름("사이드미러는 직접 …"의 앞부분)
- *       doing — 이어 말할 때 꼴("창문 닫고")
- *       did — 문장을 끝낼 때 꼴("문 잠갔어요")
- *       please — 사람에게 부탁할 때 동사("직접 접어 주세요"의 "접어")
+ * 목적: 세차 모드가 맞추는 대상 하나와 그 대상을 말할 때 쓰는 낱말들
+ *       (`ReportPart`). 끝에 한 번에 말하는 문장(`ReportLines.report()`)을
+ *       만들 때 쓴다.
  * 근거: 인용 — Tab 1 4.3 시나리오 ① #4 "창문 닫고, 와이퍼 끄고, 내기 순환으로
  *       바꾸고, 문 잠갔어요. 사이드미러는 직접 접어 주세요."
  */
-enum class WashPart(val target: String, val doing: String, val did: String, val please: String) {
+enum class WashPart(
+    override val target: String,
+    override val doing: String,
+    override val did: String,
+    override val please: String,
+) : ReportPart {
     WINDOWS("창문", "창문 닫고", "창문 닫았어요", "닫아"),
     SUNROOF("선루프", "선루프 닫고", "선루프 닫았어요", "닫아"),
     WIPER("와이퍼", "와이퍼 끄고", "와이퍼 껐어요", "꺼"),
@@ -77,26 +80,4 @@ object WashLines {
      * 근거: 인용 — Tab 1 4.3 시나리오 ① #5
      */
     const val FINISHED = "세차 모드 끝낼게요. 원래대로 돌려놨어요."
-
-    /**
-     * 작성: 2026-11-11 14:28:46 · 박희정
-     * 함수: report
-     * 목적: 세차 모드를 마친 뒤 한 번에 할 말을 만든다.
-     *       1. 앱이 한 대상을 "창문 닫고, …, 문 잠갔어요."로 잇는다
-     *       2. 사람이 해야 하는 대상마다 "사이드미러는 직접 접어 주세요."를 붙인다
-     *       3. 덧붙일 안내(N 유지)가 있으면 마지막에 붙인다
-     * 인자: done — 앱이 한 대상, 실행한 순서대로
-     *       manual — 사람이 해야 하는 대상, 실행한 순서대로
-     *       extra — 끝에 덧붙일 안내 문장들
-     * 반환: 한 번에 말할 문장. 할 말이 없으면 빈 글자
-     */
-    fun report(done: List<WashPart>, manual: List<WashPart>, extra: List<String> = emptyList()): String {
-        val sentences = mutableListOf<String>() // 차례로 이을 문장
-        if (done.isNotEmpty()) {
-            sentences += (done.dropLast(1).map { it.doing } + done.last().did).joinToString(", ") + "."
-        }
-        manual.forEach { sentences += "${withTopic(it.target)} 직접 ${it.please} 주세요." }
-        sentences += extra
-        return sentences.joinToString(" ")
-    }
 }
