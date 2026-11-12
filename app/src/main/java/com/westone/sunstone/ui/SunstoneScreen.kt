@@ -374,10 +374,13 @@ private fun ChatLog(lines: List<ChatLine>) {
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
+ * 수정: 2026-11-12 11:45:00 · 박희정
  * 함수: SceneBar
  * 목적: 시연 모드 줄(Tab 1 4.2 실행 방식 1). 지금 장면, 그 장면 대사 버튼,
  *       [다음 장면]·[처음] 버튼을 둔다. 대사 버튼을 누르면 그 말을 한 것으로
  *       넣는다(음성 인식이 안 될 때 쓴다). 준비 상황을 넣는 동안은 버튼을 막는다.
+ *       대사 버튼은 장면마다 한 번만 보인다. 같은 대답을 두 번 넣으면 물은 게
+ *       없어 "잘 못 알아들었어요"가 나오기 때문이다
  * 인자: graph — 앱 조립부
  *       scenes — 장면 실행기
  */
@@ -401,9 +404,16 @@ private fun SceneBar(graph: AppGraph, scenes: SceneControls) {
             color = Color(0xFF9AA0A6),
             fontSize = 16.sp,
         )
-        s?.line?.let { line ->
-            // → 로직 이동: AppGraph.hear()
-            Button(onClick = { graph.hear(line, Source.DEMO) }, enabled = !s.busy) { Text(line) }
+        var saidIn by remember { mutableStateOf<String?>(null) } // 대사 버튼을 누른 장면 ID
+        if (s == null && saidIn != null) saidIn = null // [처음]이면 다시 보이게
+        s?.line?.takeIf { saidIn != s.id }?.let { line ->
+            Button(
+                onClick = {
+                    saidIn = s.id
+                    graph.hear(line, Source.DEMO) // → 로직 이동: AppGraph.hear()
+                },
+                enabled = !s.busy,
+            ) { Text(line) }
         }
         // → 로직 이동: SceneControls.next()
         Button(onClick = { scenes.next() }, enabled = s == null || (!s.busy && !s.last)) {
