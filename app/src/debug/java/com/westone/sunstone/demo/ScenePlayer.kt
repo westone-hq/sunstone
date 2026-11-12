@@ -158,14 +158,17 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
+     * 수정: 2026-11-12 19:56:00 · 박건준
      * 함수: enter
-     * 목적: 장면 하나에 들어간다. 화면에 장면을 띄우고 준비를 한 단계씩 넣는다.
+     * 목적: 장면 하나에 들어간다. 앞 장면 토스트를 지우고, 화면에 장면을 띄우고
+     *       준비를 한 단계씩 넣는다.
      * 인자: i — 장면 번호
      */
     private suspend fun enter(i: Int) {
         index = i
         val scene = scenes[i] // 들어갈 장면
         Log.i(TAG, "장면,${scene.id},${scene.title}")
+        g.panels.clearToast() // → 로직 이동: PanelPresenter.clearToast()
         view.value = SceneView(scene.id, scene.title, scene.driver?.text, busy = true, last = i == scenes.lastIndex)
         scene.prep.forEach { prep ->
             prepare(prep)
