@@ -146,7 +146,9 @@ fun SunstoneScreen(graph: AppGraph) {
 
                 ProfileRow(graph)
                 // 끝난 실행(끝내기·도착으로 되돌림)은 목록에서 내려 처음 화면으로 돌아간다
-                ui.runs.values.filter { it.phase != Phase.FINISHED }.maxByOrNull { it.startedAtMs }?.let { RunDetail(it) }
+                ui.runs.values.filter { it.phase != Phase.FINISHED }
+                    .maxByOrNull { it.startedAtMs }
+                    ?.let { RunDetail(it) }
             }
             if (!overlay) PanelsInApp(graph)
         }
