@@ -68,7 +68,7 @@ adb shell am broadcast -a com.westone.sunstone.DEMO -p com.westone.sunstone --es
 adb shell am broadcast -a com.westone.sunstone.DEMO -p com.westone.sunstone --es cmd "say 세차할게"
 ```
 터미널에서 말과 장면을 넣고 대답을 보려면 `tools/talk.ps1`(`/ready1` → 길안내 대사 → `응, 세차도 할게` → `/move1` → `/entrance1`(5초 뒤 세차 모드) → `/leave1`).
-에뮬레이터에는 쓸 수 있는 TTS가 없어 대사집 문장은 녹음본으로 재생합니다. 대사를 고치면 `tools/make-voice.ps1`을 다시 돌립니다. 녹음본이 없는 문장은 소리 없이 넘어가고 logcat(`SunstoneVoice`)에 `소리 없이 건너뜀`으로 남습니다.
+앱이 하는 말은 Pleos TTS(ON_DEVICE, 차 안 엔진)로 읽습니다. TTS 준비가 늦거나 실패하면 대사집 녹음본으로 대신하고(대사를 고치면 `tools/make-voice.ps1`을 다시 돌립니다), 녹음본도 없으면 소리 없이 넘어가 logcat(`SunstoneVoice`)에 `소리 없이 건너뜀`으로 남습니다. 운전자 대사는 녹음본입니다.
 
 ## Pleos Connect SDK 활용
 
