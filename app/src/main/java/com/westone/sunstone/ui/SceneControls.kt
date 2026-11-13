@@ -8,8 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
  * 수정: 2026-11-13 20:00:00 · 박건준
  * 클래스: SceneControls
  * 목적: 시연 모드(Tab 1 4.2 실행 방식 1) 창구. 부르는 카드는 이 값만 보고
- *       시나리오 고르기, [다음 장면]·[처음] 줄을 그린다. 구현은 debug 빌드의
- *       `ScenePlayer`이고, 출시 빌드에서는 없다(`AppGraph.scenes`가 null).
+ *       시나리오 고르기, [다음 장면]·[처음] 줄을 그린다. 구현은 `ScenePlayer`다.
  */
 interface SceneControls {
     /** 지금 장면. 아직 시작하지 않았으면 null */

@@ -11,7 +11,6 @@ import com.westone.sunstone.routines.port.Command
 import com.westone.sunstone.routines.port.Target
 import com.westone.sunstone.routines.script.Prep
 import com.westone.sunstone.routines.script.Scene
-import com.westone.sunstone.routines.script.ScriptBook
 import com.westone.sunstone.ui.SceneControls
 import com.westone.sunstone.ui.SceneView
 import kotlinx.coroutines.Job
@@ -25,21 +24,12 @@ import java.time.LocalDate
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
- * 수정: 2026-11-13 20:00:00 · 박건준
- * 함수: sceneControls
- * 목적: debug 빌드의 시연 모드를 만든다. 조립부가 왼쪽 구역 카드보다 먼저 한
- *       번 부른다. 시나리오 ①②③ 장면을 이어서 넣는다.
- * 인자: graph — 앱 조립부
- * 반환: 장면 실행기
- */
-fun sceneControls(graph: AppGraph): SceneControls = ScenePlayer(graph, ScriptBook.all)
-
-/**
- * 작성: 2026-11-11 16:42:25 · 박희정
  * 수정: 2026-11-13 13:00:00 · 박희정
+ * 수정: 2026-11-13 21:00:00 · 박건준
  * 클래스: ScenePlayer
  * 목적: 대사집 장면을 실제 앱에 하나씩 넣는다(Tab 1 4.2 실행 방식 1·2).
- *       - `next()` — 화면 [다음 장면], 마이크 칸 길게 누르기, adb `scene next`.
+ *       - `next()` — 부르는 카드 [다음 장면], 마이크 칸 길게 누르기, adb
+ *         `scene next`(debug).
  *         다음 장면의 준비 상황을 넣고, 운전자 대사가 있으면 녹음본(앱과 다른
  *         목소리)을 낸 뒤 들은 말로 넣고 앱이 답할 때까지 기다린다
  *       - `goTo()` — adb `scene S3`. 그 시나리오 첫 장면부터 그 장면 앞까지
@@ -52,8 +42,11 @@ fun sceneControls(graph: AppGraph): SceneControls = ScenePlayer(graph, ScriptBoo
  *       1초마다 보낸다.
  * 인자: g — 앱 조립부
  *       scenes — 대사집 장면들
- * 미구현: 프로토타입이라 위치(GPS)는 옮기지 않고 장소만 바꾼다. 내비 화면의
- *       위치는 그대로다. 실제 이동이 필요하면 tools/scene-move.ps1을 쓴다
+ * 미구현: 프로토타입이라 차 상황(주유소 도착, 아이 탑승)을 스스로 만들 수
+ *       없어 시연 모드를 제출(release) 빌드에도 둔다. 심사에서 설치한 APK만으로
+ *       시나리오를 돌려 볼 수 있어야 한다. 위치(GPS)는 옮기지 않고 장소만
+ *       바꾼다. 내비 화면의 위치는 그대로다. 실제 이동이 필요하면
+ *       tools/scene-move.ps1을 쓴다
  */
 internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Scene>) : SceneControls {
 

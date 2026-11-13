@@ -60,7 +60,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  *       runner — 루틴 실행기 화면 상태
  *       speaking — 음성 안내가 말하는 중인지
  *       starts — 말 하나가 시작될 때 그 말에 붙은 질문(`AndroidSpeaker.starts`)
- *       scenes — 시연 모드. 없으면 null(시연 줄을 두지 않는다)
+ *       scenes — 시연 모드
  *       onAnswer — 카드 버튼·닫기 대답(`AppGraph.answer()`)
  *       onFinish — 켜짐 표시 [끝내기](`RoutineRunner.undo()`)
  *       onRoutine — 부르는 카드 루틴 줄(루틴, 지금 켜져 있는지)
@@ -78,7 +78,7 @@ class PanelPresenter(
     runner: StateFlow<RunnerUi>,
     private val speaking: StateFlow<Boolean>,
     private val starts: SharedFlow<Any?>,
-    private val scenes: SceneControls?,
+    private val scenes: SceneControls,
     private val onAnswer: (Reply) -> Unit,
     private val onFinish: (RoutineId) -> Unit,
     private val onRoutine: (RoutineId, Boolean) -> Unit,
@@ -248,7 +248,7 @@ class PanelPresenter(
         runner,
         combine(hiddenRun, chipRun, ::Pair),
         call,
-        scenes?.current ?: MutableStateFlow<SceneView?>(null),
+        scenes.current,
     ) { asked, r, (hidden, chip), c, scene -> cardOf(asked, r, hidden, chip, c, scene) }
 
     /** 왼쪽 구역에 그릴 것 전부(값이 바뀌면 알려주는 상태) */
@@ -394,13 +394,13 @@ class PanelPresenter(
             }
             is PanelPress.Scenario -> {
                 closeCall()
-                scenes?.start(press.number) // → 로직 이동: SceneControls.start()
+                scenes.start(press.number) // → 로직 이동: SceneControls.start()
             }
             PanelPress.SceneNext -> {
                 closeCall()
-                scenes?.next() // → 로직 이동: SceneControls.next()
+                scenes.next() // → 로직 이동: SceneControls.next()
             }
-            PanelPress.SceneRestart -> scenes?.restart() // → 로직 이동: SceneControls.restart()
+            PanelPress.SceneRestart -> scenes.restart() // → 로직 이동: SceneControls.restart()
             PanelPress.Close -> closeCall()
         }
     }
@@ -598,7 +598,7 @@ class PanelPresenter(
             )
         },
         addRoutine = true,
-        demo = scenes?.let { demoOf(scene) },
+        demo = demoOf(scene),
         close = PanelPress.Close,
     )
 

@@ -9,7 +9,7 @@
          저장한다. 파일 이름은 문장 UTF-8의 MD5(소문자 16진수)이고 앱 `AndroidSpeaker`가
          같은 방식으로 찾는다
       4. 운전자 대사(`Utterance` 대표 문장)는 앱과 다른 목소리로 들리게 낮고 느리게
-         바꿔 app/src/debug/assets/driver/<md5>.wav로 저장한다. 시연 `DriverVoice`가 낸다
+         바꿔 app/src/main/assets/driver/<md5>.wav로 저장한다. 시연 `DriverVoice`가 낸다
       대사집을 고치면 다시 돌린다. 이미 있는 파일은 지우고 새로 만든다.
 인자: -Extra  대사집 밖에서 녹음할 문장들
 근거: 인용 — Tab 1 5.2 음성 출력 "기본 TTS → 대사집 문장은 미리 녹음한 파일".
@@ -38,7 +38,7 @@ Add-Type -AssemblyName System.Speech
 $root = Split-Path $PSScriptRoot -Parent                                                  # 저장소 폴더
 $book = Join-Path $root "routines\src\main\kotlin\com\westone\sunstone\routines\script\ScriptBook.kt"  # 대사집
 $out = Join-Path $root "app\src\main\assets\voice"                                         # 녹음본 폴더
-$driverOut = Join-Path $root "app\src\debug\assets\driver"                                # 운전자 녹음본 폴더
+$driverOut = Join-Path $root "app\src\main\assets\driver"                                 # 운전자 녹음본 폴더
 $DRIVER_RATE = 0.84                                                                       # 운전자 표본율 배율(낮고 느리게)
 
 <#

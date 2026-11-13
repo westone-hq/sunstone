@@ -9,9 +9,10 @@ import kotlin.coroutines.resume
 
 /**
  * 작성: 2026-11-13 03:50:00 · 박건준
+ * 수정: 2026-11-13 21:00:00 · 박건준
  * 클래스: DriverVoice
  * 목적: 시연 장면의 운전자 대사 녹음본(앱과 다른 목소리)을 낸다. 녹음본은
- *       debug 빌드 assets/driver/<문장 MD5>.wav이고 tools/make-voice.ps1이
+ *       assets/driver/<문장 MD5>.wav이고 tools/make-voice.ps1이
  *       대사집 `Utterance.text`로 만든다. 앱 안내 말(`VoicePlayer`)과 따로
  *       재생해 앱 말 기록(logcat "말:")에 섞이지 않는다.
  * 인자: context — assets를 읽는다

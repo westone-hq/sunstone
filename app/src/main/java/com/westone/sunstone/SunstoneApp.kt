@@ -10,7 +10,7 @@ import com.westone.sunstone.connect.AndroidSpeaker
 import com.westone.sunstone.connect.KeepAwakeService
 import com.westone.sunstone.connect.PrefsMemory
 import com.westone.sunstone.connect.PrefsSeatProfiles
-import com.westone.sunstone.demo.sceneControls
+import com.westone.sunstone.demo.ScenePlayer
 import com.westone.sunstone.info.FixedInfo
 import com.westone.sunstone.navi.PlaceWatcher
 import com.westone.sunstone.navi.PleosNavi
@@ -43,6 +43,7 @@ import com.westone.sunstone.routines.model.Window
 import com.westone.sunstone.routines.port.CarPort
 import com.westone.sunstone.routines.port.Speaker
 import com.westone.sunstone.routines.port.Target
+import com.westone.sunstone.routines.script.ScriptBook
 import com.westone.sunstone.routines.speech.CardLines
 import com.westone.sunstone.routines.understand.PhraseMatcher
 import com.westone.sunstone.routines.understand.VoiceAction
@@ -246,8 +247,11 @@ class AppGraph(val app: Context) {
     /** 시트 맞추기 대화(시나리오 ③). 저장된 자세로 맞출 때는 실행기에 시트 메모리를 요청한다 */
     val seat = SeatDialog(car, profiles, asking, speaker) { runner.request(it) } // → 로직 이동: RoutineRunner.request()
 
-    /** 시연 모드 장면 실행기. debug 빌드만 있고 출시 빌드에서는 null. 부르는 카드가 시연 줄로 쓴다 */
-    val scenes: SceneControls? = sceneControls(this) // → 로직 이동: sceneControls()
+    /**
+     * 시연 모드 장면 실행기. 대사집 시나리오 ①②③을 넣는다. 부르는 카드가 시연 줄로 쓴다. 프로토타입이라
+     * 차 상황을 스스로 만들 수 없어 제출(release) 빌드에도 둔다
+     */
+    val scenes: SceneControls = ScenePlayer(this, ScriptBook.all)
 
     /**
      * 왼쪽 구역 카드·듣는 중 줄 값. 버튼은 대답(`answer()`)과 루틴 끝내기로, 부르는 카드 루틴 줄은
@@ -264,7 +268,7 @@ class AppGraph(val app: Context) {
         onAnswer = ::answer,
         onFinish = { id -> runner.undo(id) }, // → 로직 이동: RoutineRunner.undo()
         onRoutine = ::switchRoutine,
-        onHold = { scenes?.next() }, // → 로직 이동: SceneControls.next()
+        onHold = { scenes.next() }, // → 로직 이동: SceneControls.next()
     )
 
     /** 왼쪽 구역 창. 화면이 뜰 때 `showPanels()`가 띄운다 */

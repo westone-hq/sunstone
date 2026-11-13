@@ -8,12 +8,17 @@ import java.net.URL
 
 /**
  * 작성: 2026-11-09 18:53:00 · 박건준
+ * 수정: 2026-11-13 21:00:00 · 박건준
  * 클래스: VirtualConsole
  * 목적: 에뮬레이터 Virtual Console(차 값을 바꾸고 보는 웹 도구)의 HTTP
  *       API를 앱 안에서 부른다. 콘솔은 에뮬레이터 안 8088 포트에서 돌아서
- *       앱이 `127.0.0.1`로 바로 부를 수 있다. 실측(`CarProbe`, `SeatTimer`)
- *       전용이라 debug 빌드에만 있다.
+ *       앱이 `127.0.0.1`로 바로 부를 수 있다. 시연 모드(`ScenePlayer`)와
+ *       debug 실측(`CarProbe`, `SeatTimer`)이 쓴다.
  * 근거: 측정 — 에뮬레이터 안 `netstat`에서 0.0.0.0:8088 LISTEN 확인
+ * 미구현: 프로토타입이라 시연 모드가 기어·속도·문·탑승을 콘솔로 넣는다.
+ *       그래서 제출 빌드에도 있고, 127.0.0.1에만 평문 HTTP를 연다
+ *       (res/xml/network_security_config.xml). 실제 차에는 콘솔이 없어 요청이
+ *       실패하고 아무 일도 하지 않는다
  */
 internal object VirtualConsole {
     /**
