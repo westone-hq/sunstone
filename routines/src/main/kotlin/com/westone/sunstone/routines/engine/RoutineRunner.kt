@@ -337,6 +337,8 @@ class RoutineRunner(
             }
         }
         if (_ui.value.suggestion != null) return
+        // 길안내 대화가 묻는 중(주유 질문)이면 권하지 않는다. 질문은 한 번에 하나다(docs/SCREEN.md 3장 대화 규칙)
+        if (asking?.question?.value != null) return
         val busy = active.filterValues { it.phase != Phase.FINISHED }.keys
         for (routine in routines.values) {
             if (routine.id in busy) continue

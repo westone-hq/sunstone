@@ -26,11 +26,12 @@ object ScriptBook {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-13 03:25:00 · 박건준
+     * 수정: 2026-11-13 12:30:00 · 박희정
      * 변수: scenarioOne
      * 목적: 시나리오 ① 출장 가는 길: 길안내 → 한 번의 질문(주유·세차) → 주유 →
      *       세차. S1~S9가 docs/SCREEN.md 6장 9단계에 하나씩 맞는다.
-     *       준비: P단, 연료 18%(조작), 마지막 세차 36일 전(기억, 조작), 서울
+     *       준비: P단, 연료 18%(조작), 마지막 세차 36일 전(기억, 조작), 서울,
+     *       뒷자리 빔(시나리오 ② 뒤에 해도 차일드락이 끼어들지 않게)
      * 근거: 인용 — docs/SCREEN.md 6장 시나리오 ① 다시 짠 흐름
      * 미구현: 프로토타입이라 S6의 주유소 안 두 번째 정차(세차 입구)는 장면
      *       준비로 넣는다(`WashBooking` 참고)
@@ -43,6 +44,7 @@ object ScriptBook {
                 Prep(
                     gear = Gear.PARK, speedKmh = 0f, place = Place.NONE,
                     fuelPercent = 18, washedDaysAgo = 36, resetTrip = true,
+                    rearDoorOpen = false, rearOccupied = false, rearBelt = false,
                 ),
             ),
             driver = Utterance(

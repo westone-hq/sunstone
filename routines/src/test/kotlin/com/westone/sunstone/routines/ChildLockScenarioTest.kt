@@ -1,7 +1,9 @@
 package com.westone.sunstone.routines
 
 import com.westone.sunstone.routines.dialog.Asking
+import com.westone.sunstone.routines.dialog.Choice
 import com.westone.sunstone.routines.dialog.CurrentRoute
+import com.westone.sunstone.routines.dialog.Question
 import com.westone.sunstone.routines.dialog.QuestionKind
 import com.westone.sunstone.routines.dialog.Reply
 import com.westone.sunstone.routines.dialog.WashBooking
@@ -234,6 +236,29 @@ class ChildLockScenarioTest {
         assertEquals(listOf(ChildLockLines.FINISHED), said)
         assertEquals(false, car.value(Target.WindowLock(Window.REAR_LEFT)))
         assertEquals(Phase.FINISHED, runner.ui.value.runs[RoutineId.CHILD_LOCK]?.phase)
+    }
+
+    /**
+     * 작성: 2026-11-13 12:30:00 · 박희정
+     * 함수: 다른 질문이 떠 있으면 묻지 않는다
+     * 목적: 길안내 대화가 주유를 묻는 중이면, 오늘 썼고 뒷자리에 누가 있어도
+     *       차일드락을 묻지 않는지 본다. 질문은 한 번에 하나다.
+     */
+    @Test
+    fun `다른 질문이 떠 있으면 묻지 않는다`() = runTest {
+        val car = FakeCar(CarState(gear = Gear.PARK, seatOccupied = mapOf(Seat.REAR_LEFT to true)))
+        val runner = runner(car)
+        runCurrent()
+        memory.recordChildLock(TODAY)
+        asking.ask(
+            Question(QuestionKind.FUEL_STOP, "주유할까요?", "", choices = listOf(Choice("넣기", Reply.YES))),
+        )
+
+        route.start(HOME)
+        runner.recheck(); runCurrent()
+
+        assertEquals(emptyList<String>(), said)
+        assertEquals(QuestionKind.FUEL_STOP, asking.question.value?.kind)
     }
 
     /**
