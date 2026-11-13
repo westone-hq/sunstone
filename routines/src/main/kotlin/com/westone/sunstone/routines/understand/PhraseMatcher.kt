@@ -1,5 +1,6 @@
 package com.westone.sunstone.routines.understand
 
+import com.westone.sunstone.routines.dialog.Reply
 import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RunRequest
 import com.westone.sunstone.routines.engine.Source
@@ -15,11 +16,13 @@ sealed interface VoiceAction {
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 클래스: Answer
-     * 목적: 앱이 권한 것에 대한 대답("응", "괜찮아").
-     * 인자: yes — 받아들이면 true, 거절이면 false
+     * 목적: 앱이 권한 것에 대한 대답("응", "응, 세차도 할게", "주유만",
+     *       "괜찮아").
+     * 인자: reply — 대답 값
      */
-    data class Answer(val yes: Boolean) : VoiceAction
+    data class Answer(val reply: Reply) : VoiceAction
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
@@ -74,13 +77,16 @@ object PhraseMatcher {
             return VoiceAction.Ask(CardBook.search(text).firstOrNull()?.id) // → 로직 이동: CardBook.search()
         }
 
-        if (NO_WORDS.any { it in compact }) return VoiceAction.Answer(yes = false)
+        if (NO_WORDS.any { it in compact }) return VoiceAction.Answer(Reply.NO)
+        // "세차도 할게"는 세차 모드 켜기가 아니라 주유 질문의 대답이라 루틴 낱말보다 먼저 본다
+        if (ALL_WORDS.any { it in compact }) return VoiceAction.Answer(Reply.ALL)
+        if (ONLY_WORDS.any { it in compact }) return VoiceAction.Answer(Reply.ONLY)
 
         val id = when {
             "세차" in compact -> RoutineId.WASH
             CHILD_WORDS.any { it in compact } -> RoutineId.CHILD_LOCK
             SEAT_WORDS.any { it in compact } -> RoutineId.SEAT_MEMORY
-            else -> return if (isYes(compact)) VoiceAction.Answer(yes = true) else null
+            else -> return if (isYes(compact)) VoiceAction.Answer(Reply.YES) else null
         }
         val profile = if (id == RoutineId.SEAT_MEMORY) {
             profilePattern.find(text)?.groupValues?.get(1)?.let(::dropParticle)?.takeUnless { it in GENERIC_WORDS }
@@ -156,12 +162,25 @@ object PhraseMatcher {
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정
+     * 수정: 2026-11-13 03:25:00 · 박건준
      * 변수: NO_WORDS
      * 목적: 거절로 보는 말. 루틴 이름보다 먼저 본다("세차 안 해"는 거절).
-     *       "됐어"는 시트 맞추기에서 "다 맞췄다"는 뜻이라 넣지 않는다.
-     * 근거: 인용 — Tab 1 6.1 옆자리 팀: 부정어 먼저, "괜찮아요"는 거절
+     *       "취소"는 곧 켜질 세차 모드를 멈추는 말이다. "됐어"는 시트 맞추기에서
+     *       "다 맞췄다"는 뜻이라 넣지 않는다.
+     * 근거: 인용 — Tab 1 6.1 옆자리 팀: 부정어 먼저, "괜찮아요"는 거절.
+     *       docs/SCREEN.md 6장 6단계 "취소"라고 말해도 된다
      */
-    private val NO_WORDS = listOf("아니", "괜찮", "안해", "안할", "싫어", "하지마", "나중에", "필요없")
+    private val NO_WORDS = listOf("아니", "괜찮", "안해", "안할", "싫어", "하지마", "나중에", "필요없", "취소")
+
+    /**
+     * 작성: 2026-11-13 03:25:00 · 박건준
+     * 변수: ALL_WORDS, ONLY_WORDS
+     * 목적: 주유 질문에 세차까지 하겠다는 말, 앞의 것(주유)만 하겠다는 말
+     *       (띄어쓰기를 뺀 꼴).
+     * 근거: 인용 — docs/SCREEN.md 6장 3단계 "응, 세차도 할게", "주유만"
+     */
+    private val ALL_WORDS = listOf("세차도", "세차까지", "둘다")
+    private val ONLY_WORDS = listOf("주유만", "기름만", "경유지만")
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 패널 아이콘 "mirror". 출처: 시안 ICONS(relay/design/src/build.py). 색은 화면이 입힌다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:pathData="M8 17H31A7 7 0 0 1 38 24V27A7 7 0 0 1 31 34H15L8 27Z M38 25H42"
+        android:strokeWidth="3.4"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

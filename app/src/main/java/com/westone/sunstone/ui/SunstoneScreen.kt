@@ -3,11 +3,13 @@ package com.westone.sunstone.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -51,16 +53,24 @@ import com.westone.sunstone.routines.engine.StepStatus
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
+import com.westone.sunstone.ui.panel.CARD_SIDE
+import com.westone.sunstone.ui.panel.CARD_TOP
+import com.westone.sunstone.ui.panel.MicCell
+import com.westone.sunstone.ui.panel.NotiCard
+import com.westone.sunstone.ui.panel.PLATE_BOTTOM
+import com.westone.sunstone.ui.panel.PlateView
 import kotlinx.coroutines.delay
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-11 16:02:00 · 박희정
+ * 수정: 2026-11-12 19:10:00 · 박건준
  * 함수: SunstoneScreen
- * 목적: 앱 화면 전체. 주 입력은 말 한마디와 상황 감지이고, 화면은 지금 무엇을
- *       했는지 보여주는 보조다. 문구는 res/values/strings.xml에 있다.
- *       - 늘 보임 — 상태 줄, 대화 기록, 말 입력칸, 권하기 카드
+ * 목적: 앱 화면(오른쪽 앱 영역) 전체. 시연을 돌리고 지켜보는 화면이다. 운전자가
+ *       보는 패널은 왼쪽 구역(`LeftZoneOverlay`)에 뜬다. 문구는
+ *       res/values/strings.xml에 있다.
+ *       - 늘 보임 — 상태 줄, 시연 모드 줄, 대화 기록, 말 입력칸, 권하기 카드
  *       - 정차 중에만 보임 — 루틴 카드, 저장한 자세, 실행 기록
+ *       - 왼쪽 구역 창을 띄우지 못하면 같은 패널을 이 화면 왼쪽 위에 겹쳐 그린다
  * 인자: graph — 앱 조립부
  * 근거: 인용 — Pleos 주행 중 화면 제한. 주행 중에는 켜진 루틴 이름만 둔다
  * 미구현: 프로토타입이라 음성 인식 대신 쓰는 말 입력칸을 주행 중에도 보인다
@@ -74,66 +84,99 @@ fun SunstoneScreen(graph: AppGraph) {
     val driving = !car.stopped || car.gear == Gear.DRIVE || car.gear == Gear.REVERSE // 주행 중 화면 제한 여부
     val fuel = graph.pleos?.fuel?.collectAsStateWithLifecycle()?.value // 연료 값, 가짜 차면 null
     val chat by graph.chat.collectAsStateWithLifecycle() // 대화 기록
+    val overlay by graph.overlayShown.collectAsStateWithLifecycle() // 왼쪽 구역 창이 떠 있는지
 
     MaterialTheme(colorScheme = darkColorScheme()) {
-        Column(
-            // 화면 전체: 상태 줄, 권하기 카드, 루틴 카드, 입력칸 순서. 길면 세로로 넘긴다
-            Modifier
-                .fillMaxSize()
-                .background(Color(0xFF101114))
-                .padding(24.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            StatusLine(car, fuel, graph.usingFakeCar || graph.pleos == null)
-            graph.scenes?.let { SceneBar(graph, it) }
-            ChatLog(chat)
-            SayBox(graph)
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                // 화면 전체: 상태 줄, 권하기 카드, 루틴 카드, 입력칸 순서. 길면 세로로 넘긴다
+                Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF101114))
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                StatusLine(car, fuel, graph.usingFakeCar || graph.pleos == null)
+                graph.scenes?.let { SceneBar(it) }
+                ChatLog(chat)
+                SayBox(graph)
 
-            ui.suggestion?.let { s ->
-                Card(Modifier.fillMaxWidth()) {
-                    Row(
-                        // 권하기 문장과 네/아니요
-                        Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(s.message, Modifier.weight(1f), fontSize = 20.sp)
-                        // → 로직 이동: RoutineRunner.acceptSuggestion()
-                        Button(onClick = { graph.runner.acceptSuggestion() }) {
-                            Text(stringResource(R.string.suggestion_yes))
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        // → 로직 이동: RoutineRunner.dismissSuggestion()
-                        OutlinedButton(onClick = { graph.runner.dismissSuggestion() }) {
-                            Text(stringResource(R.string.suggestion_no))
+                ui.suggestion?.let { s ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(
+                            // 권하기 문장과 네/아니요
+                            Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(s.message, Modifier.weight(1f), fontSize = 20.sp)
+                            // → 로직 이동: RoutineRunner.acceptSuggestion()
+                            Button(onClick = { graph.runner.acceptSuggestion() }) {
+                                Text(stringResource(R.string.suggestion_yes))
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            // → 로직 이동: RoutineRunner.dismissSuggestion()
+                            OutlinedButton(onClick = { graph.runner.dismissSuggestion() }) {
+                                Text(stringResource(R.string.suggestion_no))
+                            }
                         }
                     }
                 }
-            }
 
-            if (driving) {
-                ui.runs.values.filter { it.phase == Phase.ACTIVE }.forEach {
-                    Text(stringResource(R.string.routine_active_while_driving, it.title), fontSize = 18.sp)
+                if (driving) {
+                    ui.runs.values.filter { it.phase == Phase.ACTIVE }.forEach {
+                        Text(stringResource(R.string.routine_active_while_driving, it.title), fontSize = 18.sp)
+                    }
+                    return@Column
                 }
-                return@Column
-            }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                graph.runner.available.forEach { routine ->
-                    RoutineCard(
-                        modifier = Modifier.weight(1f),
-                        title = routine.title,
-                        run = ui.runs[routine.id],
-                        // → 로직 이동: AppGraph.handle()
-                        onRun = { graph.handle(VoiceAction.Run(RunRequest(routine.id, source = Source.SCREEN))) },
-                        // → 로직 이동: RoutineRunner.undo()
-                        onUndo = { graph.runner.undo(routine.id) },
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    graph.runner.available.forEach { routine ->
+                        RoutineCard(
+                            modifier = Modifier.weight(1f),
+                            title = routine.title,
+                            run = ui.runs[routine.id],
+                            // → 로직 이동: AppGraph.handle()
+                            onRun = { graph.handle(VoiceAction.Run(RunRequest(routine.id, source = Source.SCREEN))) },
+                            // → 로직 이동: RoutineRunner.undo()
+                            onUndo = { graph.runner.undo(routine.id) },
+                        )
+                    }
                 }
-            }
 
-            ProfileRow(graph)
-            ui.runs.values.maxByOrNull { it.startedAtMs }?.let { RunDetail(it) }
+                ProfileRow(graph)
+                ui.runs.values.maxByOrNull { it.startedAtMs }?.let { RunDetail(it) }
+            }
+            if (!overlay) PanelsInApp(graph)
+        }
+    }
+}
+
+/**
+ * 작성: 2026-11-12 19:10:00 · 박건준
+ * 수정: 2026-11-13 03:40:00 · 박건준
+ * 함수: PanelsInApp
+ * 목적: 왼쪽 구역 창을 띄우지 못했을 때 같은 마이크 칸·카드·판을 앱 화면
+ *       왼쪽(853×1210)에 같은 자리로 겹쳐 그린다.
+ * 인자: graph — 앱 조립부
+ * 미구현: 프로토타입이라 다른 앱 위에 그리기 허가가 없을 때의 대안이다. 이때
+ *       카드는 왼쪽 구역이 아니라 앱 영역 안에 보인다
+ */
+@Composable
+private fun PanelsInApp(graph: AppGraph) {
+    val screen by graph.panels.ui.collectAsStateWithLifecycle() // 그릴 값
+    val panels = graph.panels // 카드·판 값과 버튼 처리
+    Box(Modifier.width(853.dp).height(1210.dp)) {
+        if (screen.mic) MicCell(panels::tapMic, panels.onHold)
+        screen.card?.let {
+            Box(Modifier.padding(start = CARD_SIDE.dp, top = CARD_TOP.dp)) {
+                NotiCard(it, panels::press, panels.onHold)
+            }
+        }
+        screen.plate?.let {
+            Box(Modifier.align(Alignment.BottomStart).padding(start = CARD_SIDE.dp, bottom = PLATE_BOTTOM.dp)) {
+                PlateView(it, panels.onHold)
+            }
         }
     }
 }
@@ -375,18 +418,16 @@ private fun ChatLog(lines: List<ChatLine>) {
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
- * 수정: 2026-11-12 11:45:00 · 박희정
+ * 수정: 2026-11-13 03:50:00 · 박건준
  * 함수: SceneBar
- * 목적: 시연 모드 줄(Tab 1 4.2 실행 방식 1). 지금 장면, 그 장면 대사 버튼,
- *       [다음 장면]·[처음] 버튼을 둔다. 대사 버튼을 누르면 그 말을 한 것으로
- *       넣는다(음성 인식이 안 될 때 쓴다). 준비 상황을 넣는 동안은 버튼을 막는다.
- *       대사 버튼은 장면마다 한 번만 보인다. 같은 대답을 두 번 넣으면 물은 게
- *       없어 "잘 못 알아들었어요"가 나오기 때문이다
- * 인자: graph — 앱 조립부
- *       scenes — 장면 실행기
+ * 목적: 시연 모드 줄(Tab 1 4.2 실행 방식 1). 지금 장면과 [다음 장면]·[처음]
+ *       버튼을 둔다. 운전자 대사는 장면에 들어가면 녹음본으로 저절로 나온다.
+ *       준비 상황·대사를 넣는 동안은 버튼을 막고 [다음 장면]을 "준비 중"으로
+ *       바꾼다. 마이크 칸을 길게 눌러도 [다음 장면]과 같다.
+ * 인자: scenes — 장면 실행기
  */
 @Composable
-private fun SceneBar(graph: AppGraph, scenes: SceneControls) {
+private fun SceneBar(scenes: SceneControls) {
     val scene by scenes.current.collectAsStateWithLifecycle() // 지금 장면, 시작 전이면 null
     Row(
         // 시연 모드: 장면 이름, 대사 버튼, 다음·처음 버튼
@@ -405,20 +446,14 @@ private fun SceneBar(graph: AppGraph, scenes: SceneControls) {
             color = Color(0xFF9AA0A6),
             fontSize = 16.sp,
         )
-        var saidIn by remember { mutableStateOf<String?>(null) } // 대사 버튼을 누른 장면 ID
-        if (s == null && saidIn != null) saidIn = null // [처음]이면 다시 보이게
-        s?.line?.takeIf { saidIn != s.id }?.let { line ->
-            Button(
-                onClick = {
-                    saidIn = s.id
-                    graph.hear(line, Source.DEMO) // → 로직 이동: AppGraph.hear()
-                },
-                enabled = !s.busy,
-            ) { Text(line) }
-        }
         // → 로직 이동: SceneControls.next()
         Button(onClick = { scenes.next() }, enabled = s == null || (!s.busy && !s.last)) {
-            Text(stringResource(if (s == null) R.string.scene_start else R.string.scene_next))
+            val label = when { // 버튼 글자: 준비 중이면 "준비 중"
+                s == null -> R.string.scene_start
+                s.busy -> R.string.scene_preparing
+                else -> R.string.scene_next
+            }
+            Text(stringResource(label))
         }
         // → 로직 이동: SceneControls.restart()
         OutlinedButton(onClick = { scenes.restart() }, enabled = s?.busy != true) {

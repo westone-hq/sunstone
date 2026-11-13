@@ -43,3 +43,28 @@ fun withObject(word: String): String = word + if (hasFinalConsonant(word)) "을"
  * 반환: 맺음을 붙인 낱말
  */
 fun withCopula(word: String): String = word + if (hasFinalConsonant(word)) "이에요" else "예요"
+
+/**
+ * 작성: 2026-11-12 18:24:00 · 박건준
+ * 함수: withDirection
+ * 목적: 낱말에 으로/로를 붙인다. "파라다이스 호텔 부산으로", "서울로".
+ *       받침이 없거나 ㄹ받침이면 "로"다.
+ * 인자: word — 낱말
+ * 반환: 조사를 붙인 낱말
+ * 식: ㄹ받침 = (code − 0xAC00) mod 28 = 8
+ * 근거: 표준 — 유니코드 한글 음절 배열에서 종성 ㄹ의 순번은 8이다
+ */
+fun withDirection(word: String): String {
+    val last = word.lastOrNull() // 마지막 글자
+    val rieul = last != null && last in '가'..'힣' && (last - '가') % 28 == 8 // ㄹ받침인지
+    return word + if (hasFinalConsonant(word) && !rieul) "으로" else "로"
+}
+
+/**
+ * 작성: 2026-11-13 03:25:00 · 박건준
+ * 함수: withSubject
+ * 목적: 낱말에 이/가를 붙인다. "말죽거리주유소가", "주유소 입구가".
+ * 인자: word — 낱말
+ * 반환: 조사를 붙인 낱말
+ */
+fun withSubject(word: String): String = word + if (hasFinalConsonant(word)) "이" else "가"

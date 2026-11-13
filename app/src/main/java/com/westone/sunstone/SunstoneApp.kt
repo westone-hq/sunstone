@@ -12,48 +12,50 @@ import com.westone.sunstone.connect.PrefsMemory
 import com.westone.sunstone.connect.PrefsSeatProfiles
 import com.westone.sunstone.demo.installDemo
 import com.westone.sunstone.info.FixedInfo
-import com.westone.sunstone.ui.SceneControls
-import com.westone.sunstone.navi.PleosNaviPort
-import com.westone.sunstone.routines.dialog.CurrentRoute
-import com.westone.sunstone.routines.dialog.TripDialog
-import com.westone.sunstone.routines.dialog.WashBooking
-import com.westone.sunstone.routines.fake.FakeNavi
-import com.westone.sunstone.routines.knowledge.CardBook
-import com.westone.sunstone.routines.model.GeoPoint
-import com.westone.sunstone.routines.model.PlaceHit
-import com.westone.sunstone.routines.model.Window
-import com.westone.sunstone.routines.port.Target
-import com.westone.sunstone.routines.speech.CardLines
-import org.json.JSONObject
-import java.time.LocalDate
 import com.westone.sunstone.navi.PlaceWatcher
 import com.westone.sunstone.navi.PleosNavi
+import com.westone.sunstone.navi.PleosNaviPort
 import com.westone.sunstone.navi.Proximity
-import com.westone.sunstone.routines.understand.VoiceAction
+import com.westone.sunstone.routines.dialog.CurrentRoute
+import com.westone.sunstone.routines.dialog.Asking
+import com.westone.sunstone.routines.dialog.QuestionKind
+import com.westone.sunstone.routines.dialog.Reply
+import com.westone.sunstone.routines.dialog.TripDialog
+import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.Phase
+import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RoutineRunner
+import com.westone.sunstone.routines.engine.Source
 import com.westone.sunstone.routines.fake.FakeCar
+import com.westone.sunstone.routines.fake.FakeNavi
+import com.westone.sunstone.routines.knowledge.CardBook
 import com.westone.sunstone.routines.library.ChildLockRoutine
 import com.westone.sunstone.routines.library.SeatMemoryRoutine
 import com.westone.sunstone.routines.library.WashRoutine
 import com.westone.sunstone.routines.model.CarState
+import com.westone.sunstone.routines.model.GeoPoint
 import com.westone.sunstone.routines.model.Place
+import com.westone.sunstone.routines.model.PlaceHit
 import com.westone.sunstone.routines.model.Seat
+import com.westone.sunstone.routines.model.Window
 import com.westone.sunstone.routines.port.CarPort
+import com.westone.sunstone.routines.port.Speaker
+import com.westone.sunstone.routines.port.Target
+import com.westone.sunstone.routines.speech.CardLines
+import com.westone.sunstone.routines.understand.PhraseMatcher
+import com.westone.sunstone.routines.understand.VoiceAction
+import com.westone.sunstone.ui.SceneControls
+import com.westone.sunstone.ui.panel.LeftZoneOverlay
+import com.westone.sunstone.ui.panel.PanelPresenter
+import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import com.westone.sunstone.routines.engine.Source
-import com.westone.sunstone.routines.port.Speaker
-import com.westone.sunstone.routines.understand.PhraseMatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
@@ -100,7 +102,7 @@ data class ChatLine(val fromDriver: Boolean, val text: String)
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-12 16:10:00 · 박희정
+ * 수정: 2026-11-13 10:00:00 · 박희정
  * 클래스: AppGraph
  * 목적: 기능 구현(routines)과 앱 연결을 한곳에서 잇는 조립부. 의존성 주입
  *       라이브러리 없이 손으로 만든다.
@@ -109,14 +111,17 @@ data class ChatLine(val fromDriver: Boolean, val text: String)
  *       - 말·Gleo·화면·데모 입력은 모두 `handle()`로 들어온다
  *       - 장소는 근접 알림(`PlaceWatcher`)이 바꾸고, 내비 도착은 logcat에만
  *         남긴다(routines 창구에 아직 잇지 않음)
- *       - 길안내 중이거나 루틴이 진행 중이면 `KeepAwakeService`를 켠다
+ *       - Pleos 차면 화면이 뜰 때 `KeepAwakeService`를 켜 두어 앱이 얼지 않게
+ *         한다
+ *       - 질문·토스트(`Asking`)는 길안내 대화와 루틴 실행기가 함께 쓰고,
+ *         `PanelPresenter`가 왼쪽 구역 패널로 그린다(`LeftZoneOverlay`)
  * 인자: app — 앱 Context
  * 미구현: 프로토타입이라 Pleos 연결에 실패하면 알리지 않고 가짜 차로 진행한다
  *       (상태 줄에 "가짜 차"). 실제 차에서는 연결 실패를 안내해야 한다.
  *       가짜 차일 때 길안내 대화는 시연 장소 고정 목록만 찾는 가짜 내비를 쓴다
  *       (지도 화면은 바뀌지 않는다)
  */
-class AppGraph(private val app: Context) {
+class AppGraph(val app: Context) {
 
     private companion object {
         /**
@@ -137,17 +142,6 @@ class AppGraph(private val app: Context) {
         const val KEY_FAKE = "use_fake_car"
 
         /**
-         * 작성: 2026-11-11 12:06:00 · 박건준
-         * 변수: AWAKE_GRACE_MS
-         * 목적: 깨어 있을 이유가 사라진 뒤 서비스를 끄기 전에 기다리는
-         *       시간(밀리초). 그 사이 다시 필요해지면 끄지 않는다.
-         * 근거: 측정 — 경유지를 더하면 내비가 경로를 취소했다 다시 시작해서
-         *       길안내 상태가 1초 남짓 꺼진다. 서비스를 한 번 끄면 앱이 뒤에
-         *       있어 다시 켜지 못했다(`mAllowStartForeground false`)
-         */
-        const val AWAKE_GRACE_MS = 15_000L
-
-        /**
          * 작성: 2026-11-11 16:02:00 · 박희정
          * 변수: CHAT_KEEP
          * 목적: 대화 기록에 남길 최근 줄 수.
@@ -157,7 +151,7 @@ class AppGraph(private val app: Context) {
 
         /**
          * 작성: 2026-11-11 17:40:00 · 박희정
-         * 수정: 2026-11-12 16:10:00 · 박희정
+         * 수정: 2026-11-13 10:00:00 · 박희정
          * 변수: FAKE_UNSUPPORTED
          * 목적: 가짜 차가 지원하지 않는 대상(선루프 두 개, 뒷유리 블라인드).
          * 근거: 측정 — Pleos 에뮬레이터 v2.1.0에는 선루프와 뒷유리 블라인드가
@@ -198,7 +192,7 @@ class AppGraph(private val app: Context) {
     /** 루틴이 쓰는 차. Pleos 차, 없으면 가짜 차 */
     val car: CarPort = pleos ?: fake!!
 
-    /** 음성 안내(TTS) */
+    /** 음성 안내(녹음본·TTS를 한 줄로 낸다) */
     private val voice = AndroidSpeaker(app)
 
     /** 대화 기록. 운전자 말과 Sunstone 말을 차례로 쌓고, 화면이 보여준다. 최근 `CHAT_KEEP`줄만 둔다 */
@@ -210,10 +204,13 @@ class AppGraph(private val app: Context) {
     /** 시연 모드 장면 실행기. debug 빌드의 `installDemo()`가 앱 시작 때 넣고, 출시 빌드에서는 null */
     var scenes: SceneControls? = null
 
-    /** 말하기. 대화 기록에 남기고 음성으로 말한다. 루틴·길안내 대화가 모두 이것으로 말한다 */
+    /**
+     * 말하기. 대화 기록에 남기고 음성으로 말한다. 루틴·길안내 대화가 모두 이것으로 말한다. 그때 떠 있는
+     * 질문을 말에 붙여, 패널이 그 말이 시작될 때 뜨게 한다
+     */
     val speaker = Speaker { text ->
         addChat(ChatLine(fromDriver = false, text = text))
-        voice.say(text) // → 로직 이동: AndroidSpeaker.say()
+        voice.say(text, asking.question.value) // → 로직 이동: AndroidSpeaker.say()
     }
 
     /** 사람별 시트 자세 저장소 */
@@ -228,20 +225,49 @@ class AppGraph(private val app: Context) {
     /** 세차 예약. 길안내 대화가 주유소에 예약하고 세차 모드가 본다. 둘이 같은 것을 쓴다 */
     private val booking = WashBooking()
 
-    /** 지금 길안내 목적지. 길안내 대화가 넣고 차일드락이 "집에 가는 길"인지 본다. 둘이 같은 것을 쓴다 */
+    /** 지금 묻는 질문과 토스트. 길안내 대화·세차 모드·루틴 실행기가 함께 쓰고 패널이 그린다 */
+    val asking = Asking()
+
+    /** 지금 길안내 목적지. 길안내 대화가 넣고 차일드락이 하원길·도착을 본다. 둘이 같은 것을 쓴다 */
     private val route = CurrentRoute()
 
     /** 루틴 실행기. 만들 때 상황 감지를 시작한다 */
     val runner = RoutineRunner(
         car = car,
         routines = listOf(
-            WashRoutine(booking, memory) { LocalDate.now() },
-            ChildLockRoutine(route, memory) { LocalDate.now() },
+            WashRoutine(booking, memory, asking) { LocalDate.now() },
+            ChildLockRoutine(route, memory, asking) { LocalDate.now() },
             seatRoutine,
         ),
         speaker = speaker,
         scope = scope,
+        asking = asking,
     ).also { it.start() } // → 로직 이동: RoutineRunner.start()
+
+    /**
+     * 왼쪽 구역 카드·판 값. 버튼은 대답(`answer()`)과 루틴 끝내기로 가고, 마이크 칸 길게 누르기는 시연 모드
+     * 다음 장면(debug 빌드만 `scenes`가 있다)으로 간다
+     */
+    val panels = PanelPresenter(
+        context = app,
+        scope = scope,
+        asking = asking,
+        runner = runner.ui,
+        speaking = voice.speaking,
+        starts = voice.starts,
+        onAnswer = ::answer,
+        onFinish = { id -> runner.undo(id) }, // → 로직 이동: RoutineRunner.undo()
+        onHold = { scenes?.next() }, // → 로직 이동: SceneControls.next()
+    )
+
+    /** 왼쪽 구역 창. 화면이 뜰 때 `showPanels()`가 띄운다 */
+    private val overlay = LeftZoneOverlay(app, scope, panels)
+
+    /** 왼쪽 구역 창이 떠 있는지 바꾸는 곳 */
+    private val overlayOn = MutableStateFlow(false)
+
+    /** 왼쪽 구역 창이 떠 있는지(값이 바뀌면 알려주는 상태). false면 앱 화면 안에 패널을 그린다 */
+    val overlayShown: StateFlow<Boolean> = overlayOn
 
     /** 속도 센서. 값을 Pleos 차 창구에 넣는다. 가짜 차일 때는 버린다 */
     private val speed = AaosSpeedSource(app) { kmh -> pleos?.onSensorSpeed(kmh) }
@@ -266,13 +292,12 @@ class AppGraph(private val app: Context) {
         info = FixedInfo(),
         memory = memory,
         booking = booking,
+        asking = asking,
         speaker = speaker,
         today = { LocalDate.now() },
         currentRoute = route,
+        log = { Log.w(TAG, it) },
     )
-
-    /** 앱을 깨어 있게 하는 중인지. 같은 값으로 서비스를 다시 켜고 끄지 않으려고 둔다 */
-    private val awake = MutableStateFlow(false)
 
     /** AAOS 에너지 속성과 연료 종류. 값을 Pleos 차 창구에 넣는다. 가짜 차일 때는 버린다 */
     private val energy = AaosEnergySource(
@@ -282,7 +307,6 @@ class AppGraph(private val app: Context) {
     )
 
     init {
-        watchAwake()
         watchArrivals()
     }
 
@@ -315,13 +339,14 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-12 11:58:00 · 박희정
+     * 수정: 2026-11-13 10:00:00 · 박희정
      * 함수: handle
      * 목적: 말·Gleo·화면·데모 입력을 처리한다.
      *       - `Run` — 루틴 실행을 요청한다
      *       - `Undo` — 이름이 없으면 가장 최근에 켜진 루틴을 되돌린다
      *       - `SaveSeat` — 지금 시트 자세를 이름으로 저장한다
-     *       - `Navigate` — 길안내 대화로 목적지를 넘긴다
+     *       - `Navigate` — 길안내 대화로 목적지를 넘기고, 길안내를 시작한 뒤
+     *         루틴 권하기를 다시 본다(하원길 차일드락)
      *       - `Ask` — 기능 카드로 답한다. 차는 바꾸지 않는다
      *       - `Answer` — 길안내 대화의 주유 제안, 그다음 루틴 권하기 순서로
      *         답한다. 둘 다 없으면 못 알아들은 것으로 본다
@@ -346,28 +371,27 @@ class AppGraph(private val app: Context) {
                     else app.getString(R.string.voice_seat_unreadable),
                 )
             }
-            // → 로직 이동: TripDialog.navigate()
-            is VoiceAction.Navigate -> scope.launch { trip.navigate(action.destination) }
+            // → 로직 이동: TripDialog.navigate(), RoutineRunner.recheck()
+            is VoiceAction.Navigate -> scope.launch {
+                trip.navigate(action.destination)
+                runner.recheck()
+            }
             // → 로직 이동: CardBook.byId(), CardLines.answer(), Speaker.say()
             is VoiceAction.Ask -> speaker.say(
                 action.cardId?.let(CardBook::byId)?.let(CardLines::answer) ?: CardLines.NO_CARD,
             )
-            is VoiceAction.Answer -> scope.launch {
-                // → 로직 이동: RoutineRunner.answer(), TripDialog.answer(),
-                //   AppGraph.notUnderstood()
-                // 루틴 권하기(주유소 도착)를 먼저 본다. 길안내 대화의 세차 추천에
-                // 답하지 않고 도착했을 때 "응"이 세차 모드로 가게 한다
-                if (!runner.answer(action.yes) && !trip.answer(action.yes)) notUnderstood()
-            }
+            is VoiceAction.Answer -> answer(action.reply) // → 로직 이동: AppGraph.answer()
         }
     }
 
     /**
      * 작성: 2026-11-11 16:02:00 · 박희정
+     * 수정: 2026-11-12 19:56:00 · 박건준
      * 함수: hear
-     * 목적: 운전자가 한 말 한마디를 받는다. 대화 기록에 남기고, 알아들으면
-     *       `handle()`로, 못 알아들으면 그렇다고 말한다. 화면 입력칸과 데모
-     *       `say`(talk.ps1)가 함께 쓴다.
+     * 목적: 운전자가 한 말 한마디를 받는다. 대화 기록과 듣는 중 막대(HEARD)에
+     *       남기고(아래 줄에 앱이 이어서 할 일), 알아들으면 `handle()`로, 못
+     *       알아들으면 그렇다고 말한다.
+     *       화면 입력칸, 시연 대사 버튼, 데모 `say`(talk.ps1)가 함께 쓴다.
      * 인자: text — 운전자가 한 말
      *       source — 어디서 들어온 말인지(화면, 데모)
      */
@@ -376,8 +400,62 @@ class AppGraph(private val app: Context) {
         if (said.isEmpty()) return
         addChat(ChatLine(fromDriver = true, text = said))
         val action = PhraseMatcher.match(said, source) // 알아들은 요청, 못 알아들으면 null
+        panels.heard(said, nextOf(action)) // → 로직 이동: PanelPresenter.heard()
         // → 로직 이동: AppGraph.handle(), AppGraph.notUnderstood()
         if (action != null) handle(action) else notUnderstood()
+    }
+
+    /**
+     * 작성: 2026-11-12 19:06:00 · 박건준
+     * 수정: 2026-11-13 03:40:00 · 박건준
+     * 함수: answer
+     * 목적: 앱이 물은 것에 대답한다. 말("응, 세차도 할게", "취소")과 카드
+     *       버튼·닫기가 모두 여기로 온다. 카드에 고른 버튼을 먼저 표시하고,
+     *       루틴 권하기(세차 입구)를 본 뒤, 없으면 길안내 대화의 질문을 본다.
+     *       둘 다 없으면 못 알아들은 것으로 본다.
+     * 인자: reply — 대답 값
+     */
+    fun answer(reply: Reply) {
+        panels.picked(reply) // → 로직 이동: PanelPresenter.picked()
+        scope.launch {
+            // → 로직 이동: RoutineRunner.answer(), TripDialog.answer(),
+            //   AppGraph.notUnderstood()
+            if (!runner.answer(reply) && !trip.answer(reply)) notUnderstood()
+        }
+    }
+
+    /**
+     * 작성: 2026-11-12 19:06:00 · 박건준
+     * 함수: showPanels
+     * 목적: 왼쪽 구역 창을 띄운다. 화면이 뜰 때 `MainActivity`가 부른다. 허가가
+     *       없으면 `overlayShown`이 false로 남아 앱 화면 안에 패널을 그린다.
+     */
+    fun showPanels() {
+        overlayOn.value = overlay.show() // → 로직 이동: LeftZoneOverlay.show()
+    }
+
+    /**
+     * 작성: 2026-11-12 19:56:00 · 박건준
+     * 수정: 2026-11-13 03:40:00 · 박건준
+     * 함수: nextOf
+     * 목적: 들은 말 아래에 보일, 앱이 이어서 하는 일을 짧게 고른다. 대답이면
+     *       지금 묻는 질문 종류로, 길안내면 길안내로 정한다. 실행 결정은 하지
+     *       않고 보여 줄 글자만 고른다.
+     * 인자: action — 알아들은 요청. 못 알아들었으면 null
+     * 반환: 안내 글자. 고를 것이 없으면 null(줄을 비운다)
+     * 근거: 인용 — 시안 sunstone-ui.html 들음 상태 "세차 모드를 켤게요"
+     */
+    private fun nextOf(action: VoiceAction?): String? {
+        val kind = asking.question.value?.kind // 지금 묻는 질문 종류, 없으면 null
+        val res = when { // 고른 문구
+            action is VoiceAction.Navigate -> R.string.next_navigate
+            action !is VoiceAction.Answer || kind == null -> return null
+            asking.question.value?.accepts(action.reply) != true -> R.string.next_declined
+            kind == QuestionKind.WASH_MODE -> R.string.next_wash_mode
+            asking.question.value?.pick(action.reply)?.reply == Reply.ALL -> R.string.next_fuel_wash
+            else -> R.string.next_fuel_stop
+        }
+        return app.getString(res)
     }
 
     /**
@@ -398,17 +476,29 @@ class AppGraph(private val app: Context) {
     private fun addChat(line: ChatLine) = chatLines.update { (it + line).takeLast(CHAT_KEEP) }
 
     /**
+     * 작성: 2026-11-12 15:00:00 · 박건준
+     * 함수: stopVoice
+     * 목적: 나오던 말을 끊고 기다리던 말을 버린다. 시연에서 장면을 건너뛸 때
+     *       앞 장면 말이 뒤늦게 이어 나오지 않게 한다.
+     */
+    fun stopVoice() = voice.stop() // → 로직 이동: AndroidSpeaker.stop()
+
+    /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-12 16:10:00 · 박희정
+     * 수정: 2026-11-13 10:00:00 · 박희정
      * 함수: restartTrip
      * 목적: 시연을 처음부터 다시 할 수 있게 지운다.
-     *       1. 켜진 루틴을 되돌린다(차 값을 원래대로)
-     *       2. 길안내 중이면 취소한다. 안내가 없을 때 취소를 보내면 지도 앱이
+     *       1. 나오던 말을 끊고, 기다리던 말과 떠 있는 질문·거절 기록을 버린다
+     *       2. 켜진 루틴을 되돌린다(차 값을 원래대로)
+     *       3. 길안내 중이면 취소한다. 안내가 없을 때 취소를 보내면 지도 앱이
      *          앞으로 나와 앱 화면을 가린다
-     *       3. 대화 기록, 권하기 기록(10분에 한 번), 끝난 실행 기록, 길안내
+     *       4. 대화 기록, 권하기 기록(10분에 한 번), 끝난 실행 기록, 길안내
      *          목적지를 지운다
+     *       되돌리는 동안 나오는 말("원래대로 돌렸어요")은 그대로 들린다
      */
     suspend fun restartTrip() {
+        voice.stop() // → 로직 이동: AndroidSpeaker.stop()
+        asking.newTrip() // → 로직 이동: Asking.newTrip()
         runner.activeIds().forEach { runner.undo(it).join() } // → 로직 이동: RoutineRunner.undo()
         if (navi?.routing?.value == true) navi.cancelRoute() // → 로직 이동: PleosNavi.cancelRoute()
         runner.forgetSuggestions() // → 로직 이동: RoutineRunner.forgetSuggestions()
@@ -419,7 +509,7 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-11 17:40:00 · 박희정
-     * 수정: 2026-11-12 16:10:00 · 박희정
+     * 수정: 2026-11-13 10:00:00 · 박희정
      * 함수: fixedPlaces
      * 목적: 시연 장소 고정 목록(assets/places.json)을 읽어 가짜 내비가 찾을 장소로
      *       만든다. 장소의 성격(집·유치원)도 읽는다. 읽지 못하면 빈
@@ -519,24 +609,19 @@ class AppGraph(private val app: Context) {
 
     /**
      * 작성: 2026-11-11 12:22:00 · 박건준
-     * 함수: watchAwake
-     * 목적: 길안내 중이거나 루틴이 진행 중(실행·켜짐·되돌리는 중)이면
-     *       `KeepAwakeService`를 켜고, 둘 다 아닌 채로 `AWAKE_GRACE_MS`가
-     *       지나면 끈다.
+     * 수정: 2026-11-12 15:00:00 · 박건준
+     * 함수: keepAwake
+     * 목적: Pleos 차일 때 `KeepAwakeService`를 켜 앱이 얼지 않게 한다. 앱
+     *       화면이 뜰 때마다 `MainActivity`가 부르고, 이미 켜져 있으면 그대로
+     *       둔다. 끄지 않는다(상황을 알아채려면 늘 깨어 있어야 한다). 가짜 차는
+     *       켜지 않는다.
+     * 근거: 측정 — 길안내·루틴이 있을 때만 켜던 때는 지도 앱이 앞에 있고 둘 다
+     *       없으면 앱이 얼어 주유소 근접 알림을 못 받았다. 앱이 뒤에 있을 때는
+     *       서비스를 새로 켤 수 없어서(Android 12+) 화면이 뜰 때 켠다
+     *       (docs/api-spike.md 앱 얼림 대응 절)
      */
-    private fun watchAwake() {
-        val routing = navi?.routing ?: MutableStateFlow(false) // 길안내 중인지
-        scope.launch {
-            combine(routing, runner.ui) { guiding, ui ->
-                guiding || ui.runs.values.any { it.phase != Phase.FINISHED }
-            }.distinctUntilChanged().collectLatest { need ->
-                if (!need) delay(AWAKE_GRACE_MS)
-                if (need == awake.value) return@collectLatest
-                awake.value = need
-                // → 로직 이동: KeepAwakeService.start(), KeepAwakeService.stop()
-                if (need) KeepAwakeService.start(app) else KeepAwakeService.stop(app)
-            }
-        }
+    fun keepAwake() {
+        if (pleos != null) KeepAwakeService.start(app) // → 로직 이동: KeepAwakeService.start()
     }
 
     /**

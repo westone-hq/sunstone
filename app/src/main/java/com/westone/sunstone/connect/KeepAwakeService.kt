@@ -15,13 +15,15 @@ import com.westone.sunstone.R
 
 /**
  * 작성: 2026-11-11 12:14:00 · 박건준
+ * 수정: 2026-11-12 15:04:00 · 박건준
  * 클래스: KeepAwakeService
- * 목적: 길안내 중이거나 루틴이 진행 중일 때 알림 하나를 띄워 앱을 깨어
- *       있게 한다. 내비 화면이 앞에 오면 앱이 뒤로 가 얼어서(cached apps
- *       freezer) 내비 이벤트·근접 알림을 늦게 받기 때문이다. 필요 없어지면
- *       `stop()`으로 바로 끝낸다.
- * 근거: 측정 — 앱이 뒤에서 얼어 경로 시작 이벤트가 6분 44초 늦게 왔다
- *       (docs/api-spike.md 내비 실측 "앱 얼림"). 표준 — Android 14부터
+ * 목적: 알림 하나를 띄워 앱을 깨어 있게 한다. 내비 화면이 앞에 오면 앱이
+ *       뒤로 가 얼어서(cached apps freezer) 내비 이벤트·근접 알림을 늦게
+ *       받기 때문이다. Pleos 차에서 앱 화면이 뜰 때 켜고 끄지 않는다
+ *       (`AppGraph.keepAwake`).
+ * 근거: 측정 — 앱이 뒤에서 얼어 경로 시작 이벤트가 6분 44초 늦게 왔고,
+ *       길안내·루틴이 없을 때는 주유소 근접 알림을 못 받았다
+ *       (docs/api-spike.md 앱 얼림 대응 절). 표준 — Android 14부터
  *       포그라운드 서비스는 종류를 밝혀야 하고, 위치·미디어 같은 정해진
  *       종류에 맞지 않아 `specialUse`로 두고 이유를 매니페스트에 적는다
  */
@@ -47,8 +49,8 @@ class KeepAwakeService : Service() {
         /**
          * 작성: 2026-11-11 12:14:00 · 박건준
          * 함수: start
-         * 목적: 서비스를 시작한다. 앱이 뒤에 있을 때 시작이 막히면
-         *       (Android 12+) logcat에만 남긴다.
+         * 목적: 서비스를 시작한다. 이미 돌고 있으면 알림만 다시 띄운다. 앱이
+         *       뒤에 있을 때 시작이 막히면(Android 12+) logcat에만 남긴다.
          * 인자: context — 앱 Context
          */
         fun start(context: Context) {
@@ -57,16 +59,6 @@ class KeepAwakeService : Service() {
                 .onFailure { Log.w(TAG, "깨어 있기 시작 못 함: ${it.message}") }
         }
 
-        /**
-         * 작성: 2026-11-11 12:14:00 · 박건준
-         * 함수: stop
-         * 목적: 서비스를 끝낸다.
-         * 인자: context — 앱 Context
-         */
-        fun stop(context: Context) {
-            context.stopService(Intent(context, KeepAwakeService::class.java))
-            Log.i(TAG, "깨어 있기 끝")
-        }
     }
 
     /**

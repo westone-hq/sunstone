@@ -7,7 +7,7 @@ import com.westone.sunstone.routines.port.NaviPort
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
- * 수정: 2026-11-12 16:10:00 · 박희정
+ * 수정: 2026-11-13 10:00:00 · 박희정
  * 클래스: PleosNaviPort
  * 목적: 기능 쪽 내비 창구(`NaviPort`)를 Pleos 내비(`PleosNavi`)로 채운다.
  *       값 모양만 바꿔 넘기고 판단은 하지 않는다.
@@ -25,7 +25,7 @@ class PleosNaviPort(
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-12 16:10:00 · 박희정
+     * 수정: 2026-11-13 10:00:00 · 박희정
      * 함수: findPlace
      * 목적: 시연 장소 목록에서 이름이 겹치는 곳을 찾는다. 띄어쓰기는 무시한다.
      *       장소의 성격(집·유치원)을 붙여 넘긴다.
@@ -35,7 +35,7 @@ class PleosNaviPort(
     override suspend fun findPlace(query: String): RoutinePlaceHit? {
         val key = query.replace(" ", "") // 띄어쓰기를 뺀 검색어
         val spot = places().firstOrNull { // 이름이 겹치는 첫 장소
-            val name = it.hit.name.replace(" ", "")
+            val name = it.hit.name.replace(" ", "") // 띄어쓰기를 뺀 장소 이름
             name.contains(key) || key.contains(name)
         } ?: return null
         val hit = spot.hit // 이름·좌표

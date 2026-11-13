@@ -57,13 +57,41 @@
         <item>세차 모드가 뭐야?</item>
         <item>세차할게</item>
         <item>세차 끝났어</item>
-        <item>유치원까지 길안내 해줘</item>
-        <item>집으로 안내해 줘</item>
+        <item>OO유치원 가자</item>
+        <item>집에 가자</item>
+        <item>응, 잠가 줘</item>
         <item>애 태웠어</item>
         <item>지금 자세 엄마로 저장해줘</item>
         <item>엄마 자세로</item>
         <item>원래대로</item>
     </string-array>
+
+    <!-- 왼쪽 구역 카드(docs/SCREEN.md 6장). 질문 카드 글자는 routines/의 문장 틀에 있다 -->
+    <string name="panel_close">닫기</string>
+    <string name="panel_running">%1$s 맞추는 중</string>
+    <string name="panel_ready">%1$s 준비됐어요</string>
+    <string name="panel_ready_detail">사이드미러는 직접 접어 주세요.</string>
+    <string name="panel_ready_detail_child">뒷문 차일드락은 직접 걸어 주세요.</string>
+    <string name="panel_progress">%1$d개 중 %2$d개 맞췄어요.</string>
+    <!-- panel_progress에서 굵게 보일 앞부분 -->
+    <string name="panel_progress_bold">%1$d개 중 %2$d개</string>
+    <!-- 사람이 할 칸 아래 작은 글자 -->
+    <string name="cell_manual">직접</string>
+    <!-- 켜짐 표시(준비되고 3초 뒤 카드를 접은 한 줄) -->
+    <string name="chip_title">%1$s 켜짐</string>
+    <string name="chip_detail">출발하면 원래대로 돌려놓아요</string>
+    <string name="chip_detail_child">도착하면 뒷창문 잠금을 풀어요</string>
+    <string name="chip_finish">끝내기</string>
+    <!-- 듣는 중 막대와 마이크 칸 -->
+    <string name="listen_on">듣고 있어요</string>
+    <string name="listen_heard">“%1$s”</string>
+    <!-- 들은 말 아래 안내: 앱이 이어서 하는 일 -->
+    <string name="next_navigate">길안내를 시작할게요</string>
+    <string name="next_fuel_stop">경유지로 넣을게요</string>
+    <string name="next_fuel_wash">경유지에 넣고 세차를 예약할게요</string>
+    <string name="next_wash_mode">세차 모드를 켤게요</string>
+    <string name="next_declined">알겠어요</string>
+    <string name="mic_cell">말 걸기</string>
 
     <!-- 앱이 말하는 안내 -->
     <string name="voice_not_understood">잘 못 알아들었어요.</string>
@@ -82,6 +110,8 @@
     <string name="scene_title">%1$s · %2$s</string>
     <string name="scene_start">시연 시작</string>
     <string name="scene_next">다음 장면</string>
+    <!-- 장면 준비(Prep)를 넣는 동안 [다음 장면] 버튼 글자 -->
+    <string name="scene_preparing">준비 중</string>
     <string name="scene_restart">처음</string>
     <string name="gleo_navigate">%1$s 길안내</string>
     <string name="gleo_ask">기능 설명</string>
@@ -95,8 +125,8 @@
     <string name="car_seat_not_park">기어가 P가 아니라서 시트를 움직이지 않았어요</string>
     <string name="car_seat_gear_changed">기어가 바뀌어서 시트를 멈췄어요</string>
 
-    <!-- 길안내·루틴 중 앱을 깨어 있게 하는 알림(KeepAwakeService) -->
-    <string name="awake_channel">길안내·루틴 진행</string>
+    <!-- 앱을 깨어 있게 하는 알림(KeepAwakeService) -->
+    <string name="awake_channel">차 상황 지켜보기</string>
     <string name="awake_title">Sunstone이 차를 지켜보고 있어요</string>
-    <string name="awake_text">길안내나 루틴이 끝나면 알림이 사라져요</string>
+    <string name="awake_text">도착·탑승 같은 상황을 놓치지 않게 앱을 켜 두고 있어요</string>
 </resources>

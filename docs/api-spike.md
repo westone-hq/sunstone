@@ -140,7 +140,7 @@ NaviHelper 3.0.5(`ai.pleos.playground:NaviHelper:3.0.5`, navi-data 3.0.4 함께 
 
 ## 앱 얼림 대응과 시연 이동 (2026-11-11, navi/live)
 
-- **깨어 있기 서비스:** 길안내 중이거나 루틴이 진행 중이면 `KeepAwakeService`(포그라운드 서비스, 종류 `specialUse`, 알림 하나)를 켠다. 에뮬레이터 `cached_apps_freezer`를 기본값으로 되돌리고 재부팅한 뒤 시험했다.
+- **깨어 있기 서비스:** (2026-11-12 바꿈: 아래 시나리오 ① 실측 "앱 얼림" 행. 지금은 Pleos 차에서 앱 화면이 뜰 때 켜고 끄지 않는다) 처음에는 길안내 중이거나 루틴이 진행 중이면 `KeepAwakeService`(포그라운드 서비스, 종류 `specialUse`, 알림 하나)를 켰다. 에뮬레이터 `cached_apps_freezer`를 기본값으로 되돌리고 재부팅한 뒤 시험했다.
   - 서비스 켜짐: 내비 화면이 앞에 있어도 앱이 얼지 않고(`isFrozen=false`, `isForeground=true`), 경로 시작·경유지 이벤트와 근접 알림이 바로 왔다. 주유소로 geo fix를 옮기고 약 2초 안에 장소 도착·경유지 도착
   - 서비스 꺼짐(안내 취소 뒤 내비 화면을 앞에 둠): 앱이 얼어 있어(`isFrozen=true`) 유치원 도착이 20초 넘게 오지 않다가, 앱을 앞으로 가져온 순간 왔다
   - 경유지를 더하면 내비가 경로를 취소했다 다시 시작해서 길안내 상태가 1초 남짓 꺼진다. 그때 서비스를 끄니 앱이 뒤에 있어 다시 켜지 못했다(`startForegroundService() not allowed due to mAllowStartForeground false`). 그래서 이유가 사라져도 15초 기다렸다 끄고, 경로 요청 전에(앱이 아직 앞에 있을 때) 길안내 중으로 먼저 올린다
@@ -158,8 +158,38 @@ NaviHelper 3.0.5(`ai.pleos.playground:NaviHelper:3.0.5`, navi-data 3.0.4 함께 
 | 첫 경로 시작 시간 | 에뮬레이터를 켠 직후 첫 `requestRoute` → `onRouteStarted` 24.5초. 그다음부터는 1초 안 | 실제 | 기다리다 다시 `requestRoute`를 보내면 내비가 앞 계산을 취소(`onRouteCancelled`)하고 처음부터 다시 해서 더 늦어졌다. `PleosNavi.ROUTE_MS`를 15초 → 45초로 늘리고 다시 요청하지 않는다 |
 | 경로가 없을 때 `cancelRoute` | 지도 앱이 앞으로 나와 앱 화면을 가림 | — | 시연을 처음으로 돌릴 때는 길안내 중일 때만 취소한다(`AppGraph.restartTrip`) |
 | 콘솔 세션 신호가 끊긴 뒤 제어 | 창문·와이퍼는 Done, 내기 순환 Failed, 문 잠금 3초 응답 없음 | 실제(신호 유지) | 신호(`POST /browser/session`)를 1초마다 보내는 동안은 넷 다 Done. debug 빌드 시연 모드(`ScenePlayer`)와 `tools/talk.ps1`이 신호를 보낸다 |
-| 앱 얼림 | 지도 앱이 앞에 있고 길안내·루틴이 없을 때 앱이 얼어(`isFrozen=true`) 주유소 근접 알림을 못 받음 | 조작(에뮬레이터 설정) | 리허설 에뮬레이터는 `adb shell settings put global cached_apps_freezer disabled` 뒤 재부팅했다. 실제 차에서는 `KeepAwakeService` 범위를 다시 정해야 한다(미정) |
-| TTS | 엔진은 `ai.pleos.playground.caas` SpeechService 하나. 앱 `TextToSpeech` 초기화가 -1로 실패해 소리 없음 | 조작(녹음본) | `tools/make-voice.ps1`이 대사집 문장을 Windows 한국어 음성(Microsoft Heami)으로 `assets/voice/<문장 MD5>.wav`에 만들고, `AndroidSpeaker`가 녹음본을 `MediaPlayer`(USAGE_ASSISTANT)로 재생한다. 재생 중 `dumpsys audio`에 `state:started` 확인. 녹음본이 없는 문장은 소리가 없다 |
+| 앱 얼림 | 지도 앱이 앞에 있고 길안내·루틴이 없을 때 앱이 얼어(`isFrozen=true`) 주유소 근접 알림을 못 받음 | 실제(깨어 있기 서비스) | 리허설 에뮬레이터는 `adb shell settings put global cached_apps_freezer disabled` 뒤 재부팅했다. 2026-11-12 app/wash: Pleos 차에서 앱 화면이 뜰 때 `KeepAwakeService`를 켜고 끄지 않게 바꿨다. 얼림 기본값(`device_default`)에서 지도 앱을 앞에 두고 길안내 없이 40초 기다려도 `isFrozen=false`, 주유소로 geo fix하자 바로 장소 도착. 에뮬레이터 설정을 바꿀 필요가 없다 |
+| TTS | 엔진은 `ai.pleos.playground.caas` SpeechService 하나. 앱 `TextToSpeech` 초기화가 -1로 실패해 소리 없음 | 조작(녹음본) | `tools/make-voice.ps1`이 대사집 문장을 Windows 한국어 음성(Microsoft Heami)으로 `assets/voice/<문장 MD5>.wav`에 만들고, `AndroidSpeaker`가 녹음본을 `MediaPlayer`(USAGE_ASSISTANT)로 재생한다. 재생 중 `dumpsys audio`에 `state:started` 확인. 녹음본이 없는 문장은 소리가 없다 2026-11-12 app/wash: 녹음본과 TTS를 한 줄(`VoicePlayer`)에 세워 들어온 순서대로 낸다. 녹음본이 없는 말은 앞 녹음본이 끝날 때까지 기다렸다가 `소리 없이 건너뜀(녹음본 없음)`을 logcat에 남긴다(빠진 녹음본 찾기). 시연 [처음]·장면 건너뛰기 때는 나오던 말을 끊는다 |
 | 문 열기(콘솔) | `PUT /vehicle/body?door_rl=true\|false`가 앱 `doorOpen`에 바로 반영 | 실제(콘솔로 장면 준비) | 세차 모드는 문이 열려 있으면 시작하지 않는다("문을 모두 닫으시면 시작할게요.", 세차 모드 기능 카드 조건) |
 | 뒷좌석 탑승(콘솔) | `PUT /vehicle/seat?kind=occupied&area=rear_left&value=true|false`로 콘솔 `seat.occupied.rear_left`가 바뀌고, 앱은 뒤집어 읽어(탑승 행) 뒷좌석 탑승으로 본다(2026-11-12) | 실제(콘솔로 장면 준비) | 시나리오 ② S8·S11·S13·S15 장면 준비(`ScenePlayer.prepare`). 차일드락은 뒷문이 닫히는 순간 뒷좌석에 사람이 있으면 권하고, 뒷좌석이 비고 문이 닫히면 되돌린다 |
 | 화면 읽기(uiautomator) | 화면 전환 중에는 `null root node`로 실패 | — | 자동 버튼 누르기는 실패하면 1초 뒤 다시 읽는다. 그래픽 오류(`Failed to find ColorBuffer`) 뒤 화면이 검게 멈추면 에뮬레이터를 다시 켠다 |
+
+## 화면 1차와 시나리오 ① 다듬기 (2026-11-12, screen/scenario1)
+
+docs/SCREEN.md 1장 화면을 앱에 옮기고 3장 ①-2~①-11(대사집 S1~S10)을 Pleos 에뮬레이터에서 돌리며 잰 것. 캡처는 `relay/files/screen/`.
+
+| 무엇 | 결과 | 시연 표기 | 메모 |
+|---|---|---|---|
+| 왼쪽 구역 그리기(1차, 2차에서 바뀜: 아래 화면 2차 표) | `SYSTEM_ALERT_WINDOW` 허가(`adb shell appops set com.westone.sunstone SYSTEM_ALERT_WINDOW allow`) 뒤 `TYPE_APPLICATION_OVERLAY` 창이 시스템 주행 화면(`ai.umos.drivingview`, 0~853) 위에 보이고 터치를 받음. 내비가 앞에 있어도 보임 | 조작(허가를 adb로 줌) | 데모 `overlay show`로 확인(`01-overlay-app.png`, `02-overlay-navi.png`). 오버레이 창의 위·아래 기준은 상태줄(90)·하단 막대(140)를 뺀 영역이다. 패널은 그 패널의 말이 시작될 때 띄운다(말에 그때의 질문을 붙여 두고 재생이 시작되면 알린다). 패널이나 듣는 중 막대가 떠 있는 동안은 창을 왼쪽 구역 전체(853×1210)로 키우고 불투명 배경(시안 `.drive` 그라데이션)을 칠해 주행 화면 내용(차 그림·빠른 버튼·미디어 줄)을 가린다. 아무것도 없으면 마이크 칸 크기로 줄인다. 주행 화면의 운전대 표시 아이콘(오른쪽 위)은 시스템 창이라 가릴 수 없다. 실측 화면 x 766~795, y 106~160(운전대 그림 28×28과 그 아래 막대 둘, 모든 장면 같은 자리)이라 패널 위 끝을 그 아래 16(y 177)으로 내려 겹치지 않게 했다(r6). 실제 차에서 일반 앱이 이 허가를 받을 수 있는지는 미확인. 허가가 없으면 앱 화면 안 왼쪽에 같은 패널을 그린다 |
+| 운전대 음성 버튼 | SDK `SteeringWheel`은 각도·열선만 있고 버튼 API가 없음. Virtual Console에도 없음(기어·속도·문·공조·하이패스만). `input keyevent KEYCODE_VOICE_ASSIST`·`cmd car_service inject-key 231`은 앱 창이 포커스여도 시스템 음성 비서(`[GAA]`, Gleo)가 가져가 STT를 시작함 | 조작(마이크 칸) | `KEYCODE_SEARCH`·`HEADSETHOOK`는 앱에 오지만 운전대 버튼이 아니다. docs/SCREEN.md 5장 대안으로 마이크 칸(112)을 둔다. 처음에는 왼쪽 아래에 뒀으나 주행(D) 화면의 시스템 빠른 버튼 첫 칸을 가려(r3-S10-toast) 시안 최신본대로 상태줄 바로 아래 왼쪽으로 옮기고, 패널·막대가 떠 있는 동안은 숨긴다. P·D 모두 시스템 버튼을 가리지 않음(r4-P-idle, r4-S10-toast) |
+| 음성 인식 | 에뮬레이터에 마이크 입력이 없다 | 조작(시연 버튼·adb `say`) | 마이크 칸·질문은 듣는 중 막대만 띄우고, 말은 시연 대사 버튼과 데모 `say`가 `AppGraph.hear()`로 넣는다. 들은 말은 막대에 HEARD로 보인다 |
+| 화면 밀도 | 2560×1440, 160dpi | 실제 | 시안 1단위 = 1dp = 1px. 글자는 sp(글자 배율 1.0) |
+| 세차 입구 판단 | 주유소 안 두 번째 정차를 세차 입구로 봄 | 조작(장면 준비 S8) | 주유소 첫 P는 주유 정차(토스트만), 속도 > 0 뒤 다시 P·N이면 "세차 모드 켤까요?". S8 준비가 D·5km/h → 0·P를 넣는다 |
+| 질문 녹음본 | 새 문장 8개(S1~S10)를 `tools/make-voice.ps1`로 다시 녹음 | 조작(녹음본) | 3회 연속 실행에서 `소리 없이 건너뜀` 0건 |
+| 3회 연속 | S1~S10을 `scene next`·`say`로 3번 이어 돌림. 회마다 앱 말 8개가 같은 순서로 나오고 끊김 없음(토스트는 2회차 캡처로만 확인) | — | 회마다 처음에 `scene restart`(말 끊기, 질문·거절 기록 지우기, 켜진 루틴 되돌리기, 길안내 취소) |
+
+## 화면 2차와 시나리오 ① 다시 짜기 (2026-11-13, screen/scenario1)
+
+docs/SCREEN.md 6장(2차 시안)대로 카드·판을 다시 짜고 대사집 S1~S9를 Pleos 에뮬레이터에서 돌리며 잰 것. 캡처는 `relay/files/screen/v2-*`.
+
+| 무엇 | 결과 | 시연 표기 | 메모 |
+|---|---|---|---|
+| 왼쪽 구역 창 | 가림막을 없애고 창을 셋으로 나눔. 마이크 칸 창(위 왼쪽 112×112), 카드 창(x 12, 상태줄 아래 74, 829×카드 높이), 판 창(아래 12, 829×136). 둘레 12는 그림자 자리 | 조작(허가를 adb로 줌) | 카드·판 자체는 좌우 24, 위 176(상태줄 아래 86, 운전대 표시 아이콘 아래 끝 160에서 16), 아래 24, 폭 805. 그릴 것이 없는 창은 숨기고(`GONE`) 터치를 받지 않는다 |
+| 카드 밖 터치 | 카드가 떠 있는 동안 카드 밖 시스템 창문 버튼을 누르면 logcat `FloatingControls window button click`, 아래 빠른 버튼은 `ACTION_OPEN_GLOVE_BOX`. 둘 다 시스템 화면이 받음 | 실제 | `input tap`으로 확인(2026-11-13). 그림자 둘레 12와 판이 떠 있는 동안 판 자리는 우리 창이 받는다 |
+| 터치 안 받는 창의 불투명도 | `FLAG_NOT_TOUCHABLE`인 다른 앱 오버레이 창은 비쳐 보였다. 토스트 판 뒤의 미디어 줄이 보임(첫 v2-S3) | — | Android 12의 다른 앱 창 터치 통과 규칙(불투명도 0.8 이하)으로 보인다. 그래서 보이는 창은 모두 터치를 받게 했다 |
+| 세차 입구 5초 | "곧 세차 모드 켤게요." 카드의 [지금 켜기]가 5초 차오르고, 대답이 없으면 5초 뒤 켜짐 | 실제(판단은 routines) | 5초 판단은 `RoutineRunner`(테스트에서 시간을 앞당겨 확인). 화면은 차오르기만 그린다. "취소"·"하지 마"·[취소]면 켜지 않는다 |
+| 경유지 넣기 시간 | 대답 → `onWaypointChanged` 약 9초. 그동안 판은 들은 말과 "경유지에 넣고 세차를 예약할게요"를 두고 마이크 칸 자리에 도는 표시(`Asking.working`). 끝나면 그 자리가 토스트 "경유지에 넣고 세차를 예약했어요"로 바뀐다 | 실제 | 내비가 경로를 다시 찾는 시간. 20초 안에 답이 없으면 "경유지를 넣지 못했어요" 토스트와 logcat(`Sunstone` W "경유지 넣기 20초 넘김: …")을 남기고 세차를 예약하지 않는다 |
+| 다음 장면(시연) | 마이크 칸·판의 마이크 칸·카드 앱 아이콘을 0.8초 누르면 `SceneControls.next()` | 조작(debug 빌드만) | 카드·판이 떠 있으면 마이크 칸이 숨어서 카드 앱 아이콘을 쓴다. 장면을 넣는 동안(준비·운전자 대사·앱 답 기다림)은 logcat `준비 중이라 하지 않음` |
+| 운전자 대사 | 운전자 녹음본을 낸 뒤 들은 말로 넣음(S1, S3) | 조작(녹음본) | PC 한국어 음성이 Heami 하나라 같은 음성의 WAV 표본율을 0.84배로 적어 낮고 느리게 만든다(`tools/make-voice.ps1`). debug assets/driver, 앱 말 기록(logcat "말:")과 따로 재생 |
+| 녹음본 | 앱 13개(새 문장: 주유·세차 묻기, "곧 세차 모드 켤게요.", "사이드미러 펴졌는지 확인해 주세요."), 운전자 2개 | 조작(녹음본) | 3회 연속 실행에서 `소리 없이 건너뜀` 0건 |
+| 3회 연속 | 길게 누르기만으로 S1~S9를 3번 이어 돌림. 회마다 장면 9·앱 말 5·운전자 대사 2·토스트 3이 같은 순서, 실패 0 | — | 회마다 처음에 adb `scene restart`. relay/files/screen/v2-loop1~3-log.txt |

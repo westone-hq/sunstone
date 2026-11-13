@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 패널 아이콘 "check". 출처: Pleos Connect UI 아이콘(시안 ICONS에 들어 있는 것 그대로). 색은 화면이 입힌다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <group
+        android:translateX="7"
+        android:translateY="12">
+        <path
+            android:fillColor="#FF000000" android:fillType="evenOdd"
+            android:pathData="M34.62132 0.87868 C35.79289 2.05025 35.79289 3.94975 34.62132 5.12132 L15.62132 24.12132 C14.44975 25.29289 12.55025 25.29289 11.37868 24.12132 L0.87868 13.62132 C-0.29289 12.44975 -0.29289 10.55025 0.87868 9.37868 C2.05025 8.20711 3.94975 8.20711 5.12132 9.37868 L13.5 17.75736 L30.37868 0.87868 C31.55025 -0.29289 33.44975 -0.29289 34.62132 0.87868 Z" />
+    </group>
+</vector>

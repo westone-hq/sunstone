@@ -1,5 +1,6 @@
 package com.westone.sunstone.routines.script
 
+import com.westone.sunstone.routines.dialog.QuestionKind
 import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.routines.port.Target
@@ -7,9 +8,12 @@ import com.westone.sunstone.routines.understand.VoiceAction
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
+ * 수정: 2026-11-13 03:25:00 · 박건준
  * 클래스: Scene
  * 목적: 대사집 장면 하나(Tab 1 4.1 장면 형식). 자동 테스트, adb `scene`, 화면
  *       [다음 장면] 버튼이 모두 이 값을 쓴다. 대사를 고칠 때는 이것만 고친다.
+ *       준비도 운전자 말도 없는 장면은 앞 장면에 이어지는 장면이다(주유 질문은
+ *       길안내 말 뒤에 이어 나오고, 세차 모드는 세차 입구에서 5초 뒤 켜진다).
  * 인자: id — 장면 ID("S1")
  *       title — 장면 이름(화면에 보인다)
  *       prep — 이 장면 전에 차례로 넣을 상황. 한 단계씩 넣어야 권하기가
@@ -19,6 +23,10 @@ import com.westone.sunstone.routines.understand.VoiceAction
  *       expectCar — 장면 뒤 차에서 읽혀야 하는 값
  *       expectDestination — 장면 뒤 내비 목적지 이름. 보지 않으면 null
  *       expectWaypoints — 장면 뒤 내비 경유지 이름들. 보지 않으면 null
+ *       expectNotices — 앱이 내야 하는 토스트 문장, 차례대로
+ *       expectQuestion — 장면 뒤 대답을 기다리는 질문 종류. 없어야 하면 null
+ *       afterMs — 앞 장면에서 이 시간(밀리초)이 지나면 일어나는 장면. 자동
+ *       테스트는 시간을 그만큼 앞당긴다. 바로 일어나면 0
  * 근거: 인용 — Tab 1 4.1 장면 하나의 형식(장면 ID, 준비, 운전자 말, 기대 말,
  *       기대 변화, 고정 응답)
  */
@@ -31,11 +39,21 @@ data class Scene(
     val expectCar: Map<Target, Any> = emptyMap(),
     val expectDestination: String? = null,
     val expectWaypoints: List<String>? = null,
-)
+    val expectNotices: List<String> = emptyList(),
+    val expectQuestion: QuestionKind? = null,
+    val afterMs: Long = 0,
+) {
+    /**
+     * 작성: 2026-11-12 18:30:00 · 박건준
+     * 함수: follows
+     * 목적: 준비도 운전자 말도 없어 앞 장면에 이어지는 장면이면 true.
+     */
+    val follows: Boolean get() = prep.isEmpty() && driver == null
+}
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
- * 수정: 2026-11-12 16:10:00 · 박희정
+ * 수정: 2026-11-13 10:00:00 · 박희정
  * 클래스: Prep
  * 목적: 장면 준비 한 단계. 값이 null인 칸은 바꾸지 않는다. 가짜 차는 앱이,
  *       Pleos 차는 Virtual Console·데모 입력이 넣는다. 뒷좌석은 아이가 타는
@@ -49,6 +67,8 @@ data class Scene(
  *       rearDoorOpen — 뒷좌석 왼쪽 문이 열렸는지
  *       rearOccupied — 뒷좌석 왼쪽에 사람이 탔는지
  *       rearBelt — 뒷좌석 왼쪽 벨트를 맸는지
+ *       childLockDaysAgo — 마지막으로 차일드락을 쓴 날이 며칠 전인지. 같은 날
+ *       시연을 다시 해도 처음 탈 때 묻게 1(어제)로 넣는다
  */
 data class Prep(
     val gear: Gear? = null,
@@ -60,6 +80,7 @@ data class Prep(
     val rearDoorOpen: Boolean? = null,
     val rearOccupied: Boolean? = null,
     val rearBelt: Boolean? = null,
+    val childLockDaysAgo: Long? = null,
 )
 
 /**
