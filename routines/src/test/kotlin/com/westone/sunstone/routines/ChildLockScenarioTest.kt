@@ -215,6 +215,28 @@ class ChildLockScenarioTest {
     }
 
     /**
+     * 작성: 2026-11-13 12:00:00 · 박희정
+     * 함수: 끝내기로 끝내면 도착했다고 말하지 않는다
+     * 목적: [끝내기](사람이 끝냄)로 되돌리면 "차일드락 끝낼게요."라고 하고, 뒷창
+     *       잠금을 풀고 실행을 끝내는지 본다. 도착 토스트는 같다.
+     */
+    @Test
+    fun `끝내기로 끝내면 도착했다고 말하지 않는다`() = runTest {
+        val car = FakeCar(CarState(gear = Gear.PARK, place = Place.HOME))
+        val runner = runner(car)
+        runCurrent()
+        board(car)
+        runner.answer(Reply.YES); runCurrent()
+        said.clear()
+
+        runner.undo(RoutineId.CHILD_LOCK); runCurrent()
+
+        assertEquals(listOf(ChildLockLines.FINISHED), said)
+        assertEquals(false, car.value(Target.WindowLock(Window.REAR_LEFT)))
+        assertEquals(Phase.FINISHED, runner.ui.value.runs[RoutineId.CHILD_LOCK]?.phase)
+    }
+
+    /**
      * 작성: 2026-11-13 10:00:00 · 박희정
      * 함수: 목적지가 아닌 곳에 서면 되돌리지 않는다
      * 목적: 가는 길에 신호나 다른 곳에서 P로 서도 뒷창 잠금을 풀지 않는지 본다.

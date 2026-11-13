@@ -120,7 +120,7 @@ class RoutineRunner(
 
     fun request(request: RunRequest): Job = scope.launch { mutex.withLock { run(request) } }
 
-    fun undo(id: RoutineId): Job = scope.launch { mutex.withLock { undoLocked(id) } }
+    fun undo(id: RoutineId): Job = scope.launch { mutex.withLock { undoLocked(id, auto = false) } }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
@@ -299,15 +299,18 @@ class RoutineRunner(
     // ---------------------------------------------------------------- 되돌리기
 
     /**
-     * 수정: 2026-11-12 16:10:00 · 박희정
+     * 수정: 2026-11-13 12:00:00 · 박희정
      * 함수: undoLocked
      * 목적: 켜진 루틴을 저장한 원래 값으로 되돌리고 끝낸다. 끝나면 그 루틴의
      *       권하기 기록(10분에 한 번)도 지운다. 한 번 쓰고 끝난 뒤 다시 생긴
-     *       상황(아이가 내렸다가 다시 탐)은 새로 권해야 한다.
+     *       상황(아이가 내렸다가 다시 탐)은 새로 권해야 한다. 저절로
+     *       되돌렸으면(`shouldUndo`) `Routine.autoUndoSay`를, 사람이
+     *       끝냈으면([끝내기], "원래대로") `Routine.afterUndo`를 말한다.
      * 인자: id — 되돌릴 루틴
+     *       auto — 저절로 되돌리는 것이면 true
      * 근거: 인용 — Tab 1 4.3 시나리오 ② #4 뒤 #5 "차일드락 이어서 할까요?"
      */
-    private suspend fun undoLocked(id: RoutineId) {
+    private suspend fun undoLocked(id: RoutineId, auto: Boolean) {
         val run = active[id] ?: return
         if (run.phase != Phase.ACTIVE) return
         run.phase = Phase.UNDOING
@@ -315,7 +318,8 @@ class RoutineRunner(
         for (command in run.saved.asReversed()) {
             runCatching { car.apply(command) }
         }
-        run.routine.afterUndo.forEach(::say)
+        val lines = if (auto) run.routine.autoUndoSay ?: run.routine.afterUndo else run.routine.afterUndo // 할 말
+        lines.forEach(::say)
         run.routine.undoNotice?.let { asking?.notice(it) } // → 로직 이동: Asking.notice()
         run.phase = Phase.FINISHED
         lastSuggestedAt.remove(id)
@@ -328,7 +332,9 @@ class RoutineRunner(
         val running = active.values.filter { it.phase == Phase.ACTIVE }
         running.forEach { run ->
             run.routine.watch(before, now)?.let(::say)
-            if (run.routine.shouldUndo(run.start, now)) undo(run.routine.id)
+            if (run.routine.shouldUndo(run.start, now)) {
+                scope.launch { mutex.withLock { undoLocked(run.routine.id, auto = true) } }
+            }
         }
         if (_ui.value.suggestion != null) return
         val busy = active.filterValues { it.phase != Phase.FINISHED }.keys

@@ -80,6 +80,7 @@
     <!-- 켜짐 표시(준비되고 3초 뒤 카드를 접은 한 줄) -->
     <string name="chip_title">%1$s 켜짐</string>
     <string name="chip_detail">출발하면 원래대로 돌려놓아요</string>
+    <string name="chip_detail_child">도착하면 뒷창문 잠금을 풀어요</string>
     <string name="chip_finish">끝내기</string>
     <!-- 듣는 중 막대와 마이크 칸 -->
     <string name="listen_on">듣고 있어요</string>

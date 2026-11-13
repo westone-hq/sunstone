@@ -38,8 +38,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  *       - 대답하면(말이든 버튼이든) 고른 버튼을 눌린 모습으로 `PICKED_MS` 보인
  *         뒤 카드를 닫는다
  *       - `RunnerUi.runs`의 세차 모드·차일드락 → 맞추는 중·준비됨 카드.
- *         세차 모드는 준비되고 `CHIP_MS` 뒤 "세차 모드 켜짐" 한 줄로 접고,
- *         차일드락은 출발(D)하면 닫는다
+ *         준비되고 `CHIP_MS` 뒤에는 "○○ 켜짐" 한 줄로 접는다. [끝내기]면
+ *         되돌리고 카드가 사라진다
  *       - `Asking.notices` → 토스트(판 자리), `Asking.alerts` → 경고 토스트(같은
  *         자리, 경고 아이콘)
  *       - 카드가 뜨면 듣는 중 판(LISTENING, "듣고 있어요"), 들은 말(`heard()`)은
@@ -57,7 +57,6 @@ import kotlinx.coroutines.withTimeoutOrNull
  *       onFinish — 켜짐 표시 [끝내기](`RoutineRunner.undo()`)
  *       onHold — 마이크 칸·판 마이크 칸·카드 앱 아이콘을 길게 눌렀을 때
  *       (시연 모드 다음 장면)
- *       driving — 차가 D인지. 차일드락 준비됨 카드를 출발할 때 닫는 데 쓴다
  * 근거: 인용 — docs/SCREEN.md 6장, 1장 상태 흐름, 5장 대답 기다리는 시간 8초.
  *       2026-11-12 박건준 검토: 카드는 그 카드의 말이 시작될 때 띄운다
  */
@@ -71,7 +70,6 @@ class PanelPresenter(
     private val onAnswer: (Reply) -> Unit,
     private val onFinish: (RoutineId) -> Unit,
     val onHold: () -> Unit,
-    private val driving: StateFlow<Boolean>,
 ) {
 
     private companion object {
@@ -336,15 +334,11 @@ class PanelPresenter(
      * 작성: 2026-11-13 03:40:00 · 박건준
      * 수정: 2026-11-13 10:00:00 · 박희정
      * 함수: onRun
-     * 목적: 준비된(켜짐) 카드를 정리한다. 새 실행이 시작되면 그 기록을 지운다.
-     *       - 세차 모드 — `CHIP_MS` 뒤 켜짐 표시로 접는다(세차하는 동안 주행
-     *         화면을 돌려준다)
-     *       - 차일드락 — 출발(D)할 때 닫는다. 그 전까지는 준비됨 카드를 둔다
+     * 목적: 세차 모드·차일드락이 준비되면(켜짐) `CHIP_MS` 뒤 카드를 "○○ 켜짐"
+     *       한 줄로 접는다. [끝내기]를 누르면 되돌리고 카드가 사라진다. 새
+     *       실행이 시작되면 접은 기록을 지운다.
      * 인자: run — 보일 실행 기록(`liveRun()`). 없으면 null
-     * 근거: 인용 — docs/SCREEN.md 6장 8단계(세차 3초), 4장 ②-4 "왼쪽은 원래
-     *       주행 화면", ②-9 "출발(D)하면 닫힘". 측정 — 6장 ②대로 켜짐 표시로
-     *       접으면 주행 중 커지는 속도 글자(40 km/h)와 겹쳤다(2026-11-13
-     *       에뮬레이터 S13 화면)
+     * 근거: 인용 — docs/SCREEN.md 6장 8단계, 6장 ② "차일드락 켜짐" 한 줄
      */
     private fun onRun(run: RunView?) {
         if (run == null || run.phase == Phase.RUNNING) {
@@ -355,13 +349,8 @@ class PanelPresenter(
         if (run.phase != Phase.ACTIVE || readyRun == run.startedAtMs) return
         readyRun = run.startedAtMs
         scope.launch {
-            if (run.id == RoutineId.CHILD_LOCK) {
-                driving.first { it }
-                if (readyRun == run.startedAtMs) hiddenRun.value = run.startedAtMs
-            } else {
-                delay(CHIP_MS)
-                if (readyRun == run.startedAtMs) chipRun.value = run.startedAtMs
-            }
+            delay(CHIP_MS)
+            if (readyRun == run.startedAtMs) chipRun.value = run.startedAtMs
         }
     }
 
@@ -512,15 +501,20 @@ class PanelPresenter(
 
     /**
      * 작성: 2026-11-13 03:40:00 · 박건준
+     * 수정: 2026-11-13 12:00:00 · 박희정
      * 함수: chipCard
-     * 목적: 켜진 세차 모드를 높이 88 한 줄(켜짐 표시)로 바꾼다. [끝내기]만 둔다.
+     * 목적: 켜진 세차 모드·차일드락을 높이 88 한 줄(켜짐 표시)로 바꾼다.
+     *       [끝내기]만 둔다.
      * 인자: run — 켜져 있는 실행 기록
      * 반환: 카드
-     * 근거: 인용 — docs/SCREEN.md 6장 8단계, 시안 template2.html `.chipc`
+     * 근거: 인용 — docs/SCREEN.md 6장 8단계, 6장 ② "차일드락 켜짐" 한 줄, 시안
+     *       template2.html `.chipc`
      */
     private fun chipCard(run: RunView) = CardUi(
         title = context.getString(R.string.chip_title, run.title),
-        detail = context.getString(R.string.chip_detail),
+        detail = context.getString(
+            if (run.id == RoutineId.CHILD_LOCK) R.string.chip_detail_child else R.string.chip_detail,
+        ),
         actions = listOf(ActionUi(context.getString(R.string.chip_finish), false, PanelPress.Finish)),
         chip = true,
         key = run.startedAtMs,

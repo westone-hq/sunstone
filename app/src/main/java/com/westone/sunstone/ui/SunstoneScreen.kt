@@ -63,7 +63,7 @@ import kotlinx.coroutines.delay
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-12 19:10:00 · 박건준
+ * 수정: 2026-11-13 12:00:00 · 박희정
  * 함수: SunstoneScreen
  * 목적: 앱 화면(오른쪽 앱 영역) 전체. 시연을 돌리고 지켜보는 화면이다. 운전자가
  *       보는 패널은 왼쪽 구역(`LeftZoneOverlay`)에 뜬다. 문구는
@@ -145,7 +145,8 @@ fun SunstoneScreen(graph: AppGraph) {
                 }
 
                 ProfileRow(graph)
-                ui.runs.values.maxByOrNull { it.startedAtMs }?.let { RunDetail(it) }
+                // 끝난 실행(끝내기·도착으로 되돌림)은 목록에서 내려 처음 화면으로 돌아간다
+                ui.runs.values.filter { it.phase != Phase.FINISHED }.maxByOrNull { it.startedAtMs }?.let { RunDetail(it) }
             }
             if (!overlay) PanelsInApp(graph)
         }

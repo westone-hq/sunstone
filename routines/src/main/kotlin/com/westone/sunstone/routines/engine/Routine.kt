@@ -112,6 +112,15 @@ interface Routine {
     val afterUndo: List<String> get() = emptyList()
 
     /**
+     * 작성: 2026-11-13 12:00:00 · 박희정
+     * 함수: autoUndoSay
+     * 목적: 저절로 되돌렸을 때([shouldUndo]) 하는 말. null이면 [afterUndo]를
+     *       말한다. 사람이 끝냈을 때와 말이 달라야 하는 루틴(차일드락: 도착해서
+     *       풀었는지, [끝내기]로 끝냈는지)이 쓴다.
+     */
+    val autoUndoSay: List<String>? get() = null
+
+    /**
      * 작성: 2026-11-12 18:12:00 · 박건준
      * 함수: undoNotice
      * 목적: 되돌린 뒤 토스트로 보일 문장. 없으면 null.

@@ -27,7 +27,7 @@ import java.time.LocalDate
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-13 10:00:00 · 박희정
+ * 수정: 2026-11-13 12:00:00 · 박희정
  * 클래스: ChildLockRoutine
  * 목적: 차일드락(아이 탑승). 뒷문 차일드락은 앱이 걸 수 없어 안내하고, 대신
  *       앱이 할 수 있는 것(뒷창 잠금, 문 잠금, 공조, 뒷유리 블라인드)을 한 번에
@@ -37,8 +37,8 @@ import java.time.LocalDate
  *         집이면 "아침처럼"으로 권한다(`RoutineRunner.recheck()`가 부른다)
  *       - 다 하고 나서 1~2문장으로 말하고, 맞춘 것은 카드 칸이 보여 준다
  *       - 달리는 중 뒷자리 벨트가 풀리면 말과 토스트로 알린다
- *       - 길안내 목적지에 도착해 P로 서면 원래대로 돌리고 알린다. 문 잠금은
- *         풀지 않는다
+ *       - 길안내 목적지에 도착해 P로 서면 원래대로 돌리고 알린다. [끝내기]로
+ *         끝내면 도착 말 없이 끝낸다고 말한다. 문 잠금은 풀지 않는다
  * 인자: route — 지금 길안내 목적지. `TripDialog`와 같은 것을 넘긴다
  *       memory — 차일드락을 쓴 날을 남기고 읽는다
  *       asking — 벨트 토스트를 낸다. `RoutineRunner`·`TripDialog`와 같은 것을
@@ -59,7 +59,8 @@ class ChildLockRoutine(
     override val title = "차일드락"
     override val intro = "아이 탈 준비할게요."
     override val reportsAtEnd = true
-    override val afterUndo = listOf(ChildLockLines.ARRIVED)
+    override val afterUndo = listOf(ChildLockLines.FINISHED)
+    override val autoUndoSay = listOf(ChildLockLines.ARRIVED)
     override val undoNotice = ChildLockLines.UNLOCKED_NOTICE
 
     /**
