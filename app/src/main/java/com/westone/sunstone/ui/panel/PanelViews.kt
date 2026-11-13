@@ -472,12 +472,14 @@ private fun AppIcon(size: Int, onHold: () -> Unit) {
 
 /**
  * 작성: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 11:00:00 · 박희정
  * 함수: PlateView
  * 목적: 아래 판 하나(높이 112, 폭 805, 검정, 그림자). 듣는 중 판과 토스트가 같은
  *       자리를 번갈아 쓴다.
  *       - 듣는 중 — 마이크 칸 112(초록, 들은 뒤 #2A2C31, 아이콘 48), 파형,
  *         글자 30/38 Bold, 들은 뒤 아래 줄 24/30
- *       - 토스트 — 체크 칸 112(#2A2C31), 글자 30/38 Bold
+ *       - 토스트 — 체크 칸 112(#2A2C31), 글자 30/38 Bold. 경고 토스트(벨트
+ *         풀림)는 체크 대신 경고 아이콘
  * 인자: plate — 그릴 것
  *       onHold — 마이크 칸을 길게 누르면 부른다(시연 모드 다음 장면)
  * 근거: 인용 — docs/SCREEN.md 6장 듣는 중 판과 토스트, 시안 template2.html
@@ -497,7 +499,8 @@ fun PlateView(plate: Plate, onHold: () -> Unit) {
             is Plate.Listen -> ListenRow(plate.listen, onHold)
             is Plate.Toast -> {
                 Box(Modifier.size(PLATE_HEIGHT.dp).background(BAR_HEARD), contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_panel_check), null, Modifier.size(48.dp), tint = Color.White)
+                    val icon = if (plate.alert) R.drawable.ic_panel_alert else R.drawable.ic_panel_check // 칸 아이콘
+                    Icon(painterResource(icon), null, Modifier.size(48.dp), tint = Color.White)
                 }
                 Text(
                     plate.text,

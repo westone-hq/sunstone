@@ -207,9 +207,9 @@ class ChildLockRoutine(
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-13 10:00:00 · 박희정
+     * 수정: 2026-11-13 11:00:00 · 박희정
      * 함수: watch
-     * 목적: 달리는 중 뒷자리 벨트가 풀리는 순간 말과 토스트로 알린다. 다시
+     * 목적: 달리는 중 뒷자리 벨트가 풀리는 순간 말과 경고 토스트로 알린다. 다시
      *       맸다가 풀어야 또 알린다.
      * 인자: before — 바뀌기 전 차 상태
      *       now — 지금 차 상태
@@ -221,7 +221,7 @@ class ChildLockRoutine(
         if (now.stopped) return null
         val unbuckled = Seat.entries.any { it.isRear && before.buckled(it) && !now.buckled(it) } // 막 풀렸는지
         if (!unbuckled) return null
-        asking.notice(ChildLockLines.BELT_OFF) // → 로직 이동: Asking.notice()
+        asking.alert(ChildLockLines.BELT_OFF) // → 로직 이동: Asking.alert()
         return ChildLockLines.BELT_OFF
     }
 

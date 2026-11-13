@@ -136,15 +136,15 @@ data class ListenUi(val state: ListenState, val text: String = "", val next: Str
 
 /**
  * 작성: 2026-11-12 18:40:00 · 박건준
- * 수정: 2026-11-13 04:20:00 · 박건준
+ * 수정: 2026-11-13 11:00:00 · 박희정
  * 클래스: ScreenUi
  * 목적: 왼쪽 구역에 그릴 것 전부. 카드, 듣는 중 판, 토스트, 마이크 칸.
  *       판과 토스트는 같은 자리를 번갈아 쓴다(`plate`).
  * 인자: card — 카드. 없으면 null
  *       listen — 듣는 중 판
- *       toast — 토스트 문장. 없으면 null
+ *       toast — 토스트. 없으면 null
  */
-data class ScreenUi(val card: CardUi?, val listen: ListenUi, val toast: String?) {
+data class ScreenUi(val card: CardUi?, val listen: ListenUi, val toast: Plate.Toast?) {
 
     /**
      * 작성: 2026-11-13 03:40:00 · 박건준
@@ -158,7 +158,7 @@ data class ScreenUi(val card: CardUi?, val listen: ListenUi, val toast: String?)
     val plate: Plate?
         get() = when {
             listen.state == ListenState.HEARD -> Plate.Listen(listen)
-            toast != null -> Plate.Toast(toast)
+            toast != null -> toast
             listen.state != ListenState.OFF -> Plate.Listen(listen)
             else -> null
         }
@@ -189,9 +189,11 @@ sealed interface Plate {
 
     /**
      * 작성: 2026-11-13 03:40:00 · 박건준
+     * 수정: 2026-11-13 11:00:00 · 박희정
      * 클래스: Toast
      * 목적: 토스트.
      * 인자: text — 토스트 문장
+     *       alert — 경고(`Asking.alerts`)면 true. 체크 대신 경고 아이콘을 그린다
      */
-    data class Toast(val text: String) : Plate
+    data class Toast(val text: String, val alert: Boolean = false) : Plate
 }

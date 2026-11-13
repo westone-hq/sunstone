@@ -126,12 +126,13 @@ data class Question(
 
 /**
  * 작성: 2026-11-12 18:10:00 · 박건준
- * 수정: 2026-11-13 04:20:00 · 박건준
+ * 수정: 2026-11-13 11:00:00 · 박희정
  * 클래스: Asking
  * 목적: 앱이 지금 묻고 있는 질문과 토스트 문장을 한곳에 둔다. 길안내 대화와
  *       루틴 권하기가 같은 것 하나에 질문을 올리고, 대답이 오면 내린다.
  *       - `question` — 대답을 기다리는 질문. null이면 패널 없음
  *       - `notices` — 토스트로 잠깐 보일 문장
+ *       - `alerts` — 경고 토스트로 잠깐 보일 문장(주행 중 벨트 풀림)
  *       - `working` — 대답을 받아 처리하는 중(내비가 경유지를 넣는 중). 화면은
  *         그동안 들은 말 판을 내리지 않고 진행 중을 보인다
  *       - "괜찮아요"·닫기로 끝난 종류는 `newTrip()` 전까지 다시 묻지 않는다
@@ -151,6 +152,12 @@ class Asking {
 
     /** 토스트 문장들(한 번씩 흘러가는 값) */
     val notices: SharedFlow<String> = toasts
+
+    /** 경고 토스트 문장을 내보내는 곳. 차일드락이 쓴다 */
+    private val warnings = MutableSharedFlow<String>(extraBufferCapacity = 8)
+
+    /** 경고 토스트 문장들(한 번씩 흘러가는 값) */
+    val alerts: SharedFlow<String> = warnings
 
     /** 대답을 처리하는 중인지 바꾸는 곳. 길안내 대화가 쓴다 */
     private val busy = MutableStateFlow(false)
@@ -217,6 +224,20 @@ class Asking {
      */
     fun notice(text: String) {
         toasts.tryEmit(text)
+    }
+
+    /**
+     * 작성: 2026-11-13 11:00:00 · 박희정
+     * 함수: alert
+     * 목적: 경고 토스트 문장 하나를 내보낸다. 끝난 일이 아니라 운전자가 알아야
+     *       할 일(주행 중 뒷자리 벨트 풀림)을 알린다. 화면은 체크 대신 경고
+     *       아이콘으로 그린다.
+     * 인자: text — 토스트 문장
+     * 근거: 인용 — docs/SCREEN.md 4장 ②-5 "토스트 같은 문장. 주행 중이라 패널
+     *       없음". 1장은 토스트를 끝난 일에만 쓰므로 경고는 따로 둔다
+     */
+    fun alert(text: String) {
+        warnings.tryEmit(text)
     }
 
     /**

@@ -34,6 +34,7 @@ import com.westone.sunstone.routines.library.SeatMemoryRoutine
 import com.westone.sunstone.routines.library.WashRoutine
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.model.GeoPoint
+import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.routines.model.PlaceHit
 import com.westone.sunstone.routines.model.Seat
@@ -51,9 +52,12 @@ import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -246,7 +250,7 @@ class AppGraph(val app: Context) {
 
     /**
      * 왼쪽 구역 카드·판 값. 버튼은 대답(`answer()`)과 루틴 끝내기로 가고, 마이크 칸 길게 누르기는 시연 모드
-     * 다음 장면(debug 빌드만 `scenes`가 있다)으로 간다
+     * 다음 장면(debug 빌드만 `scenes`가 있다)으로 간다. 차가 D인지도 넘겨 차일드락 카드를 출발할 때 닫는다
      */
     val panels = PanelPresenter(
         context = app,
@@ -258,6 +262,7 @@ class AppGraph(val app: Context) {
         onAnswer = ::answer,
         onFinish = { id -> runner.undo(id) }, // → 로직 이동: RoutineRunner.undo()
         onHold = { scenes?.next() }, // → 로직 이동: SceneControls.next()
+        driving = car.state.map { it.gear == Gear.DRIVE }.stateIn(scope, SharingStarted.Eagerly, false),
     )
 
     /** 왼쪽 구역 창. 화면이 뜰 때 `showPanels()`가 띄운다 */

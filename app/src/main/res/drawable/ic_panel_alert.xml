@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 패널 아이콘 "alert"(경고 토스트). 시안 ICONS에 없어 2026-11-13 박희정이 같은 선 굵기로 그렸다(세모 안 느낌표). 색은 화면이 입힌다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:pathData="M24 8L42 39H6Z M24 19V28 M24 33V33.5"
+        android:strokeWidth="3.4"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

@@ -83,15 +83,16 @@ class ChildLockScenarioTest {
 
     /**
      * 작성: 2026-11-12 16:10:00 · 박희정
-     * 수정: 2026-11-13 10:00:00 · 박희정
+     * 수정: 2026-11-13 11:00:00 · 박희정
      * 함수: runner
-     * 목적: 앱과 같은 루틴 세 개로 실행기를 만들고 상황 감지와 토스트 받기를
-     *       시작한다.
+     * 목적: 앱과 같은 루틴 세 개로 실행기를 만들고 상황 감지와 토스트(경고
+     *       토스트 포함) 받기를 시작한다.
      * 인자: car — 가짜 차
      * 반환: 실행기
      */
     private fun TestScope.runner(car: FakeCar): RoutineRunner {
         backgroundScope.launch { asking.notices.collect { noticed += it } }
+        backgroundScope.launch { asking.alerts.collect { noticed += it } } // 경고 토스트도 토스트로 본다
         return RoutineRunner(
             car = car,
             routines = listOf(
