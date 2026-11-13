@@ -14,11 +14,15 @@ import com.westone.sunstone.graph
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-09 18:49:00 · 박건준
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 클래스: MainActivity
- * 목적: 앱 화면 하나. 화면을 띄우고, 속도 권한을 받고, Gleo 인텐트를
- *       처리한다. 한 번 뜬 화면에 Gleo 인텐트가 다시 오면 `onNewIntent()`로
- *       받는다(singleTop).
+ * 목적: 하단 막대 Sunstone 아이콘으로 여는 입구. 화면을 그리지 않는다.
+ *       왼쪽 구역 창을 띄우고 부르는 카드를 연 뒤 바로 닫혀, 오른쪽 앱 영역은
+ *       앞에 있던 내비 화면이 그대로 남는다(투명 테마). 첫 실행이면 차 권한을
+ *       묻고 답을 받은 뒤 닫힌다. Gleo 인텐트도 받는다. 왼쪽 구역 창을 띄우지
+ *       못하면 닫히지 않고 앱 화면 안에 같은 카드를 그린다(`SunstoneScreen`).
+ * 근거: 인용 — 2026-11-13 박건준 지시: Sunstone은 왼쪽 구역만 쓰고 부르면
+ *       왼쪽에 루틴 세 줄만 나온다
  */
 class MainActivity : ComponentActivity() {
 
@@ -62,60 +66,93 @@ class MainActivity : ComponentActivity() {
         const val NOTIFY = "android.permission.POST_NOTIFICATIONS"
     }
 
-    /** 차 권한 요청 창(속도·에너지·위치·알림 함께). 허락된 것만 구독을 시작한다 */
+    /** 차 권한 요청 창(속도·에너지·위치·알림 함께). 허락된 것만 구독을 시작하고, 앱 화면이 없으면 닫는다 */
     private val carPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
             results.filterValues { it }.keys.forEach(::startFor)
+            asking = false
+            closeIfOverlay()
         }
+
+    /** 왼쪽 구역 창 대신 앱 화면 안에 카드를 그리는지. `onCreate()`에서 정한다 */
+    private var inApp = false
+
+    /** 차 권한을 묻는 중인지. 답을 받기 전에는 닫지 않는다 */
+    private var asking = false
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 20:18:22 · 박건준
+     * 수정: 2026-11-13 20:00:00 · 박건준
      * 함수: onCreate
-     * 목적: 화면을 띄우고, 차 권한(속도·에너지)을 확인하고, 앱을 연 인텐트가
-     *       Gleo 호출이면 처리한다.
+     * 목적: 왼쪽 구역 창을 띄우고, 하단 막대 아이콘으로 열렸으면 부르는 카드를
+     *       연다. 창을 못 띄우면 앱 화면 안에 그린다. 차 권한을 확인하고, 앱을
+     *       연 인텐트가 Gleo 호출이면 처리한다.
      * 인자: savedInstanceState — 안드로이드가 넘기는 이전 화면 상태
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { SunstoneScreen(graph) }
+        graph.showPanels() // → 로직 이동: AppGraph.showPanels()
+        inApp = !graph.overlayShown.value
+        if (inApp) setContent { SunstoneScreen(graph) }
+        if (intent?.action == Intent.ACTION_MAIN) graph.panels.tapMic() // → 로직 이동: PanelPresenter.tapMic()
         requestCarPermissions()
         handleGleo(intent)
     }
 
     /**
      * 작성: 2026-11-12 15:04:00 · 박건준
-     * 수정: 2026-11-12 19:10:00 · 박건준
+     * 수정: 2026-11-13 20:00:00 · 박건준
      * 함수: onStart
-     * 목적: 화면이 뜰 때마다 앱을 깨어 있게 하고 왼쪽 구역 패널 창을 띄운다.
-     *       앱이 앞에 있을 때만 포그라운드 서비스를 켤 수 있어서 여기서 부른다.
-     *       패널 창은 한 번 뜨면 앱이 뒤로 가도 남는다.
+     * 목적: 화면이 뜰 때마다 앱을 깨어 있게 한다. 앱이 앞에 있을 때만
+     *       포그라운드 서비스를 켤 수 있어서 여기서 부른다. 왼쪽 구역 창은 한 번
+     *       뜨면 이 화면이 닫혀도 남는다.
      */
     override fun onStart() {
         super.onStart()
         graph.keepAwake() // → 로직 이동: AppGraph.keepAwake()
-        graph.showPanels() // → 로직 이동: AppGraph.showPanels()
+    }
+
+    /**
+     * 작성: 2026-11-13 20:00:00 · 박건준
+     * 함수: onResume
+     * 목적: 앞에 나온 뒤(서비스를 켠 뒤) 앱 화면이 없으면 닫는다.
+     */
+    override fun onResume() {
+        super.onResume()
+        closeIfOverlay()
     }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 18:49:00 · 박건준
+     * 수정: 2026-11-13 20:00:00 · 박건준
      * 함수: onNewIntent
-     * 목적: 화면이 떠 있는 동안 온 Gleo 호출을 처리한다.
+     * 목적: 화면이 떠 있는 동안(권한을 묻는 중, 앱 화면 안에 그리는 중) 온
+     *       하단 막대 아이콘·Gleo 호출을 처리한다.
      * 인자: intent — 새로 받은 인텐트
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.action == Intent.ACTION_MAIN) graph.panels.tapMic() // → 로직 이동: PanelPresenter.tapMic()
         handleGleo(intent)
     }
 
     /**
+     * 작성: 2026-11-13 20:00:00 · 박건준
+     * 함수: closeIfOverlay
+     * 목적: 왼쪽 구역 창이 떠 있고 권한을 묻는 중이 아니면 화면을 닫는다.
+     *       닫히면 앞에 있던 내비 화면이 오른쪽에 그대로 보인다.
+     */
+    private fun closeIfOverlay() {
+        if (!inApp && !asking && !isFinishing) finish()
+    }
+
+    /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-11 12:24:00 · 박건준
+     * 수정: 2026-11-13 20:00:00 · 박건준
      * 함수: requestCarPermissions
      * 목적: 차 권한(속도·에너지·위치·알림) 중 이미 있는 것은 바로 구독하고, 없는 것만
-     *       한꺼번에 묻는다. 차가 아니라 권한을 물을 수 없으면 그 값 없이
-     *       진행한다.
+     *       한꺼번에 묻는다. 묻는 동안은 화면을 닫지 않는다. 차가 아니라 권한을
+     *       물을 수 없으면 그 값 없이 진행한다.
      */
     private fun requestCarPermissions() {
         val missing = listOf(SPEED, ENERGY, LOCATION, NOTIFY).filter { permission -> // 아직 허가받지 못한 권한
@@ -123,7 +160,8 @@ class MainActivity : ComponentActivity() {
             if (granted) startFor(permission)
             !granted
         }
-        if (missing.isNotEmpty()) runCatching { carPermissions.launch(missing.toTypedArray()) }
+        if (missing.isEmpty()) return
+        asking = runCatching { carPermissions.launch(missing.toTypedArray()) }.isSuccess
     }
 
     /**

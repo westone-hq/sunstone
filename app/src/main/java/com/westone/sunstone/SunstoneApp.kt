@@ -10,7 +10,7 @@ import com.westone.sunstone.connect.AndroidSpeaker
 import com.westone.sunstone.connect.KeepAwakeService
 import com.westone.sunstone.connect.PrefsMemory
 import com.westone.sunstone.connect.PrefsSeatProfiles
-import com.westone.sunstone.demo.installDemo
+import com.westone.sunstone.demo.sceneControls
 import com.westone.sunstone.info.FixedInfo
 import com.westone.sunstone.navi.PlaceWatcher
 import com.westone.sunstone.navi.PleosNavi
@@ -26,6 +26,7 @@ import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.Phase
 import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RoutineRunner
+import com.westone.sunstone.routines.engine.RunRequest
 import com.westone.sunstone.routines.engine.Source
 import com.westone.sunstone.routines.fake.FakeCar
 import com.westone.sunstone.routines.fake.FakeNavi
@@ -73,14 +74,13 @@ class SunstoneApp : Application() {
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
      * 수정: 2026-11-11 16:42:25 · 박희정
+     * 수정: 2026-11-13 20:00:00 · 박건준
      * 함수: onCreate
-     * 목적: 조립부를 만들고, debug 빌드면 시연 모드를 붙인다(출시 빌드의
-     *       `installDemo()`는 아무것도 하지 않는다).
+     * 목적: 조립부를 만든다. 시연 모드는 조립부가 만든다.
      */
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph(this)
-        installDemo(graph) // → 로직 이동: installDemo()
     }
 }
 
@@ -94,8 +94,9 @@ val Context.graph: AppGraph get() = (applicationContext as SunstoneApp).graph
 
 /**
  * 작성: 2026-11-11 16:02:00 · 박희정
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 클래스: ChatLine
- * 목적: 대화 기록 한 줄. 화면이 말풍선처럼 보여준다.
+ * 목적: 대화 기록 한 줄. 시연 모드가 앱이 답한 말 수를 세는 데 쓴다.
  * 인자: fromDriver — 운전자가 한 말이면 true, Sunstone이 한 말이면 false
  *       text — 말
  */
@@ -196,14 +197,11 @@ class AppGraph(val app: Context) {
     /** 음성 안내(녹음본·TTS를 한 줄로 낸다) */
     private val voice = AndroidSpeaker(app)
 
-    /** 대화 기록. 운전자 말과 Sunstone 말을 차례로 쌓고, 화면이 보여준다. 최근 `CHAT_KEEP`줄만 둔다 */
+    /** 대화 기록. 운전자 말과 Sunstone 말을 차례로 쌓는다. 최근 `CHAT_KEEP`줄만 둔다 */
     private val chatLines = MutableStateFlow<List<ChatLine>>(emptyList())
 
-    /** 화면이 보는 대화 기록(값이 바뀌면 알려주는 상태) */
+    /** 시연 모드가 보는 대화 기록(값이 바뀌면 알려주는 상태) */
     val chat: StateFlow<List<ChatLine>> = chatLines
-
-    /** 시연 모드 장면 실행기. debug 빌드의 `installDemo()`가 앱 시작 때 넣고, 출시 빌드에서는 null */
-    var scenes: SceneControls? = null
 
     /**
      * 말하기. 대화 기록에 남기고 음성으로 말한다. 루틴·길안내 대화가 모두 이것으로 말한다. 그때 떠 있는
@@ -248,9 +246,12 @@ class AppGraph(val app: Context) {
     /** 시트 맞추기 대화(시나리오 ③). 저장된 자세로 맞출 때는 실행기에 시트 메모리를 요청한다 */
     val seat = SeatDialog(car, profiles, asking, speaker) { runner.request(it) } // → 로직 이동: RoutineRunner.request()
 
+    /** 시연 모드 장면 실행기. debug 빌드만 있고 출시 빌드에서는 null. 부르는 카드가 시연 줄로 쓴다 */
+    val scenes: SceneControls? = sceneControls(this) // → 로직 이동: sceneControls()
+
     /**
-     * 왼쪽 구역 카드·판 값. 버튼은 대답(`answer()`)과 루틴 끝내기로 가고, 마이크 칸 길게 누르기는 시연 모드
-     * 다음 장면(debug 빌드만 `scenes`가 있다)으로 간다
+     * 왼쪽 구역 카드·듣는 중 줄 값. 버튼은 대답(`answer()`)과 루틴 끝내기로, 부르는 카드 루틴 줄은
+     * `switchRoutine()`으로 가고, 마이크 칸 길게 누르기는 시연 모드 다음 장면으로 간다
      */
     val panels = PanelPresenter(
         context = app,
@@ -259,8 +260,10 @@ class AppGraph(val app: Context) {
         runner = runner.ui,
         speaking = voice.speaking,
         starts = voice.starts,
+        scenes = scenes,
         onAnswer = ::answer,
         onFinish = { id -> runner.undo(id) }, // → 로직 이동: RoutineRunner.undo()
+        onRoutine = ::switchRoutine,
         onHold = { scenes?.next() }, // → 로직 이동: SceneControls.next()
     )
 
@@ -409,11 +412,11 @@ class AppGraph(val app: Context) {
      * 작성: 2026-11-11 16:02:00 · 박희정
      * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: hear
-     * 목적: 운전자가 한 말 한마디를 받는다. 대화 기록과 듣는 중 막대(HEARD)에
+     * 목적: 운전자가 한 말 한마디를 받는다. 대화 기록과 듣는 중 줄(HEARD)에
      *       남기고(아래 줄에 앱이 이어서 할 일), 알아들으면 `handle()`로, 못
      *       알아들으면 그렇다고 말한다.
      *       시트 자세를 기억할 이름을 기다리는 중이면 들은 말을 이름으로 넘긴다.
-     *       화면 입력칸, 시연 대사 버튼, 데모 `say`(talk.ps1)가 함께 쓴다.
+     *       시연 운전자 대사와 데모 `say`(talk.ps1)가 함께 쓴다.
      * 인자: text — 운전자가 한 말
      *       source — 어디서 들어온 말인지(화면, 데모)
      */
@@ -449,6 +452,24 @@ class AppGraph(val app: Context) {
             // → 로직 이동: RoutineRunner.answer(), TripDialog.answer(),
             //   AppGraph.notUnderstood()
             if (!runner.answer(reply) && !trip.answer(reply) && !seat.answer(reply)) notUnderstood()
+        }
+    }
+
+    /**
+     * 작성: 2026-11-13 20:00:00 · 박건준
+     * 함수: switchRoutine
+     * 목적: 부르는 카드의 루틴 줄을 눌렀을 때. 켜져 있으면 원래대로 돌리고,
+     *       아니면 켠다. 시트 맞추기는 말로 맞추는 대화("시트 좀 맞춰 줘")를
+     *       시작한다.
+     * 인자: id — 루틴
+     *       on — 지금 켜져 있으면 true
+     */
+    private fun switchRoutine(id: RoutineId, on: Boolean) {
+        when {
+            on -> runner.undo(id) // → 로직 이동: RoutineRunner.undo()
+            // → 로직 이동: AppGraph.handle()
+            id == RoutineId.SEAT_MEMORY -> handle(VoiceAction.SeatStart(Seat.DRIVER))
+            else -> handle(VoiceAction.Run(RunRequest(id, source = Source.SCREEN)))
         }
     }
 

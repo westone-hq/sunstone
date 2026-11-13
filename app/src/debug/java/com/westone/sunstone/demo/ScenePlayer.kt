@@ -2,6 +2,7 @@ package com.westone.sunstone.demo
 
 import android.util.Log
 import com.westone.sunstone.AppGraph
+import com.westone.sunstone.R
 import com.westone.sunstone.routines.engine.Source
 import com.westone.sunstone.routines.model.Door
 import com.westone.sunstone.routines.model.Gear
@@ -24,15 +25,14 @@ import java.time.LocalDate
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
- * 수정: 2026-11-13 10:00:00 · 박희정
- * 함수: installDemo
- * 목적: debug 빌드에서 시연 모드를 붙인다. 앱이 켜질 때 한 번 부른다. 시나리오
- *       ①·② 장면을 이어서 넣는다.
+ * 수정: 2026-11-13 20:00:00 · 박건준
+ * 함수: sceneControls
+ * 목적: debug 빌드의 시연 모드를 만든다. 조립부가 왼쪽 구역 카드보다 먼저 한
+ *       번 부른다. 시나리오 ①②③ 장면을 이어서 넣는다.
  * 인자: graph — 앱 조립부
+ * 반환: 장면 실행기
  */
-fun installDemo(graph: AppGraph) {
-    graph.scenes = ScenePlayer(graph, ScriptBook.all)
-}
+fun sceneControls(graph: AppGraph): SceneControls = ScenePlayer(graph, ScriptBook.all)
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
@@ -225,12 +225,13 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-13 13:00:00 · 박희정
+     * 수정: 2026-11-13 20:00:00 · 박건준
      * 함수: enter
      * 목적: 장면 하나에 들어간다. 앞 장면 토스트를 지우고, 화면에 장면을 띄우고
      *       준비를 한 단계씩 넣는다. 다음 장면이 새 시나리오(`resetTrip`)면 이
-     *       장면을 그 시나리오의 마지막으로 보인다. 화면 버튼은 부르는 쪽이 `ready()`로 풀 때까지
-     *       "준비 중"이다. 대사는 저절로 나오므로 화면 대사 버튼은 두지 않는다.
+     *       장면을 그 시나리오의 마지막으로 보인다. 화면 버튼은 부르는 쪽이
+     *       `ready()`로 풀 때까지 "준비 중"이다. 시나리오 이름과 그 안에서 몇
+     *       번째 장면인지도 함께 보인다.
      * 인자: i — 장면 번호
      */
     private suspend fun enter(i: Int) {
@@ -238,8 +239,15 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
         val scene = scenes[i] // 들어갈 장면
         Log.i(TAG, "장면,${scene.id},${scene.title}")
         g.panels.clearToast() // → 로직 이동: PanelPresenter.clearToast()
-        val last = i == scenes.lastIndex || scenes[i + 1].prep.any { it.resetTrip } // 시나리오 마지막 장면인지
-        view.value = SceneView(scene.id, scene.title, busy = true, last = last)
+        val starts = scenes.indices.filter { k -> scenes[k].prep.any { it.resetTrip } } // 시나리오마다 첫 장면
+        val no = starts.count { it <= i } // 시나리오 번호(1부터)
+        val first = starts.getOrElse(no - 1) { 0 } // 이 시나리오 첫 장면 번호
+        val end = starts.getOrElse(no) { scenes.size } // 다음 시나리오 첫 장면 번호
+        val names = g.app.resources.getStringArray(R.array.scene_scenarios) // 시나리오 이름들
+        view.value = SceneView(
+            scene.id, scene.title, busy = true, last = i == end - 1,
+            scenario = names.getOrElse(no - 1) { "" }, step = i - first + 1, steps = end - first,
+        )
         scene.prep.forEach { prep ->
             prepare(prep)
             delay(STEP_MS)

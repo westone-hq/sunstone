@@ -12,6 +12,8 @@ import com.westone.sunstone.routines.engine.RunView
 import com.westone.sunstone.routines.engine.RunnerUi
 import com.westone.sunstone.routines.engine.StepStatus
 import com.westone.sunstone.routines.engine.StepView
+import com.westone.sunstone.ui.SceneControls
+import com.westone.sunstone.ui.SceneView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -30,9 +32,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * 작성: 2026-11-12 18:44:00 · 박건준
  * 수정: 2026-11-13 15:00:00 · 박희정
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 클래스: PanelPresenter
  * 목적: 왼쪽 구역에 그릴 값(`ScreenUi`)을 만든다. 판단은 하지 않고 routines가
  *       준 값을 화면 모양으로만 바꾼다.
+ *       - 마이크 칸·앱 아이콘으로 부르면 부르는 카드(루틴 세 줄, [+ 루틴 추가],
+ *         시연 줄)를 띄우고 듣는다. 닫기·말·줄 누름 뒤에는 닫는다. "시연"을
+ *         누르면 시나리오 고르기로 바뀐다
  *       - `Asking.question` → 제안 카드. 그 질문의 말이 시작될 때 띄우고, 그
  *         전까지는 앞 화면(토스트 포함)을 둔다. 버튼과 닫기는 대답이 된다
  *       - 대답하면(말이든 버튼이든) 고른 버튼을 눌린 모습으로 `PICKED_MS` 보인
@@ -40,12 +46,13 @@ import kotlinx.coroutines.withTimeoutOrNull
  *       - `RunnerUi.runs`의 세차 모드·차일드락 → 맞추는 중·준비됨 카드.
  *         준비되고 `CHIP_MS` 뒤에는 "○○ 켜짐" 한 줄로 접는다. [끝내기]면
  *         되돌리고 카드가 사라진다
- *       - `Asking.notices` → 토스트(판 자리), `Asking.alerts` → 경고 토스트(같은
- *         자리, 경고 아이콘)
- *       - 카드가 뜨면 듣는 중 판(LISTENING, "듣고 있어요"), 들은 말(`heard()`)은
+ *       - `Asking.notices` → 토스트(듣는 중 줄 자리), `Asking.alerts` → 경고
+ *         토스트(같은 자리, 경고 아이콘)
+ *       - 카드가 뜨면 듣는 중 줄(LISTENING, "듣고 있어요"), 들은 말(`heard()`)은
  *         HEARD로 1초 보인 뒤 내린다. 그때 대답을 처리하는 중(`Asking.working`,
  *         내비가 경유지를 넣는 중)이면 내리지 않고 WORKING(도는 표시)으로 둔다.
- *         질문 말이 끝나고 8초 안에 대답이 없으면 판만 닫고 카드는 남긴다
+ *         질문 말이 끝나고 8초 안에 대답이 없으면 줄만 닫고 카드는 남긴다.
+ *         부르는 카드가 떠 있는 동안은 닫지 않는다
  *       - 새 카드가 뜨거나 시연 장면이 바뀌면 남은 토스트를 바로 지운다
  * 인자: context — 화면 문구(strings.xml)를 읽는다
  *       scope — 타이머와 구독을 돌린다(화면 스레드)
@@ -53,12 +60,16 @@ import kotlinx.coroutines.withTimeoutOrNull
  *       runner — 루틴 실행기 화면 상태
  *       speaking — 음성 안내가 말하는 중인지
  *       starts — 말 하나가 시작될 때 그 말에 붙은 질문(`AndroidSpeaker.starts`)
+ *       scenes — 시연 모드. 없으면 null(시연 줄을 두지 않는다)
  *       onAnswer — 카드 버튼·닫기 대답(`AppGraph.answer()`)
  *       onFinish — 켜짐 표시 [끝내기](`RoutineRunner.undo()`)
- *       onHold — 마이크 칸·판 마이크 칸·카드 앱 아이콘을 길게 눌렀을 때
- *       (시연 모드 다음 장면)
+ *       onRoutine — 부르는 카드 루틴 줄(루틴, 지금 켜져 있는지)
+ *       onHold — 마이크 칸·듣는 중 줄 마이크 칸·카드 앱 아이콘을 길게 눌렀을
+ *       때(시연 모드 다음 장면)
  * 근거: 인용 — docs/SCREEN.md 6장, 1장 상태 흐름, 5장 대답 기다리는 시간 8초.
- *       2026-11-12 박건준 검토: 카드는 그 카드의 말이 시작될 때 띄운다
+ *       2026-11-12 박건준 검토: 카드는 그 카드의 말이 시작될 때 띄운다.
+ *       2026-11-13 박건준 지시: 부르면 나오는 카드(앱 화면 시안
+ *       sunstone-app.html)
  */
 class PanelPresenter(
     private val context: Context,
@@ -67,9 +78,11 @@ class PanelPresenter(
     runner: StateFlow<RunnerUi>,
     private val speaking: StateFlow<Boolean>,
     private val starts: SharedFlow<Any?>,
+    private val scenes: SceneControls?,
     private val onAnswer: (Reply) -> Unit,
     private val onFinish: (RoutineId) -> Unit,
-    val onHold: () -> Unit,
+    private val onRoutine: (RoutineId, Boolean) -> Unit,
+    private val onHold: () -> Unit,
 ) {
 
     private companion object {
@@ -155,7 +168,43 @@ class PanelPresenter(
          * 근거: 인용 — docs/SCREEN.md 6장 "②③에 같은 짜임을 쓸 때"
          */
         val CARD_ROUTINES = listOf(RoutineId.WASH, RoutineId.CHILD_LOCK, RoutineId.SEAT_MEMORY)
+
+        /**
+         * 작성: 2026-11-13 20:00:00 · 박건준
+         * 변수: CALL_ROWS
+         * 목적: 부르는 카드 루틴 세 줄. 세차 모드, 차일드락, 시트 맞추기(시트는
+         *       저장한 자세 루틴이 켜짐을 정한다).
+         * 근거: 인용 — 앱 화면 시안 sunstone-app.html `ROUT`
+         */
+        val CALL_ROWS = listOf(
+            CallRow(RoutineId.WASH, "wash", R.string.row_wash, R.string.row_wash_say),
+            CallRow(RoutineId.CHILD_LOCK, "child", R.string.row_child, R.string.row_child_say),
+            CallRow(RoutineId.SEAT_MEMORY, "seat", R.string.row_seat, R.string.row_seat_say),
+        )
     }
+
+    /**
+     * 작성: 2026-11-13 20:00:00 · 박건준
+     * 클래스: CallRow
+     * 목적: 부르는 카드 루틴 줄 하나의 고정 값.
+     * 인자: id — 루틴
+     *       icon — 아이콘 이름
+     *       title — 이름 문구
+     *       say — 켜는 말 문구
+     */
+    private class CallRow(val id: RoutineId, val icon: String, val title: Int, val say: Int)
+
+    /**
+     * 작성: 2026-11-13 20:00:00 · 박건준
+     * 클래스: Call
+     * 목적: 부르는 카드의 모양.
+     *       - `ROUTINES` — 루틴 세 줄, [+ 루틴 추가], 시연 줄, 듣는 중 줄
+     *       - `PICK` — 시나리오 고르기
+     */
+    private enum class Call { ROUTINES, PICK }
+
+    /** 부르는 카드. 마이크 칸·앱 아이콘으로 부르면 채우고 닫으면 비운다. 없으면 null */
+    private val call = MutableStateFlow<Call?>(null)
 
     /** 화면에 띄운 질문. 질문의 말이 시작되면 채우고, 대답이 오면 비운다. 없으면 null */
     private val shown = MutableStateFlow<Question?>(null)
@@ -194,9 +243,13 @@ class PanelPresenter(
     private var shownRun: RunView? = null
 
     /** 지금 보일 카드(값이 바뀌면 알려주는 상태) */
-    private val card = combine(shown, held, runner, hiddenRun, chipRun) { q, h, r, hidden, chip ->
-        cardOf(h ?: q?.let { it to null }, r, hidden, chip)
-    }
+    private val card = combine(
+        combine(shown, held) { q, h -> h ?: q?.let { it to null } },
+        runner,
+        combine(hiddenRun, chipRun, ::Pair),
+        call,
+        scenes?.current ?: MutableStateFlow<SceneView?>(null),
+    ) { asked, r, (hidden, chip), c, scene -> cardOf(asked, r, hidden, chip, c, scene) }
 
     /** 왼쪽 구역에 그릴 것 전부(값이 바뀌면 알려주는 상태) */
     val ui: StateFlow<ScreenUi> = combine(card, listen, toast) { c, l, t -> ScreenUi(c, l, t) }
@@ -221,16 +274,18 @@ class PanelPresenter(
      * 작성: 2026-11-12 18:44:00 · 박건준
      * 수정: 2026-11-13 04:20:00 · 박건준
      * 함수: heard
-     * 목적: 운전자가 한 말을 판에 HEARD로 보여 준다. 음성·시연 녹음본·adb
-     *       `say`가 모두 `AppGraph.hear()`를 거쳐 여기로 온다. `HEARD_MS` 뒤
-     *       아직 질문이 남아 있으면(못 알아들음) 다시 듣고, 대답을 처리하는
-     *       중이면 같은 글자로 WORKING(도는 표시)을 두고, 아니면 판을 닫는다.
+     * 목적: 운전자가 한 말을 듣는 중 줄에 HEARD로 보여 준다. 음성·시연
+     *       녹음본·adb `say`가 모두 `AppGraph.hear()`를 거쳐 여기로 온다.
+     *       부르는 카드는 닫는다. `HEARD_MS` 뒤 아직 질문이 남아 있으면(못
+     *       알아들음) 다시 듣고, 대답을 처리하는 중이면 같은 글자로
+     *       WORKING(도는 표시)을 두고, 아니면 줄을 닫는다.
      * 인자: text — 들은 말
      *       next — 들은 말 아래에 보일, 앱이 이어서 하는 일("세차 모드를
      *       켤게요"). 없으면 null(줄을 비운다)
      * 근거: 인용 — 시안 sunstone-ui.html 들음 상태 `.vh`
      */
     fun heard(text: String, next: String?) {
+        call.value = null
         listenJob?.cancel()
         listen.value = ListenUi(ListenState.HEARD, context.getString(R.string.listen_heard, text), next)
         listenJob = scope.launch {
@@ -279,41 +334,108 @@ class PanelPresenter(
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
-     * 수정: 2026-11-12 22:45:00 · 박건준
+     * 수정: 2026-11-13 20:00:00 · 박건준
      * 함수: tapMic
-     * 목적: 마이크 칸을 눌렀을 때 듣는 중 판을 띄운다. 8초 동안 말이 없으면
-     *       닫는다. 시연 모드에서 운전자 대사 녹음본을 낼 때도 부른다.
-     * 미구현: 프로토타입이라 마이크 칸은 판만 띄우고 음성 인식은 하지 않는다.
-     *       에뮬레이터에 마이크 입력이 없어 말은 시연 녹음본·adb `say`로 넣는다
-     *       (docs/api-spike.md 음성 인식 행)
+     * 목적: 마이크 칸·카드 앱 아이콘을 누르거나 하단 막대 앱 아이콘으로
+     *       불렀을 때. 질문 카드가 떠 있으면 대답을 듣고, 아니면 부르는 카드를
+     *       띄우고 카드가 떠 있는 동안 듣는다. 시연 모드에서 운전자 대사
+     *       녹음본을 낼 때도 부른다.
+     * 미구현: 프로토타입이라 마이크 칸은 듣는 중 줄만 띄우고 음성 인식은 하지
+     *       않는다. 에뮬레이터에 마이크 입력이 없어 말은 시연 녹음본·adb `say`로
+     *       넣는다(docs/api-spike.md 음성 인식 행)
      */
-    fun tapMic() = startListening()
+    fun tapMic() {
+        if (shown.value != null) return startListening()
+        call.value = Call.ROUTINES
+        listenJob?.cancel()
+        listen.value = ListenUi(ListenState.LISTENING, context.getString(R.string.listen_on))
+    }
+
+    /**
+     * 작성: 2026-11-13 20:00:00 · 박건준
+     * 함수: hold
+     * 목적: 마이크 칸·카드 앱 아이콘·듣는 중 줄 마이크 칸을 길게 눌렀을 때.
+     *       부르는 카드를 닫고 시연 모드 다음 장면으로 간다.
+     */
+    fun hold() {
+        closeCall()
+        onHold()
+    }
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
      * 수정: 2026-11-13 10:00:00 · 박희정
+     * 수정: 2026-11-13 20:00:00 · 박건준
      * 함수: press
-     * 목적: 카드 버튼이나 닫기 칸을 처리한다. [끝내기]는 지금 보이는 실행을
-     *       끝낸다.
+     * 목적: 카드 버튼·줄·닫기 칸을 처리한다.
+     *       - [끝내기] — 지금 보이는 실행을 끝낸다
+     *       - 루틴 줄·시나리오 줄·[다음 장면] — 부르는 카드를 닫고 한다
+     *       - [+ 루틴 추가] — 준비 중이라고 듣는 중 줄에 알린다
+     *       - "시연" — 시나리오 고르기로 바꾸고 듣기를 멈춘다(시안에 듣는 중 줄
+     *         없음)
+     *       - [처음] — 시연을 처음으로 돌리고 카드는 둔다
      * 인자: press — 누른 것이 하는 일
+     * 미구현: 프로토타입이라 [+ 루틴 추가]는 버튼만 둔다. 루틴을 만들거나
+     *       고치는 조작은 오른쪽 화면까지 쓰는 화면으로 넘어갈 자리다
      */
     fun press(press: PanelPress) {
         when (press) {
             is PanelPress.Answer -> onAnswer(press.reply) // → 로직 이동: AppGraph.answer()
             PanelPress.Finish -> onFinish(shownRun?.id ?: RoutineId.WASH) // → 로직 이동: RoutineRunner.undo()
             PanelPress.Hide -> hiddenRun.value = shownRun?.startedAtMs
+            is PanelPress.Routine -> {
+                closeCall()
+                onRoutine(press.id, press.on) // → 로직 이동: AppGraph.switchRoutine()
+            }
+            PanelPress.AddRoutine -> showToast(context.getString(R.string.add_routine_soon))
+            PanelPress.DemoPick -> {
+                call.value = Call.PICK
+                stopListening()
+            }
+            is PanelPress.Scenario -> {
+                closeCall()
+                scenes?.start(press.number) // → 로직 이동: SceneControls.start()
+            }
+            PanelPress.SceneNext -> {
+                closeCall()
+                scenes?.next() // → 로직 이동: SceneControls.next()
+            }
+            PanelPress.SceneRestart -> scenes?.restart() // → 로직 이동: SceneControls.restart()
+            PanelPress.Close -> closeCall()
         }
+    }
+
+    /**
+     * 작성: 2026-11-13 20:00:00 · 박건준
+     * 함수: closeCall
+     * 목적: 부르는 카드를 닫는다. 질문 카드 없이 듣던 중이었으면 듣기도 멈춘다.
+     */
+    private fun closeCall() {
+        call.value = null
+        if (shown.value == null) stopListening()
+    }
+
+    /**
+     * 작성: 2026-11-13 20:00:00 · 박건준
+     * 함수: stopListening
+     * 목적: 듣는 중(LISTENING)이면 줄을 닫는다. 들은 말·처리 중은 그대로 둔다.
+     */
+    private fun stopListening() {
+        if (listen.value.state != ListenState.LISTENING) return
+        listenJob?.cancel()
+        listen.value = ListenUi(ListenState.OFF)
     }
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
      * 수정: 2026-11-12 22:45:00 · 박건준
      * 함수: onQuestion
-     * 목적: 질문이 바뀌면 카드와 판을 맞춘다.
+     * 목적: 질문이 바뀌면 카드와 듣는 중 줄을 맞춘다.
      *       - 새 질문 — 그 질문의 말이 시작될 때(`starts`) 카드를 띄우고 듣는 중
-     *         판을 켠다. 그 전까지는 앞 화면을 그대로 둔다
-     *       - 질문이 없어짐(대답함) — 카드를 내리고 듣는 중 판을 닫는다
-     *       들은 말을 보여 주는 중이면 판은 `heard()`의 타이머가 이어서 정한다.
+     *         줄을 켠다. 그 전까지는 앞 화면을 그대로 둔다
+     *       - 질문이 없어짐(대답함) — 카드를 내리고 듣는 중 줄을 닫는다
+     *       들은 말을 보여 주는 중이면 줄은 `heard()`의 타이머가 이어서 정한다.
+     *       질문 카드가 뜨면 부르는 카드는 닫는다.
      * 인자: q — 지금 질문. 없으면 null
      */
     private fun onQuestion(q: Question?) {
@@ -328,6 +450,7 @@ class PanelPresenter(
         }
         showJob = scope.launch {
             withTimeoutOrNull(SHOW_WAIT_MS) { starts.first { it === q } }
+            call.value = null
             shown.value = q
             if (listen.value.state != ListenState.HEARD) startListening()
         }
@@ -364,8 +487,8 @@ class PanelPresenter(
      * 작성: 2026-11-12 18:44:00 · 박건준
      * 수정: 2026-11-12 22:45:00 · 박건준
      * 함수: startListening
-     * 목적: 듣는 중 판("듣고 있어요" 한 줄)을 띄우고, 지금 말이 끝난 뒤
-     *       `LISTEN_TIMEOUT_MS`가 지나면 판만 닫는다.
+     * 목적: 듣는 중 줄("듣고 있어요")을 띄우고, 지금 말이 끝난 뒤
+     *       `LISTEN_TIMEOUT_MS`가 지나면 줄만 닫는다.
      * 근거: 인용 — 2026-11-12 박건준 검토: 듣는 중에는 대답 예를 보이지 않는다
      */
     private fun startListening() {
@@ -383,7 +506,7 @@ class PanelPresenter(
      * 작성: 2026-11-12 18:44:00 · 박건준
      * 수정: 2026-11-13 11:00:00 · 박희정
      * 함수: showToast
-     * 목적: 토스트를 판 자리에 띄운다.
+     * 목적: 토스트를 듣는 중 줄 자리에 띄운다.
      *       - 들은 말을 보이는 중이면 그것이 내려간 뒤부터 `TOAST_MS`를 센다
      *       - 함께 나온 말이 있으면 그 말이 끝날 때까지 둔다
      *       새 카드가 뜨면 `clearToast()`가 먼저 지운다. 시연 기록을 맞추려고
@@ -422,22 +545,101 @@ class PanelPresenter(
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
      * 수정: 2026-11-13 10:00:00 · 박희정
+     * 수정: 2026-11-13 20:00:00 · 박건준
      * 함수: cardOf
-     * 목적: 지금 보일 카드를 고른다. 질문(대답한 질문 포함)이 먼저이고, 없으면
-     *       세차 모드·차일드락 진행(접었으면 켜짐 표시).
+     * 목적: 지금 보일 카드를 고른다. 질문(대답한 질문 포함) → 부르는 카드 →
+     *       세차 모드·차일드락 진행(접었으면 켜짐 표시) 순서다.
      * 인자: asked — 질문과 고른 대답. 질문이 없으면 null, 대답 전이면 대답 null
      *       r — 루틴 실행기 화면 상태
      *       hidden — 닫기로 내린 실행의 시작 시각. 없으면 null
      *       chip — 켜짐 표시로 접은 실행의 시작 시각. 없으면 null
+     *       c — 부르는 카드 모양. 없으면 null
+     *       scene — 지금 시연 장면. 시연 전이면 null
      * 반환: 카드. 보일 것이 없으면 null
      */
-    private fun cardOf(asked: Pair<Question, Reply?>?, r: RunnerUi, hidden: Long?, chip: Long?): CardUi? {
+    private fun cardOf(
+        asked: Pair<Question, Reply?>?,
+        r: RunnerUi,
+        hidden: Long?,
+        chip: Long?,
+        c: Call?,
+        scene: SceneView?,
+    ): CardUi? {
         if (asked != null) return questionCard(asked.first, asked.second)
+        when (c) {
+            Call.ROUTINES -> return callCard(r, scene)
+            Call.PICK -> return pickCard()
+            null -> Unit
+        }
         val run = liveRun(r)?.takeIf { it.startedAtMs != hidden } // 보일 실행
         shownRun = run?.takeIf { it.phase == Phase.RUNNING || it.phase == Phase.ACTIVE }
         val showing = shownRun ?: return null // 진행 카드로 보일 실행
         return if (showing.phase == Phase.ACTIVE && chip == showing.startedAtMs) chipCard(showing) else runCard(showing)
     }
+
+    /**
+     * 작성: 2026-11-13 20:00:00 · 박건준
+     * 함수: callCard
+     * 목적: 부르는 카드. 루틴 세 줄(켜져 있으면 "켜짐", 누르면 원래대로),
+     *       [+ 루틴 추가], 시연 줄. 닫기는 카드만 닫는다.
+     * 인자: r — 루틴 실행기 화면 상태
+     *       scene — 지금 시연 장면. 시연 전이면 null
+     * 반환: 카드
+     * 근거: 인용 — 앱 화면 시안 sunstone-app.html 1·2·4번 상태
+     */
+    private fun callCard(r: RunnerUi, scene: SceneView?) = CardUi(
+        title = context.getString(R.string.call_title),
+        detail = context.getString(R.string.call_detail),
+        rows = CALL_ROWS.map { row ->
+            val on = r.runs[row.id]?.phase == Phase.ACTIVE // 켜져 있는지
+            RowUi(
+                context.getString(row.title), context.getString(row.say), row.icon, null, on,
+                PanelPress.Routine(row.id, on),
+            )
+        },
+        addRoutine = true,
+        demo = scenes?.let { demoOf(scene) },
+        close = PanelPress.Close,
+    )
+
+    /**
+     * 작성: 2026-11-13 20:00:00 · 박건준
+     * 함수: demoOf
+     * 목적: 부르는 카드 시연 줄. 시연 전이면 "시연" 줄, 시연 중이면 장면과
+     *       [다음 장면]·[처음]. 장면 준비 중에는 [다음 장면]을 "준비 중"으로
+     *       흐리게, 마지막 장면이면 흐리게 둔다.
+     * 인자: scene — 지금 시연 장면. 시연 전이면 null
+     * 반환: 시연 줄
+     * 근거: 인용 — 앱 화면 시안 sunstone-app.html `.more`, `.dfoot`
+     */
+    private fun demoOf(scene: SceneView?): DemoUi {
+        if (scene == null) return DemoUi.Entry
+        val next = context.getString(if (scene.busy) R.string.scene_preparing else R.string.scene_next) // 다음 글자
+        return DemoUi.Playing(
+            title = context.getString(R.string.scene_title, scene.id, scene.title),
+            where = context.getString(R.string.scene_where, scene.scenario, scene.steps, scene.step),
+            actions = listOf(
+                ActionUi(next, true, PanelPress.SceneNext, dim = scene.busy || scene.last),
+                ActionUi(context.getString(R.string.scene_restart), false, PanelPress.SceneRestart, dim = scene.busy),
+            ),
+        )
+    }
+
+    /**
+     * 작성: 2026-11-13 20:00:00 · 박건준
+     * 함수: pickCard
+     * 목적: 시나리오 고르기 카드. 줄 셋, 앞에 검은 번호 칸.
+     * 반환: 카드
+     * 근거: 인용 — 앱 화면 시안 sunstone-app.html 3번 상태
+     */
+    private fun pickCard() = CardUi(
+        title = context.getString(R.string.demo_title),
+        detail = context.getString(R.string.demo_detail),
+        rows = context.resources.getStringArray(R.array.scene_scenarios).mapIndexed { i, name ->
+            RowUi(name, null, null, i + 1, false, PanelPress.Scenario(i + 1))
+        },
+        close = PanelPress.Close,
+    )
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준

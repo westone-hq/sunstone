@@ -13,26 +13,30 @@ import com.westone.sunstone.R
 
 /**
  * 작성: 2026-11-12 18:48:00 · 박건준
- * 수정: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 클래스: PanelColors
  * 목적: 카드 색 토큰. 검정·흰색·회색만 쓰고, 초록은 마이크 칸, 주황은 앱
  *       아이콘 안에서만 쓴다.
- * 인자: surface — 카드 면
- *       t1, t2, t3 — 글자 진하기 1~3단계
+ * 인자: page — 왼쪽 구역 창을 못 띄워 앱 화면 안에 그릴 때의 바탕
+ *       surface — 카드 면
+ *       t1, t2, t3, t4 — 글자 진하기 1~4단계
  *       div1 — 아직 안 한 칸·근거 칸 바탕
  *       basic, basicPress — 채우지 않은 버튼 바탕과 눌린 바탕
  *       filled, onFilled — 채운 버튼 바탕과 글자
  *       green — 마이크 켜짐 칸
  *       sun — 앱 아이콘 로고 칸
  * 근거: 인용 — 시안 template2.html `:root`(낮)과 `[data-theme="dark"]`(밤)
- *       토큰, docs/SCREEN.md 1장 색
+ *       토큰, docs/SCREEN.md 1장 색. `page`·`t4`는 앱 화면 시안
+ *       sunstone-app.html 토큰
  */
 @Immutable
 data class PanelColors(
+    val page: Color,
     val surface: Color,
     val t1: Color,
     val t2: Color,
     val t3: Color,
+    val t4: Color,
     val div1: Color,
     val basic: Color,
     val basicPress: Color,
@@ -44,16 +48,18 @@ data class PanelColors(
 
 /**
  * 작성: 2026-11-12 18:48:00 · 박건준
- * 수정: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 변수: LIGHT, DARK
  * 목적: 낮·밤 색 토큰.
  * 근거: 인용 — 시안 template2.html 토큰 값 그대로
  */
 private val LIGHT = PanelColors(
+    page = Color(0xFFF7F8FA),
     surface = Color(0xFFFFFFFF),
     t1 = Color(0xFF131417),
     t2 = Color(0xD61B1C1E),
     t3 = Color(0xA31B1C1E),
+    t4 = Color(0x52131417),
     div1 = Color(0x0D131417),
     basic = Color(0x0D131417),
     basicPress = Color(0x1A131417),
@@ -63,10 +69,12 @@ private val LIGHT = PanelColors(
     sun = Color(0xFFF09A1C),
 )
 private val DARK = PanelColors(
+    page = Color(0xFF131417),
     surface = Color(0xFF26282D),
     t1 = Color(0xFFF2F3F5),
     t2 = Color(0xD6F2F3F5),
     t3 = Color(0xA3F2F3F5),
+    t4 = Color(0x52F2F3F5),
     div1 = Color(0x0FFFFFFF),
     basic = Color(0x14FFFFFF),
     basicPress = Color(0x24FFFFFF),
@@ -115,9 +123,11 @@ val AstaSans = FontFamily(
 /**
  * 작성: 2026-11-12 18:48:00 · 박건준
  * 수정: 2026-11-13 15:00:00 · 박희정
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 함수: iconRes
  * 목적: 아이콘 이름을 그림 리소스로 바꾼다.
- * 인자: name — 아이콘 이름(`Fact.icon`, `QuestionRow.icon`, `Step.icon`)
+ * 인자: name — 아이콘 이름(`Fact.icon`, `QuestionRow.icon`, `Step.icon`,
+ *       부르는 카드 루틴 줄)
  * 반환: 그림 리소스. 모르는 이름이면 null(아이콘 칸을 비운다)
  */
 fun iconRes(name: String?): Int? = when (name) {
@@ -134,5 +144,6 @@ fun iconRes(name: String?): Int? = when (name) {
     "seat" -> R.drawable.ic_panel_seat
     "seat-height" -> R.drawable.ic_panel_seat_height
     "seat-back" -> R.drawable.ic_panel_seat_back
+    "wash" -> R.drawable.ic_panel_wash
     else -> null
 }
