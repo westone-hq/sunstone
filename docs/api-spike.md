@@ -193,3 +193,16 @@ docs/SCREEN.md 6장(2차 시안)대로 카드·판을 다시 짜고 대사집 S1
 | 운전자 대사 | 운전자 녹음본을 낸 뒤 들은 말로 넣음(S1, S3) | 조작(녹음본) | PC 한국어 음성이 Heami 하나라 같은 음성의 WAV 표본율을 0.84배로 적어 낮고 느리게 만든다(`tools/make-voice.ps1`). debug assets/driver, 앱 말 기록(logcat "말:")과 따로 재생 |
 | 녹음본 | 앱 13개(새 문장: 주유·세차 묻기, "곧 세차 모드 켤게요.", "사이드미러 펴졌는지 확인해 주세요."), 운전자 2개 | 조작(녹음본) | 3회 연속 실행에서 `소리 없이 건너뜀` 0건 |
 | 3회 연속 | 길게 누르기만으로 S1~S9를 3번 이어 돌림. 회마다 장면 9·앱 말 5·운전자 대사 2·토스트 3이 같은 순서, 실패 0 | — | 회마다 처음에 adb `scene restart`. relay/files/screen/v2-loop1~3-log.txt |
+
+## Pleos 음성 SDK (2026-11-13, 박희정)
+
+공모전 FAQ의 사용 가능 SDK `ai.pleos.playground:TextToSpeech`·`SpeechToText` 3.3.1(debug 의존성)을 debug 실측 `SpeechProbe`(데모 `speech [tts|stt|mic] [모드]`, logcat `SunstoneVoice` `speech,` 줄)로 잰 것. 둘 다 에뮬레이터 음성 서비스 `ai.pleos.playground.caas`(4.2.10, SDK 요구 4.1.29 이상)에 붙는다.
+
+| 무엇 | 결과 | 시연 표기 | 메모 |
+|---|---|---|---|
+| 권한 | `pleos.car.permission.TTS_SERVICE`·`STT_SERVICE`가 없으면 `SecurityException` | — | 둘 다 protection normal이라 매니페스트에 적기만 하면 된다. STT는 `RECORD_AUDIO`도(`pm grant --user 10`) |
+| TTS ON_DEVICE | 됨. 화자 `seoyoon`, 22050Hz로 문장 하나(약 3.6초)를 만들어 재생(`TotalWrittenBytes=159744`) | 실제 | `setLocale(Locale.KOREA)` 필수. `Locale.KOREAN`(`ko`)은 `unsupported locale: ko-`로 `ON_DEVICE_ENGINE_ERROR`. 리스너는 `initialize()` 뒤에 붙인다(앞이면 `lateinit property tts` 예외). 에뮬레이터 부하가 크면 엔진 준비가 25초 넘게 걸릴 때가 있음 |
+| TTS SERVER·HYBRID | SERVER는 `Client credentials missing` → `UNKNOWN` 오류. HYBRID는 서버 실패 뒤 ON_DEVICE로 넘어감 | — | 서버 인증(`registerApp`)용 자격 정보가 없다 |
+| STT ON_DEVICE | 됨. 16kHz로 녹음해 중간·최종 결과를 준다. "세차할게"를 "시작할게"로 들음(1회) | 실제 | 에뮬레이터를 `-allow-host-audio`로 켜야 한다. 없으면 마이크 입력이 모두 0(앱 `AudioRecord` 진폭 0)이고 `emu avd hostmicon`만으로는 열리지 않는다. 인식 어휘 보강용 `LMBoostConfig`(phrases, triggers)가 SDK 안에 있으나 공개 함수로 넣는 길은 아직 못 찾음 |
+| STT `stop()` | 앞 실측의 듣기 작업이 `stop()`·`release()` 뒤에도 20분 넘게 녹음을 계속함(`readCnt=13015`) | — | 붙일 때 듣기를 끝내는 방법을 다시 확인한다 |
+| 앱 말을 Pleos TTS로 | `VoicePlayer`가 ON_DEVICE TTS로 읽음. 시나리오 ① S1 두 문장이 순서대로 나오고, 첫 말의 끝 알림(`onDone`) 0.2초 뒤 다음 말 시작 | 실제 | 앱을 켜고 TTS 준비까지 약 4초. 8초 안에 준비되지 않으면 준비될 때까지 녹음본으로 낸다. 끝 알림이 오지 않으면 6초 + 글자당 0.25초 뒤 넘어간다. 운전자 대사는 그대로 녹음본 |
