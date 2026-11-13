@@ -1,7 +1,7 @@
 # Sunstone 주석·코드 규칙
 
 OTIS 주석 규칙(v4)을 Sunstone에 맞게 고친 것이다. 작업을 시작하기 전에 매번 다시 읽는다.
-대상: `routines/` · `app/` 전체 (Kotlin). `tools/api-explorer`(Pleos 공식 샘플)는 제외한다.
+대상: `routines/` · `app/` 전체 (Kotlin).
 
 OTIS와 달라진 점
 - Kotlin만 쓴다. Dart 전용 규칙(`///`, 위젯 트리)은 Kotlin KDoc(`/** */`)과 Compose 트리로 바꿨다.

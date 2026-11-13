@@ -27,10 +27,11 @@ import org.junit.Test
 
 /**
  * 작성: 2026-11-13 15:00:00 · 박희정
+ * 수정: 2026-11-14 03:00:00 · 박건준
  * 클래스: SeatScenarioTest
  * 목적: 시트 맞추기가 대사집 밖 경우에도 규칙대로 움직이는지 본다. 대사집 순서
  *       그대로는 `ScriptTest`가 본다.
- * 근거: 인용 — docs/SCREEN.md 4장 ③ 규칙, CLAUDE.md "시트는 P단에서만"
+ * 근거: 인용 — docs/SCREEN.md 4장 ③ 규칙, 프로젝트 규칙 "시트는 P단에서만"
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SeatScenarioTest {

@@ -20,6 +20,7 @@ import com.westone.sunstone.routines.speech.SeatLines
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
  * 수정: 2026-11-13 15:00:00 · 박희정
+ * 수정: 2026-11-14 03:00:00 · 박건준
  * 클래스: SeatMemoryRoutine
  * 목적: 시트 메모리. 사람 이름으로 저장한 자세로 운전석이나 조수석을 맞춘다
  *       (시나리오 ③-6·③-7). 차 메모리 버튼은 1~2개뿐이고 누가 몇 번인지 잊어서
@@ -31,7 +32,7 @@ import com.westone.sunstone.routines.speech.SeatLines
  *       - 맞춘 뒤 다시 부르면 새로 맞춘다. 되돌리기는 마지막 실행 기준
  * 인자: profiles — 사람별 자세 저장소
  *       asking — 끝났을 때 토스트를 낸다. 없으면 말만 한다
- * 근거: 인용 — docs/SCREEN.md 4장 ③-6·③-7, CLAUDE.md "시트는 P단에서만"
+ * 근거: 인용 — docs/SCREEN.md 4장 ③-6·③-7, 프로젝트 규칙 "시트는 P단에서만"
  */
 class SeatMemoryRoutine(
     private val profiles: SeatProfiles,

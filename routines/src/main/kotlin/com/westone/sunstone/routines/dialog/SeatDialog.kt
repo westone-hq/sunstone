@@ -18,6 +18,7 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * 작성: 2026-11-13 15:00:00 · 박희정
+ * 수정: 2026-11-14 03:00:00 · 박건준
  * 클래스: SeatDialog
  * 목적: 시트 맞추기 대화(시나리오 ③). 여러 번 말을 주고받는 일이라 루틴이
  *       아니라 대화로 둔다.
@@ -36,7 +37,7 @@ import kotlinx.coroutines.sync.withLock
  *       speaker — 말하기
  *       startRun — 저장된 자세로 맞출 때 시트 메모리 루틴을 부른다
  *       (`RoutineRunner.request()`)
- * 근거: 인용 — docs/SCREEN.md 4장 ③ 표와 규칙, 5장 "조금"의 양. CLAUDE.md
+ * 근거: 인용 — docs/SCREEN.md 4장 ③ 표와 규칙, 5장 "조금"의 양. 프로젝트 규칙
  *       "시트는 P단에서만"
  */
 class SeatDialog(

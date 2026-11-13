@@ -41,10 +41,12 @@ import java.time.LocalDate
 /**
  * 작성: 2026-11-12 16:10:00 · 박희정
  * 수정: 2026-11-13 10:00:00 · 박희정
+ * 수정: 2026-11-14 03:00:00 · 박건준
  * 클래스: ChildLockScenarioTest
  * 목적: 차일드락이 대사집 밖 경우에도 규칙대로 움직이는지 본다. 대사집 순서
  *       그대로는 `ScriptTest`가 본다.
- * 근거: 인용 — docs/SCREEN.md 4장 ② 표와 "정한 것", CLAUDE.md 되돌리기
+ * 근거: 인용 — docs/SCREEN.md 4장 ② 표와 "정한 것", 프로젝트 규칙 "되돌리기는 저장한
+ *       원래 값으로"
  *       규칙(문 잠금은 풀지 않는다)
  */
 @OptIn(ExperimentalCoroutinesApi::class)

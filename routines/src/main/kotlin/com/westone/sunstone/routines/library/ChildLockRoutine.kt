@@ -92,11 +92,12 @@ class ChildLockRoutine(
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
      * 수정: 2026-11-12 16:10:00 · 박희정
+     * 수정: 2026-11-14 03:00:00 · 박건준
      * 함수: blockedReason
      * 목적: 달리는 중이면 하지 않는다. 단계마다 다시 본다.
      * 인자: state — 지금 차 상태
      * 반환: 이유 문장. 해도 되면 null
-     * 근거: 인용 — CLAUDE.md "차를 바꾸는 일은 정차 중에만"
+     * 근거: 인용 — 프로젝트 규칙 "차를 바꾸는 일은 정차 중에만"
      */
     override fun blockedReason(state: CarState): String? =
         if (!state.stopped) ChildLockLines.BLOCKED_MOVING else null

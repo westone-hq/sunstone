@@ -8,14 +8,14 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-12 14:58:00 · 박건준
+ * 수정: 2026-11-14 03:00:00 · 박건준
  * 클래스: AndroidSpeaker
  * 목적: 음성 안내(`Speaker`, 기능 구현이 말을 내보내는 창구). 문장마다 녹음본이
  *       있으면 녹음본으로, 없으면 TTS로 읽게 해 한 줄로 세운다.
  *       - 녹음본 찾기 — `VoiceLibrary`
  *       - 순서대로 내기·끊기 — `VoicePlayer`
  * 인자: context — 앱 Context
- * 근거: 인용 — Pleos Playground에서 Pleos TTS는 "준비 중"이다. Tab 1 5.2 음성
+ * 근거: 인용 — Pleos Playground에서 Pleos TTS는 "준비 중"이다. 음성 설계: 음성
  *       출력 "대사집 문장은 미리 녹음한 파일".
  *       측정 — Pleos 에뮬레이터 v2.1.0의 TTS 엔진은 Pleos 음성 서비스 하나이고
  *       초기화가 -1로 실패해 소리가 나지 않았다(2026-11-11)

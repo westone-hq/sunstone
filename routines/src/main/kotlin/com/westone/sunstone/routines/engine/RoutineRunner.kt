@@ -89,9 +89,10 @@ class RoutineRunner(
     private companion object {
         /**
          * 작성: 2026-11-11 14:28:46 · 박희정
+         * 수정: 2026-11-14 03:00:00 · 박건준
          * 변수: DECLINED
          * 목적: 권하기를 거절했을 때 하는 말.
-         * 근거: 미정 — Tab 1 대사집에 거절 문장이 없어 짧게 정했다
+         * 근거: 미정 — 대사집에 거절 문장이 없어 짧게 정했다
          */
         const val DECLINED = "알겠어요."
     }
@@ -300,6 +301,7 @@ class RoutineRunner(
 
     /**
      * 수정: 2026-11-13 12:00:00 · 박희정
+     * 수정: 2026-11-14 03:00:00 · 박건준
      * 함수: undoLocked
      * 목적: 켜진 루틴을 저장한 원래 값으로 되돌리고 끝낸다. 끝나면 그 루틴의
      *       권하기 기록(10분에 한 번)도 지운다. 한 번 쓰고 끝난 뒤 다시 생긴
@@ -308,7 +310,7 @@ class RoutineRunner(
      *       끝냈으면([끝내기], "원래대로") `Routine.afterUndo`를 말한다.
      * 인자: id — 되돌릴 루틴
      *       auto — 저절로 되돌리는 것이면 true
-     * 근거: 인용 — Tab 1 4.3 시나리오 ② #4 뒤 #5 "차일드락 이어서 할까요?"
+     * 근거: 인용 — 시연 시나리오 ② #4 뒤 #5 "차일드락 이어서 할까요?"
      */
     private suspend fun undoLocked(id: RoutineId, auto: Boolean) {
         val run = active[id] ?: return

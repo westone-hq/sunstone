@@ -26,19 +26,16 @@
 sunstone/
 ├─ README.md
 ├─ CONTRIBUTING.md         담당, 기능 승인, 브랜치·PR
-├─ CLAUDE.md               Claude Code 작업 안내 (두 사람 공통)
-├─ .claude/settings.json   Claude Code 공통 설정
 ├─ docs/
 │  ├─ STRUCTURE.md         이 문서
 │  ├─ COMMENT_RULES.md     주석·코드·커밋 규칙 (작업 전마다 읽는다)
 │  ├─ api-spike.md         Pleos API 실측 기록
 │  └─ SCREEN.md            화면 1차 규격, 시나리오 ① 장면별 상세
-├─ apk/                    (예정) 심사용 release APK
-├─ tools/api-explorer/     Pleos 공식 Vehicle 샘플 (실측용, 출품 제외)
+├─ apk/                    심사용 release APK(westone_Sunstone_release.apk). assembleRelease가 복사한다
 ├─ tools/scene-move.ps1    시연 이동: geo fix 1초마다 + 콘솔 속도·기어 (시나리오 ①·②)
 ├─ tools/talk.ps1          터미널에서 말·장면(/ready1 /move1 /leave1)을 넣고 앱 대답 보기
 ├─ tools/make-voice.ps1    대사집 문장 → 녹음본(app assets/voice, Windows 한국어 음성),
-│                          운전자 대사 → 다른 목소리 녹음본(app debug assets/driver)
+│                          운전자 대사 → 다른 목소리 녹음본(app assets/driver)
 │
 ├─ routines/               ① 기능 구현 ─ 박희정
 │  └─ src/main/kotlin/com/westone/sunstone/routines/
@@ -70,23 +67,26 @@ sunstone/
       │  │                 PlaceWatcher(시연 장소 도착 → 장소), NaviModels(좌표·경로 값),
       │  │                 PleosNaviPort(기능 쪽 내비 창구를 PleosNavi로 채움)
       │  ├─ info/          FixedInfo(주유소·날씨 고정 응답). 바깥 API(카카오·오피넷·기상청·에어코리아)는 예정
-      │  ├─ ui/            MainActivity, SunstoneScreen(앱 영역: 대화 기록·말 입력칸·시연 모드 줄),
-      │  │                 SceneControls(시연 모드 창구. 구현은 debug)
-      │  │  └─ panel/      왼쪽 구역 화면: PanelModels(CardUi·CellUi·ListenUi·Plate 값),
-      │  │                 PanelPresenter(Asking·실행 상태 → 화면 값, 고른 버튼 1초, 켜짐 표시 3초,
-      │  │                 듣는 중 8초·토스트),
-      │  │                 PanelViews·PanelTheme(Compose 카드·판·마이크 칸, 색·Asta Sans),
-      │  │                 LeftZoneOverlay(주행 화면을 가리지 않는 창 셋: 마이크 칸·카드·판)
-      │  └─ SunstoneApp.kt AppGraph: 두 영역 조립, 모든 입력의 입구(hear·handle), 대화 기록
+      │  ├─ ui/            MainActivity(화면 없는 입구: 부르는 카드를 띄우고 닫힌다),
+      │  │                 SunstoneScreen(왼쪽 구역 창 허가가 없을 때만: 빈 바탕에 같은 카드),
+      │  │                 SceneControls(시연 모드 창구. 구현은 demo/ScenePlayer)
+      │  │  └─ panel/      왼쪽 구역 화면: PanelModels(CardUi·RowUi·DemoUi·ListenUi·Plate 값),
+      │  │                 PanelPresenter(부르는 카드·Asking·실행 상태 → 화면 값, 고른 버튼 1초,
+      │  │                 켜짐 표시 3초, 듣는 중 8초·토스트),
+      │  │                 PanelViews·PanelTheme(Compose 카드·듣는 중 줄·마이크 칸, 색·Asta Sans),
+      │  │                 LeftZoneOverlay(왼쪽 구역 창 둘: 마이크 칸, 카드. 카드는 뜨는 동안 미디어 줄 위까지)
+      │  ├─ demo/          시연 모드(프로토타입이라 release에도 둔다): ScenePlayer([다음 장면]·scene S3,
+      │  │                 콘솔 연결 신호 1초마다), DriverVoice(운전자 대사 녹음본),
+      │  │                 VirtualConsole(앱 안에서 콘솔 HTTP API 읽기·쓰기)
+      │  └─ SunstoneApp.kt AppGraph: 두 영역 조립, 모든 입력의 입구(hear·handle), 시연 모드
       ├─ main/res/values/  strings.xml (앱 문구. 루틴 문장·질문 패널 글자는 routines/)
-      ├─ main/res/         font/asta_sans.ttf(Asta Sans, OFL), drawable/ic_panel_*(패널 아이콘)
+      ├─ main/res/         font/asta_sans.ttf(Asta Sans, OFL), drawable/ic_panel_*(패널 아이콘),
+      │                    mipmap-anydpi-v26/ic_launcher(앱 아이콘), xml/network_security_config(콘솔만 http)
       ├─ main/assets/      schema.json(Gleo), places.json(시연 장소 고정 목록), licenses/(글꼴 라이선스),
-      │                    voice/(대사집 녹음본 <문장 MD5>.wav, tools/make-voice.ps1이 만든다)
-      ├─ debug/assets/     driver/(운전자 대사 녹음본 <문장 MD5>.wav, 앱과 다른 목소리. 시연 `DriverVoice`가 낸다)
-      ├─ debug/            출시 빌드에는 없음
+      │                    voice/(대사집 녹음본 <문장 MD5>.wav, tools/make-voice.ps1이 만든다),
+      │                    driver/(운전자 대사 녹음본 <문장 MD5>.wav, 앱과 다른 목소리. 시연 `DriverVoice`가 낸다)
+      ├─ debug/            출시 빌드에는 없음(adb 데모 명령과 실측)
       │  ├─ DemoReceiver   adb 장면 주입·실측 명령 입구(scene, washed 포함)
-      │  ├─ ScenePlayer    시연 모드: [다음 장면]·scene S3, 콘솔 연결 신호 1초마다
-      │  ├─ VirtualConsole 앱 안에서 콘솔 HTTP API 읽기·쓰기
       │  ├─ CarProbe       probe: 제어 대상별 바꾸기·되돌리기 실측
       │  ├─ CarAreas       areas: 차가 받는 area 목록
       │  ├─ CarSeatRead    seatread: AAOS 속성으로 시트 위치 읽기 시도
@@ -98,7 +98,6 @@ sunstone/
       │  ├─ BeltProbe      beltprobe: 좌석별 벨트·미착용 경고·벨트 경고등
       │  ├─ ChildLockProbe childlock: 뒷문 차일드락(AAOS 속성) 읽기·쓰기
       │  └─ OverlayProbe   overlay: 왼쪽 구역 오버레이 창·키 수신 실측
-      ├─ release/          DemoSetup(시연 모드 없음, debug의 installDemo와 짝)
       (예정) sim/, pleos/  빌드 2종: 시연 빌드(가짜 차·고정 응답) / Pleos 빌드(실제 SDK)
 ```
 

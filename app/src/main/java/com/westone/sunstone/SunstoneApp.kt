@@ -155,11 +155,12 @@ class AppGraph(val app: Context) {
         /**
          * 작성: 2026-11-11 17:40:00 · 박희정
          * 수정: 2026-11-13 10:00:00 · 박희정
+         * 수정: 2026-11-14 03:00:00 · 박건준
          * 변수: FAKE_UNSUPPORTED
          * 목적: 가짜 차가 지원하지 않는 대상(선루프 두 개, 뒷유리 블라인드).
          * 근거: 측정 — Pleos 에뮬레이터 v2.1.0에는 선루프와 뒷유리 블라인드가
          *       없다(docs/api-spike.md 세차 선루프·차일드락 블라인드 행). 안전
-         *       경로도 실제 경로와 같은 말을 해야 한다(Tab 1 1장 시연 통과 조건 1)
+         *       경로도 실제 경로와 같은 말을 해야 한다(시연 통과 조건)
          */
         val FAKE_UNSUPPORTED =
             setOf(Target.WindowPosition(Window.ROOF_1), Target.WindowPosition(Window.ROOF_2), Target.RearBlind)

@@ -40,6 +40,5 @@ data class RouteSummary(val distanceM: Int, val durationSec: Int, val tollWon: I
  *       priceWon — 휘발유 1리터 가격(원)
  *       carWash — 세차할 수 있으면 true
  * 근거: 측정 — 오피넷 상세정보 API에 세차 여부(`CAR_WASH_YN`)가 있다
- *       (Tab 1 7장 확인할 것 6번)
  */
 data class GasStation(val place: PlaceHit, val priceWon: Int, val carWash: Boolean)

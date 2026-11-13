@@ -12,7 +12,7 @@
          바꿔 app/src/main/assets/driver/<md5>.wav로 저장한다. 시연 `DriverVoice`가 낸다
       대사집을 고치면 다시 돌린다. 이미 있는 파일은 지우고 새로 만든다.
 인자: -Extra  대사집 밖에서 녹음할 문장들
-근거: 인용 — Tab 1 5.2 음성 출력 "기본 TTS → 대사집 문장은 미리 녹음한 파일".
+근거: 인용 — 음성 설계: 음성 출력 "기본 TTS → 대사집 문장은 미리 녹음한 파일".
       측정 — Pleos 에뮬레이터 v2.1.0 TTS 엔진은 ai.pleos.playground.caas 하나이고
       앱 TextToSpeech 초기화가 -1로 실패했다(2026-11-11)
 미구현: 프로토타입이라 `expectSaid = listOf(...)` 안을 글자 그대로 읽는다. 쉼표로
