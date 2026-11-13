@@ -106,13 +106,16 @@
     <string name="gleo_answer">대답</string>
 
     <!-- 시연 모드 줄 -->
-    <string name="scene_ready">시연 모드 · 시나리오 ① 출장 가는 길</string>
+    <string name="scene_ready">시연 모드 · 시나리오를 고르세요</string>
     <string name="scene_title">%1$s · %2$s</string>
-    <string name="scene_start">시연 시작</string>
     <string name="scene_next">다음 장면</string>
     <!-- 장면 준비(Prep)를 넣는 동안 [다음 장면] 버튼 글자 -->
     <string name="scene_preparing">준비 중</string>
     <string name="scene_restart">처음</string>
+    <string-array name="scene_scenarios">
+        <item>① 출장 가는 길</item>
+        <item>② 아이 등원길</item>
+    </string-array>
     <string name="gleo_navigate">%1$s 길안내</string>
     <string name="gleo_ask">기능 설명</string>
 

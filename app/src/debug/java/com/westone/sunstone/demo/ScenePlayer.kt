@@ -34,7 +34,7 @@ fun installDemo(graph: AppGraph) {
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
- * 수정: 2026-11-13 10:00:00 · 박희정
+ * 수정: 2026-11-13 13:00:00 · 박희정
  * 클래스: ScenePlayer
  * 목적: 대사집 장면을 실제 앱에 하나씩 넣는다(Tab 1 4.2 실행 방식 1·2).
  *       - `next()` — 화면 [다음 장면], 마이크 칸 길게 누르기, adb `scene next`.
@@ -43,7 +43,8 @@ fun installDemo(graph: AppGraph) {
  *       - `goTo()` — adb `scene S3`. 그 시나리오 첫 장면부터 그 장면 앞까지
  *         대사를 차례로 넣어 건너뛰고, 그 장면을 준비한다. 앞 장면 ID를 주면
  *         되돌린다
- *       - `restart()` — 처음(S1 전)으로
+ *       - `restart()` — 처음(시나리오 고르기 전)으로
+ *       - `start()` — 화면에서 고른 시나리오를 첫 장면부터
  *       Pleos 차면 기어·속도·뒷문·뒷자리 탑승은 Virtual Console로, 장소·연료·
  *       세차일·벨트는 데모 입력으로 넣는다. 가짜 차면 가짜 차 값을 바꾼다. Pleos 차일 때는 콘솔 연결 신호를
  *       1초마다 보낸다.
@@ -151,6 +152,25 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
     }
 
     /**
+     * 작성: 2026-11-13 13:00:00 · 박희정
+     * 함수: start
+     * 목적: 고른 시나리오를 처음부터 시작한다. 그 시나리오 첫 장면(준비에
+     *       `resetTrip`이 있는 장면 중 그 번째)에 들어가 준비하고, 운전자 대사가
+     *       있으면 낸다. 준비 중이면 "준비 중"을 남기고 하지 않는다.
+     * 인자: scenario — 시나리오 번호(1부터)
+     */
+    override fun start(scenario: Int) {
+        if (preparing("start $scenario")) return
+        val first = scenes.indices.filter { k -> scenes[k].prep.any { it.resetTrip } } // 시나리오마다 첫 장면
+            .getOrNull(scenario - 1) ?: return
+        job = g.scope.launch {
+            enter(first) // → 로직 이동: ScenePlayer.enter()
+            speak(first) // → 로직 이동: ScenePlayer.speak()
+            ready()
+        }
+    }
+
+    /**
      * 작성: 2026-11-11 16:42:25 · 박희정
      * 수정: 2026-11-13 10:00:00 · 박희정
      * 함수: goTo
@@ -203,10 +223,11 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-13 03:50:00 · 박건준
+     * 수정: 2026-11-13 13:00:00 · 박희정
      * 함수: enter
      * 목적: 장면 하나에 들어간다. 앞 장면 토스트를 지우고, 화면에 장면을 띄우고
-     *       준비를 한 단계씩 넣는다. 화면 버튼은 부르는 쪽이 `ready()`로 풀 때까지
+     *       준비를 한 단계씩 넣는다. 다음 장면이 새 시나리오(`resetTrip`)면 이
+     *       장면을 그 시나리오의 마지막으로 보인다. 화면 버튼은 부르는 쪽이 `ready()`로 풀 때까지
      *       "준비 중"이다. 대사는 저절로 나오므로 화면 대사 버튼은 두지 않는다.
      * 인자: i — 장면 번호
      */
@@ -215,7 +236,8 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
         val scene = scenes[i] // 들어갈 장면
         Log.i(TAG, "장면,${scene.id},${scene.title}")
         g.panels.clearToast() // → 로직 이동: PanelPresenter.clearToast()
-        view.value = SceneView(scene.id, scene.title, busy = true, last = i == scenes.lastIndex)
+        val last = i == scenes.lastIndex || scenes[i + 1].prep.any { it.resetTrip } // 시나리오 마지막 장면인지
+        view.value = SceneView(scene.id, scene.title, busy = true, last = last)
         scene.prep.forEach { prep ->
             prepare(prep)
             delay(STEP_MS)

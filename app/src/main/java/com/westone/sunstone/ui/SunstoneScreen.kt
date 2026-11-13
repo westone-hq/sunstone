@@ -421,19 +421,22 @@ private fun ChatLog(lines: List<ChatLine>) {
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
- * 수정: 2026-11-13 03:50:00 · 박건준
+ * 수정: 2026-11-13 13:00:00 · 박희정
  * 함수: SceneBar
- * 목적: 시연 모드 줄(Tab 1 4.2 실행 방식 1). 지금 장면과 [다음 장면]·[처음]
- *       버튼을 둔다. 운전자 대사는 장면에 들어가면 녹음본으로 저절로 나온다.
- *       준비 상황·대사를 넣는 동안은 버튼을 막고 [다음 장면]을 "준비 중"으로
- *       바꾼다. 마이크 칸을 길게 눌러도 [다음 장면]과 같다.
+ * 목적: 시연 모드 줄(Tab 1 4.2 실행 방식 1). 시작 전에는 시나리오를 고르는
+ *       버튼([① 출장 가는 길] [② 아이 등원길])을, 시작한 뒤에는 지금 장면과
+ *       [다음 장면]·[처음] 버튼을 둔다. 운전자 대사는 장면에 들어가면 녹음본으로
+ *       저절로 나온다. 준비 상황·대사를 넣는 동안은 버튼을 막고 [다음 장면]을
+ *       "준비 중"으로 바꾼다. 마이크 칸을 길게 눌러도 [다음 장면]과 같다.
+ *       [처음]을 누르면 다시 시나리오를 고르는 화면이 된다.
  * 인자: scenes — 장면 실행기
  */
 @Composable
 private fun SceneBar(scenes: SceneControls) {
     val scene by scenes.current.collectAsStateWithLifecycle() // 지금 장면, 시작 전이면 null
+    val names = stringArrayResource(R.array.scene_scenarios) // 고를 시나리오 이름, 순서대로
     Row(
-        // 시연 모드: 장면 이름, 대사 버튼, 다음·처음 버튼
+        // 시연 모드: 장면 이름, 시나리오 고르기 또는 다음·처음 버튼
         Modifier
             .fillMaxWidth()
             .background(Color(0xFF1A1F2B), RoundedCornerShape(12.dp))
@@ -449,17 +452,19 @@ private fun SceneBar(scenes: SceneControls) {
             color = Color(0xFF9AA0A6),
             fontSize = 16.sp,
         )
-        // → 로직 이동: SceneControls.next()
-        Button(onClick = { scenes.next() }, enabled = s == null || (!s.busy && !s.last)) {
-            val label = when { // 버튼 글자: 준비 중이면 "준비 중"
-                s == null -> R.string.scene_start
-                s.busy -> R.string.scene_preparing
-                else -> R.string.scene_next
+        if (s == null) {
+            names.forEachIndexed { i, name ->
+                // → 로직 이동: SceneControls.start()
+                Button(onClick = { scenes.start(i + 1) }) { Text(name) }
             }
-            Text(stringResource(label))
+            return@Row
+        }
+        // → 로직 이동: SceneControls.next()
+        Button(onClick = { scenes.next() }, enabled = !s.busy && !s.last) {
+            Text(stringResource(if (s.busy) R.string.scene_preparing else R.string.scene_next))
         }
         // → 로직 이동: SceneControls.restart()
-        OutlinedButton(onClick = { scenes.restart() }, enabled = s?.busy != true) {
+        OutlinedButton(onClick = { scenes.restart() }, enabled = !s.busy) {
             Text(stringResource(R.string.scene_restart))
         }
     }
