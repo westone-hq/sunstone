@@ -239,6 +239,50 @@ class ChildLockScenarioTest {
     }
 
     /**
+     * 작성: 2026-11-13 14:00:00 · 박희정
+     * 함수: 유치원으로 길안내하면 아이가 탔는지 묻는다
+     * 목적: 정차 중 유치원으로 길안내를 시작하면, 뒷자리 탑승 값과 상관없이
+     *       "아이 타고 있나요?"로 묻고 카드 제목이 "차일드락 켤까요?"인지 본다.
+     */
+    @Test
+    fun `유치원으로 길안내하면 아이가 탔는지 묻는다`() = runTest {
+        val car = FakeCar(CarState(gear = Gear.PARK, place = Place.HOME))
+        val runner = runner(car)
+        runCurrent()
+
+        route.start(KIDS)
+        runner.recheck(); runCurrent()
+
+        assertEquals(listOf(ChildLockLines.KIDS_ASK), said)
+        assertEquals(ChildLockLines.KIDS_TITLE, asking.question.value?.title)
+        said.clear()
+        runner.answer(Reply.YES); runCurrent()
+        assertEquals(true, car.value(Target.WindowLock(Window.REAR_LEFT)))
+    }
+
+    /**
+     * 작성: 2026-11-13 14:00:00 · 박희정
+     * 함수: 탈 때 물었으면 유치원 길안내 때 다시 묻지 않는다
+     * 목적: 뒷자리에 탈 때 권한 것을 거절했으면, 이어서 유치원으로 길안내해도
+     *       또 묻지 않는지 본다. 질문을 두 번 하지 않는다.
+     */
+    @Test
+    fun `탈 때 물었으면 유치원 길안내 때 다시 묻지 않는다`() = runTest {
+        val car = FakeCar(CarState(gear = Gear.PARK, place = Place.HOME))
+        val runner = runner(car)
+        runCurrent()
+        board(car)
+        runner.answer(Reply.NO); runCurrent()
+        said.clear()
+
+        asking.newTrip() // 길안내 대화가 새 길안내에서 하는 일
+        route.start(KIDS)
+        runner.recheck(); runCurrent()
+
+        assertEquals(emptyList<String>(), said)
+    }
+
+    /**
      * 작성: 2026-11-13 12:30:00 · 박희정
      * 함수: 다른 질문이 떠 있으면 묻지 않는다
      * 목적: 길안내 대화가 주유를 묻는 중이면, 오늘 썼고 뒷자리에 누가 있어도

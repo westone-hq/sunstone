@@ -228,12 +228,12 @@ class ScriptTest {
 
     /**
      * 작성: 2026-11-13 10:00:00 · 박희정
-     * 함수: 시나리오 2 대사집 S10부터 S19까지
+     * 함수: 시나리오 2 대사집 S10부터 S18까지
      * 목적: 시나리오 ② 장면을 묶음별로 차례로 돌린다. 마지막에 오늘이 차일드락을
      *       쓴 날로 남았는지 본다.
      */
     @Test
-    fun `시나리오 2 대사집 S10부터 S19까지`() = runTest {
+    fun `시나리오 2 대사집 S10부터 S18까지`() = runTest {
         play(ScriptBook.scenarioTwo)
         assertEquals(TODAY, memory.lastChildLockDate())
     }
@@ -298,7 +298,7 @@ class ScriptTest {
     fun `장면 ID는 겹치지 않는다`() {
         val ids = ScriptBook.all.map { it.id } // 장면 ID들
         assertEquals(ids.distinct(), ids)
-        assertEquals(19, ids.size)
+        assertEquals(18, ids.size)
         listOf(ScriptBook.scenarioOne, ScriptBook.scenarioTwo).forEach { scenario ->
             val first = scenario.first() // 시나리오 첫 장면
             assertEquals(Gear.PARK, first.prep.first().gear) // P단에서 시작

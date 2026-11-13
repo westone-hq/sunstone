@@ -52,7 +52,7 @@ sunstone/
 │     │                    묻는 질문·토스트(Asking: 길안내 대화와 루틴 권하기가 함께 쓴다),
 │     │                    지금 길안내 목적지(CurrentRoute: 차일드락이 하원길·도착을 본다)
 │     ├─ knowledge/        AI 참고 문서: 기능 카드(지금은 세차 모드 하나), 별칭 검색 상위 3개
-│     ├─ script/           대사집(ScriptBook: 시나리오 ① S1~S9, ② S10~S19). 자동 테스트·scene·[다음 장면]이 함께 쓴다
+│     ├─ script/           대사집(ScriptBook: 시나리오 ① S1~S9, ② S10~S18). 자동 테스트·scene·[다음 장면]이 함께 쓴다
 │     └─ fake/             가짜 차·내비·바깥 정보 (테스트·시연)
 │
 └─ app/                    ② 앱 연결 ─ 박건준
@@ -144,7 +144,7 @@ sunstone/
 |---|---|---|
 | 기능 테스트 | `.\gradlew :routines:test` | 박희정 |
 | 앱 설치 | `.\gradlew :app:installDebug` | 박건준 |
-| 대사집 자동 테스트 | `.\gradlew :routines:test` 안의 `ScriptTest`(시나리오 ① S1~S9, ② S10~S19) | 박희정 |
+| 대사집 자동 테스트 | `.\gradlew :routines:test` 안의 `ScriptTest`(시나리오 ① S1~S9, ② S10~S18) | 박희정 |
 | 실제 경로 확인 | 에뮬레이터 + Virtual Console | 박건준 |
 
 (예정) 빌드 2종: **시연 빌드**(가짜 차·고정 응답, 아무 에뮬레이터·폰에서 동작) / **Pleos 빌드**(실제 SDK).

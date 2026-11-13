@@ -16,7 +16,7 @@ import com.westone.sunstone.routines.understand.VoiceAction
  * 클래스: ScriptBook
  * 목적: 시연 대사집. 장면 목록과, 말을 대사집에서 먼저 찾는 일을 맡는다.
  *       - `scenarioOne` — 시나리오 ① 출장 가는 길(S1~S9)
- *       - `scenarioTwo` — 시나리오 ② 아이 등원길(S10~S19)
+ *       - `scenarioTwo` — 시나리오 ② 아이 등원길(S10~S18)
  *       - `lookup()` — 대표 문장·변형과 띄어쓰기·문장부호를 빼고 똑같으면 그
  *         장면의 요청을 돌려준다
  * 근거: 인용 — docs/SCREEN.md 6장 시나리오 ① 다시 짠 흐름 9단계, 4장 ② 표.
@@ -138,36 +138,42 @@ object ScriptBook {
 
     /**
      * 작성: 2026-11-12 16:10:00 · 박희정
-     * 수정: 2026-11-13 10:00:00 · 박희정
+     * 수정: 2026-11-13 14:00:00 · 박희정
      * 변수: scenarioTwo
-     * 목적: 시나리오 ② 아이 등원길: 차일드락. 집에서 탐 → 잠금 → 유치원 →
-     *       도착해 풀기 → 하원길 "아침처럼" → 집에 도착해 풀기. S10~S19가
-     *       docs/SCREEN.md 4장 ②-1~②-10에 하나씩 맞는다.
-     *       준비: P단, 집, 뒷자리 빔, 연료 넉넉(80%, 주유를 묻지 않게)
-     * 근거: 인용 — docs/SCREEN.md 4장 ② 표. 맞춘 뒤 문 잠금·공조도 하는 것은
-     *       2026-11-13 박희정이 더 넣기로 정했다(미정)
+     * 목적: 시나리오 ② 아이 등원길: 차일드락. 아이를 태우고 유치원 길안내 →
+     *       아이가 탔는지 물으며 잠금 → 유치원 도착해 풀기 → 하원길 "아침처럼"
+     *       → 집에 도착해 풀기. docs/SCREEN.md 4장 ②-1~②-10의 순서를 2026-11-13
+     *       박건준 요청대로 바꿨다(탑승이 아니라 유치원 길안내 때 묻는다).
+     *       준비: P단, 집, 뒷자리에 아이가 이미 앉아 있음, 연료 넉넉(80%, 주유를
+     *       묻지 않게), 마지막 차일드락은 어제(같은 날 다시 해도 처음처럼)
+     * 근거: 인용 — docs/SCREEN.md 4장 ② 표, 2026-11-13 박건준 요청 "유치원
+     *       간다고 하면 아이가 타고 있는지 물어보면서 차일드락". 맞춘 뒤 문
+     *       잠금·공조도 하는 것은 2026-11-13 박희정이 더 넣기로 정했다(미정)
      * 미구현: 프로토타입이라 뒷자리 탑승·문은 콘솔로, 벨트는 데모 입력으로
      *       넣는다(`ScenePlayer.prepare()`)
      */
     val scenarioTwo: List<Scene> = listOf(
         Scene(
             id = "S10",
-            title = "뒷자리 탑승",
+            title = "유치원 길안내",
             prep = listOf(
                 Prep(
                     gear = Gear.PARK, speedKmh = 0f, place = Place.HOME, fuelPercent = 80, resetTrip = true,
-                    rearDoorOpen = false, rearOccupied = false, rearBelt = false, childLockDaysAgo = 1,
+                    rearDoorOpen = false, rearOccupied = true, rearBelt = true, childLockDaysAgo = 1,
                 ),
-                Prep(rearDoorOpen = true),
-                Prep(rearOccupied = true, rearBelt = true),
-                Prep(rearDoorOpen = false),
             ),
-            expectSaid = listOf("뒷자리에 누가 탔네요. 뒷창문 잠가 드릴까요?"),
+            driver = Utterance(
+                text = "OO유치원 가자",
+                variants = listOf("유치원 가자", "OO유치원으로 안내해 줘", "OO유치원까지 길안내 해 줘"),
+                intent = VoiceAction.Navigate("OO유치원"),
+            ),
+            expectSaid = listOf("OO유치원으로 안내할게요.", "아이 타고 있나요? 차일드락 맞춰 드릴까요?"),
+            expectDestination = "OO유치원",
             expectQuestion = QuestionKind.CHILD_LOCK,
         ),
         Scene(
             id = "S11",
-            title = "뒷창문 잠금",
+            title = "차일드락",
             driver = Utterance(
                 text = "응, 잠가 줘",
                 variants = listOf("잠가 줘", "응 잠가줘", "그래 잠가 줘"),
@@ -183,30 +189,19 @@ object ScriptBook {
         ),
         Scene(
             id = "S12",
-            title = "유치원 길안내",
-            driver = Utterance(
-                text = "OO유치원 가자",
-                variants = listOf("유치원 가자", "OO유치원으로 안내해 줘", "OO유치원까지 길안내 해 줘"),
-                intent = VoiceAction.Navigate("OO유치원"),
-            ),
-            expectSaid = listOf("OO유치원으로 안내할게요."),
-            expectDestination = "OO유치원",
-        ),
-        Scene(
-            id = "S13",
             title = "주행",
             prep = listOf(Prep(gear = Gear.DRIVE, speedKmh = 40f, place = Place.NONE)),
             expectSaid = emptyList(),
         ),
         Scene(
-            id = "S14",
+            id = "S13",
             title = "벨트 풀림",
             prep = listOf(Prep(rearBelt = false)),
             expectSaid = listOf("뒷자리 안전벨트가 풀렸어요."),
             expectNotices = listOf("뒷자리 안전벨트가 풀렸어요."),
         ),
         Scene(
-            id = "S15",
+            id = "S14",
             title = "유치원 도착",
             prep = listOf(
                 Prep(place = Place.KIDS, speedKmh = 0f),
@@ -222,7 +217,7 @@ object ScriptBook {
             ),
         ),
         Scene(
-            id = "S16",
+            id = "S15",
             title = "뒷자리 비움",
             prep = listOf(
                 Prep(rearDoorOpen = true),
@@ -232,7 +227,7 @@ object ScriptBook {
             expectSaid = emptyList(),
         ),
         Scene(
-            id = "S17",
+            id = "S16",
             title = "하원길",
             prep = listOf(
                 Prep(rearDoorOpen = true),
@@ -249,7 +244,7 @@ object ScriptBook {
             expectQuestion = QuestionKind.CHILD_LOCK_AGAIN,
         ),
         Scene(
-            id = "S18",
+            id = "S17",
             title = "다시 잠금",
             driver = Utterance(
                 text = "응, 잠가 줘",
@@ -263,7 +258,7 @@ object ScriptBook {
             ),
         ),
         Scene(
-            id = "S19",
+            id = "S18",
             title = "집 도착",
             prep = listOf(
                 Prep(gear = Gear.DRIVE, speedKmh = 40f, place = Place.NONE),

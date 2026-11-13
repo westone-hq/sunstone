@@ -27,11 +27,12 @@ import java.time.LocalDate
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-13 12:00:00 · 박희정
+ * 수정: 2026-11-13 14:00:00 · 박희정
  * 클래스: ChildLockRoutine
  * 목적: 차일드락(아이 탑승). 뒷문 차일드락은 앱이 걸 수 없어 안내하고, 대신
  *       앱이 할 수 있는 것(뒷창 잠금, 문 잠금, 공조, 뒷유리 블라인드)을 한 번에
  *       한다.
+ *       - 유치원으로 길안내를 시작하면 아이가 탔는지 물으며 카드로 권한다
  *       - 그날 처음: 정차 중 뒷자리에 타고 뒷문이 닫히면 카드로 권한다
  *       - 그날 다시: 뒷자리에 누가 탄 채 정차 중 길안내를 시작하면 권한다.
  *         집이면 "아침처럼"으로 권한다(`RoutineRunner.recheck()`가 부른다)
@@ -70,9 +71,23 @@ class ChildLockRoutine(
     @Volatile
     private var seenDestination: PlaceHit? = null
 
-    /** 방금 권한 것이 하원길 "아침처럼"이면 true. `suggestion()`이 정하고 `question()`이 읽는다 */
+    /** 방금 무엇으로 권했는지. `suggestion()`이 정하고 `question()`이 읽는다. 권하지 않았으면 null */
     @Volatile
-    private var again = false
+    private var ask: Ask? = null
+
+    /** 뒷자리에 탈 때 이미 물었으면 true. 유치원 길안내 때 다시 묻지 않으려고 둔다. 뒷자리가 비면 지운다 */
+    @Volatile
+    private var askedAtBoarding = false
+
+    /**
+     * 작성: 2026-11-13 14:00:00 · 박희정
+     * 클래스: Ask
+     * 목적: 차일드락을 무엇으로 권했는지. 말과 카드 글자가 다르다.
+     *       - `BOARDED` — 뒷자리에 탐
+     *       - `KIDS` — 유치원으로 길안내를 시작함(아이가 탔는지 물음)
+     *       - `AGAIN` — 오늘 썼고 집으로 길안내를 시작함("아침처럼")
+     */
+    private enum class Ask { BOARDED, KIDS, AGAIN }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
@@ -152,18 +167,22 @@ class ChildLockRoutine(
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-13 10:00:00 · 박희정
+     * 수정: 2026-11-13 14:00:00 · 박희정
      * 함수: suggestion
-     * 목적: 정차 중 뒷자리에 사람이 있을 때 차일드락을 권한다.
-     *       1. 오늘 처음이면 뒷문이 닫히는 순간 권한다
-     *       2. 오늘 썼으면 탈 때는 묻지 않고, 길안내를 새로 시작하면 권한다.
-     *          목적지가 집이면 "아침처럼"으로 권한다
+     * 목적: 정차 중일 때 차일드락을 권한다. 한 번에 하나만 묻는다.
+     *       1. 유치원으로 길안내를 시작하면 아이가 탔는지 물으며 권한다. 탄
+     *          사람이 아이인지는 차가 알 수 없어 탑승 여부와 상관없이 묻는다
+     *       2. 오늘 처음이면 뒷문이 닫히는 순간 뒷자리에 사람이 있으면 권한다.
+     *          탈 때 이미 물었으면 1은 다시 묻지 않는다(뒷자리가 빌 때까지)
+     *       3. 오늘 썼으면 탈 때는 묻지 않고, 뒷자리에 누가 있는 채 길안내를
+     *          새로 시작하면 권한다. 목적지가 집이면 "아침처럼"으로 권한다
      * 인자: before — 바뀌기 전 차 상태
      *       now — 지금 차 상태
      * 반환: 권할 말. 권하지 않으면 null
-     * 근거: 인용 — docs/SCREEN.md 4장 ②-1, ②-8, "정한 것" 하원길 판단(목적지
-     *       "집" + 뒷자리 탑승 + 오늘 차일드락을 켰음). 대화 정책: 주행 중 새
-     *       제안 금지
+     * 근거: 인용 — 2026-11-13 박건준 요청 "유치원 간다고 하면 아이가 타고
+     *       있는지 물어보면서 차일드락", docs/SCREEN.md 4장 ②-1, ②-8, "정한 것"
+     *       하원길 판단. 대화 정책: 주행 중 새 제안 금지. 탑승으로 묻는 것도
+     *       두기로 2026-11-13 박희정이 정했다
      * 미구현: 오늘 썼는데 길안내 없이 타면 권하지 않는다. 대사집에 없는 경우라
      *       정하지 않았다
      */
@@ -171,22 +190,33 @@ class ChildLockRoutine(
         val destination = route.destination // 지금 길안내 목적지, 없으면 null
         val newRoute = destination != null && destination != seenDestination // 길안내를 새로 시작했는지
         seenDestination = destination
-        if (!now.stopped || !now.rearOccupied) return null
-        if (memory.lastChildLockDate() != today()) {
-            again = false
-            val boarded = before.anyRearDoorOpen && !now.anyRearDoorOpen // 막 타고 문을 닫았는지
-            return if (boarded) ChildLockLines.BOARDED else null
+        if (!now.rearOccupied) askedAtBoarding = false
+        if (!now.stopped) return null
+        val usedToday = memory.lastChildLockDate() == today() // 오늘 차일드락을 썼는지
+        ask = when {
+            newRoute && destination?.kind == Place.KIDS -> if (askedAtBoarding) null else Ask.KIDS
+            newRoute && usedToday && now.rearOccupied -> if (destination?.kind == Place.HOME) Ask.AGAIN else Ask.BOARDED
+            !usedToday && now.rearOccupied && before.anyRearDoorOpen && !now.anyRearDoorOpen -> Ask.BOARDED
+            else -> null
         }
-        if (!newRoute) return null
-        again = destination?.kind == Place.HOME
-        return if (again) ChildLockLines.AGAIN else ChildLockLines.BOARDED
+        if (ask == Ask.BOARDED) askedAtBoarding = true
+        return when (ask) {
+            Ask.KIDS -> ChildLockLines.KIDS_ASK
+            Ask.AGAIN -> ChildLockLines.AGAIN
+            Ask.BOARDED -> ChildLockLines.BOARDED
+            null -> null
+        }
     }
 
     /**
      * 작성: 2026-11-13 10:00:00 · 박희정
+     * 수정: 2026-11-13 14:00:00 · 박희정
      * 함수: question
      * 목적: 권할 때 올릴 카드. 할 일 칸은 뒷창문, 문 잠금, 공조, 차일드락
-     *       ("직접")이다. 하원길이면 "차일드락 다시 켤까요?"로 묻는다.
+     *       ("직접")이다. 제목·설명은 무엇으로 권했는지에 따라 다르다.
+     *       - 탑승 — "뒷창문 잠글까요?"
+     *       - 유치원 길안내 — "차일드락 켤까요?"
+     *       - 하원길 — "차일드락 다시 켤까요?"
      * 인자: now — 지금 차 상태. 쓰지 않는다
      * 반환: 차일드락 질문
      * 근거: 인용 — docs/SCREEN.md 4장 ②-1·②-8 패널, 6장 ② 칸
@@ -194,9 +224,17 @@ class ChildLockRoutine(
      *       있으면 맞추는 중 카드에만 보인다
      */
     override fun question(now: CarState): Question = Question(
-        kind = if (again) QuestionKind.CHILD_LOCK_AGAIN else QuestionKind.CHILD_LOCK,
-        title = if (again) ChildLockLines.AGAIN_TITLE else ChildLockLines.ASK_TITLE,
-        detail = if (again) ChildLockLines.AGAIN_DETAIL else ChildLockLines.ASK_DETAIL,
+        kind = if (ask == Ask.AGAIN) QuestionKind.CHILD_LOCK_AGAIN else QuestionKind.CHILD_LOCK,
+        title = when (ask) {
+            Ask.KIDS -> ChildLockLines.KIDS_TITLE
+            Ask.AGAIN -> ChildLockLines.AGAIN_TITLE
+            else -> ChildLockLines.ASK_TITLE
+        },
+        detail = when (ask) {
+            Ask.KIDS -> ChildLockLines.KIDS_DETAIL
+            Ask.AGAIN -> ChildLockLines.AGAIN_DETAIL
+            else -> ChildLockLines.ASK_DETAIL
+        },
         rows = listOf(
             QuestionRow("window", ChildLockLines.STEP_REAR_WINDOW),
             QuestionRow("lock", ChildLockLines.STEP_DOOR_LOCK),
