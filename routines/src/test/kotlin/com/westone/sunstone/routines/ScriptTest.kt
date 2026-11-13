@@ -2,6 +2,7 @@ package com.westone.sunstone.routines
 
 import com.westone.sunstone.routines.dialog.Asking
 import com.westone.sunstone.routines.dialog.CurrentRoute
+import com.westone.sunstone.routines.dialog.SeatDialog
 import com.westone.sunstone.routines.dialog.TripDialog
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.RoutineRunner
@@ -19,6 +20,7 @@ import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.routines.model.PlaceHit
 import com.westone.sunstone.routines.model.Seat
+import com.westone.sunstone.routines.model.SeatAxis
 import com.westone.sunstone.routines.model.Window
 import com.westone.sunstone.routines.port.InMemoryMemory
 import com.westone.sunstone.routines.port.InMemorySeatProfiles
@@ -114,12 +116,18 @@ class ScriptTest {
     /** 길안내 대화 */
     private val trip = TripDialog(car, navi, info, memory, booking, asking, { said += it }, { TODAY }, route)
 
+    /** 사람별 시트 자세. 시트 대화와 시트 메모리가 함께 쓴다 */
+    private val profiles = InMemorySeatProfiles()
+
+    /** 시트 맞추기 대화. `runner()`가 실행기와 함께 만든다 */
+    private lateinit var seat: SeatDialog
+
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-13 11:00:00 · 박희정
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: runner
      * 목적: 앱과 같은 루틴 세 개로 실행기를 만들고 상황 감지와 토스트(경고
-     *       토스트 포함) 받기를 시작한다.
+     *       토스트 포함) 받기를 시작한다. 시트 대화도 그 실행기로 만든다.
      * 반환: 실행기
      */
     private fun TestScope.runner(): RoutineRunner {
@@ -130,13 +138,16 @@ class ScriptTest {
             routines = listOf(
                 WashRoutine(booking, memory, asking, { TODAY }),
                 ChildLockRoutine(route, memory, asking, { TODAY }),
-                SeatMemoryRoutine(InMemorySeatProfiles()),
+                SeatMemoryRoutine(profiles, asking),
             ),
             speaker = { said += it },
             scope = backgroundScope,
             clock = { testScheduler.currentTime },
             asking = asking,
-        ).also { it.start() }
+        ).also { runner ->
+            runner.start()
+            seat = SeatDialog(car, profiles, asking, { said += it }) { runner.request(it) }
+        }
     }
 
     /**
@@ -152,9 +163,12 @@ class ScriptTest {
         if (prep.resetTrip) {
             asking.newTrip()
             route.clear()
+            seat.reset()
         }
         prep.washedDaysAgo?.let { memory.recordWash(TODAY.minusDays(it)) }
         prep.childLockDaysAgo?.let { memory.recordChildLock(TODAY.minusDays(it)) }
+        prep.driverSeat?.forEach { (axis, at) -> car.set(Target.SeatPosition(Seat.DRIVER, axis), at) }
+        prep.seatProfile?.let(profiles::save)
         car.update {
             it.copy(
                 gear = prep.gear ?: it.gear,
@@ -171,9 +185,10 @@ class ScriptTest {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-13 10:00:00 · 박희정
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: handle
      * 목적: 알아들은 요청을 앱(`AppGraph.handle()`)과 같은 순서로 처리한다.
+     *       대답은 루틴 권하기 → 길안내 대화 → 시트 대화 순서로 본다.
      *       길안내를 시작하면 앱처럼 권하기를 다시 본다(`RoutineRunner.recheck()`).
      * 인자: runner — 실행기
      *       action — 알아들은 요청
@@ -184,7 +199,12 @@ class ScriptTest {
                 trip.navigate(action.destination)
                 runner.recheck()
             }
-            is VoiceAction.Answer -> if (!runner.answer(action.reply)) trip.answer(action.reply)
+            is VoiceAction.Answer ->
+                if (!runner.answer(action.reply) && !trip.answer(action.reply)) seat.answer(action.reply)
+            is VoiceAction.SeatStart -> seat.start(action.seat)
+            is VoiceAction.SeatAdjust -> seat.adjust(action.axis, action.percent)
+            is VoiceAction.SeatRecall -> seat.recall(action.name, action.seat)
+            is VoiceAction.Name -> seat.name(action.name)
             is VoiceAction.Run -> runner.request(action.request)
             else -> error("대사집 테스트가 다루지 않는 요청: $action")
         }
@@ -236,6 +256,19 @@ class ScriptTest {
     fun `시나리오 2 대사집 S10부터 S18까지`() = runTest {
         play(ScriptBook.scenarioTwo)
         assertEquals(TODAY, memory.lastChildLockDate())
+    }
+
+    /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 함수: 시나리오 3 대사집 S19부터 S25까지
+     * 목적: 시나리오 ③ 장면을 묶음별로 차례로 돌린다. 마지막에 건준 님 자세가
+     *       움직인 뒤 위치로 저장됐는지 본다.
+     */
+    @Test
+    fun `시나리오 3 대사집 S19부터 S25까지`() = runTest {
+        play(ScriptBook.scenarioThree)
+        assertEquals(50, profiles.get("건준")?.positions?.get(SeatAxis.FORE_AFT))
+        assertEquals(60, profiles.get("건준")?.positions?.get(SeatAxis.BACKREST_ANGLE))
     }
 
     /**
@@ -298,8 +331,8 @@ class ScriptTest {
     fun `장면 ID는 겹치지 않는다`() {
         val ids = ScriptBook.all.map { it.id } // 장면 ID들
         assertEquals(ids.distinct(), ids)
-        assertEquals(18, ids.size)
-        listOf(ScriptBook.scenarioOne, ScriptBook.scenarioTwo).forEach { scenario ->
+        assertEquals(25, ids.size)
+        listOf(ScriptBook.scenarioOne, ScriptBook.scenarioTwo, ScriptBook.scenarioThree).forEach { scenario ->
             val first = scenario.first() // 시나리오 첫 장면
             assertEquals(Gear.PARK, first.prep.first().gear) // P단에서 시작
             assertFalse(first.follows)

@@ -29,7 +29,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 작성: 2026-11-12 18:44:00 · 박건준
- * 수정: 2026-11-13 10:00:00 · 박희정
+ * 수정: 2026-11-13 15:00:00 · 박희정
  * 클래스: PanelPresenter
  * 목적: 왼쪽 구역에 그릴 값(`ScreenUi`)을 만든다. 판단은 하지 않고 routines가
  *       준 값을 화면 모양으로만 바꾼다.
@@ -147,11 +147,14 @@ class PanelPresenter(
 
         /**
          * 작성: 2026-11-13 10:00:00 · 박희정
+         * 수정: 2026-11-13 15:00:00 · 박희정
          * 변수: CARD_ROUTINES
-         * 목적: 맞추는 중·준비됨 카드로 보일 루틴.
+         * 목적: 맞추는 중·준비됨 카드로 보일 루틴. 시트 메모리(저장된 자세로
+         *       맞추기)도 축이 차례로 체크되는 카드로 보인다(docs/SCREEN.md
+         *       4장 ③-6).
          * 근거: 인용 — docs/SCREEN.md 6장 "②③에 같은 짜임을 쓸 때"
          */
-        val CARD_ROUTINES = listOf(RoutineId.WASH, RoutineId.CHILD_LOCK)
+        val CARD_ROUTINES = listOf(RoutineId.WASH, RoutineId.CHILD_LOCK, RoutineId.SEAT_MEMORY)
     }
 
     /** 화면에 띄운 질문. 질문의 말이 시작되면 채우고, 대답이 오면 비운다. 없으면 null */
@@ -332,11 +335,12 @@ class PanelPresenter(
 
     /**
      * 작성: 2026-11-13 03:40:00 · 박건준
-     * 수정: 2026-11-13 10:00:00 · 박희정
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: onRun
      * 목적: 세차 모드·차일드락이 준비되면(켜짐) `CHIP_MS` 뒤 카드를 "○○ 켜짐"
-     *       한 줄로 접는다. [끝내기]를 누르면 되돌리고 카드가 사라진다. 새
-     *       실행이 시작되면 접은 기록을 지운다.
+     *       한 줄로 접는다. [끝내기]를 누르면 되돌리고 카드가 사라진다. 시트
+     *       자세는 `CHIP_MS` 뒤 카드를 닫는다. 새 실행이 시작되면 접은 기록을
+     *       지운다.
      * 인자: run — 보일 실행 기록(`liveRun()`). 없으면 null
      * 근거: 인용 — docs/SCREEN.md 6장 8단계, 6장 ② "차일드락 켜짐" 한 줄
      */
@@ -350,7 +354,9 @@ class PanelPresenter(
         readyRun = run.startedAtMs
         scope.launch {
             delay(CHIP_MS)
-            if (readyRun == run.startedAtMs) chipRun.value = run.startedAtMs
+            if (readyRun != run.startedAtMs) return@launch
+            // 시트 자세는 맞추면 끝이라(켜져 있는 모드가 아니라) 켜짐 줄 없이 닫는다(docs/SCREEN.md 4장 ③-7)
+            if (run.id == RoutineId.SEAT_MEMORY) hiddenRun.value = run.startedAtMs else chipRun.value = run.startedAtMs
         }
     }
 
@@ -435,10 +441,11 @@ class PanelPresenter(
 
     /**
      * 작성: 2026-11-12 18:44:00 · 박건준
-     * 수정: 2026-11-13 03:40:00 · 박건준
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: questionCard
-     * 목적: 질문을 제안 카드로 바꾼다. 할 일 칸은 모두 아직(회색)이고, 사람이 할
-     *       칸은 "직접"을 미리 보인다. 첫 번째 버튼이 채운 버튼이다.
+     * 목적: 질문을 제안 카드로 바꾼다. 할 일 칸은 아직(회색)이고, 사람이 할
+     *       칸은 "직접"을 미리 보인다. 이미 한 칸(시트 맞추는 중에 움직인 축)은
+     *       체크와 한 일("앞으로 옮김")을 보인다. 첫 번째 버튼이 채운 버튼이다.
      * 인자: q — 질문
      *       reply — 고른 대답. 대답 전이면 null
      * 반환: 카드
@@ -452,7 +459,12 @@ class PanelPresenter(
             emphasis = q.emphasis,
             facts = q.facts,
             cells = q.rows.map { row ->
-                CellUi(row.icon, row.text, if (row.manual) CellState.MANUAL else CellState.TODO, row.note)
+                val state = when { // 칸 상태
+                    row.done -> CellState.DONE
+                    row.manual -> CellState.MANUAL
+                    else -> CellState.TODO
+                }
+                CellUi(row.icon, row.text, state, row.note)
             },
             actions = q.choices.mapIndexed { i, c ->
                 ActionUi(c.label, i == 0, PanelPress.Answer(c.reply), if (pick == null) c.waitMs else 0, c == pick)
@@ -483,10 +495,10 @@ class PanelPresenter(
         return CardUi(
             title = context.getString(if (ready) R.string.panel_ready else R.string.panel_running, run.title),
             detail = if (ready) {
-                val manual = if (run.id == RoutineId.CHILD_LOCK) { // 준비됨 아래 사람이 할 일
-                    R.string.panel_ready_detail_child
-                } else {
-                    R.string.panel_ready_detail
+                val manual = when (run.id) { // 준비됨 아래 글자
+                    RoutineId.CHILD_LOCK -> R.string.panel_ready_detail_child
+                    RoutineId.SEAT_MEMORY -> R.string.panel_ready_detail_seat
+                    else -> R.string.panel_ready_detail
                 }
                 context.getString(manual)
             } else {

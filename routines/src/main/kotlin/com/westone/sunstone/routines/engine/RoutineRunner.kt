@@ -225,7 +225,7 @@ class RoutineRunner(
         if (_ui.value.suggestion?.id == request.id) _ui.update { it.copy(suggestion = null) }
 
         val steps = routine.plan(request, car)
-        val run = ActiveRun(routine, start, steps, clock(), request.source)
+        val run = ActiveRun(routine, start, steps, clock(), request.source, routine.runTitle(request))
         active[request.id] = run
         publish(run)
         val atEnd = routine.reportsAtEnd // 끝에 한 번에 말하는 루틴인지
@@ -405,6 +405,8 @@ class RoutineRunner(
         val steps: List<Step>,
         val startedAtMs: Long,
         val source: Source,
+        /** 화면에 보일 실행 이름(`Routine.runTitle()`) */
+        val title: String,
     ) {
         var phase: Phase = Phase.RUNNING
         val saved = mutableListOf<Command>()
@@ -422,7 +424,7 @@ class RoutineRunner(
 
         fun view() = RunView(
             id = routine.id,
-            title = routine.title,
+            title = title,
             phase = phase,
             steps = steps.mapIndexed { i, s ->
                 StepView(s.title, status[i], notes[i], s.icon, s is Step.Guide)

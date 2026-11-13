@@ -144,7 +144,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-11 14:28:46 · 박희정
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: handleGleo
      * 목적: Gleo(또는 같은 인텐트를 보낸 adb)가 부른 함수를 처리하고 결과를
      *       돌려준다. 요청을 넘기기만 하므로 결과는 늘 성공으로 알린다.
@@ -160,6 +160,8 @@ class MainActivity : ComponentActivity() {
             is VoiceAction.Answer -> getString(R.string.gleo_answer)
             is VoiceAction.Navigate -> getString(R.string.gleo_navigate, action.destination)
             is VoiceAction.Ask -> getString(R.string.gleo_ask)
+            is VoiceAction.SeatStart, is VoiceAction.SeatAdjust, is VoiceAction.SeatRecall, is VoiceAction.Name ->
+                getString(R.string.gleo_seat)
         }
         GleoEntry.respond(this, intent?.action.orEmpty(), true, message) // → 로직 이동: GleoEntry.respond()
     }

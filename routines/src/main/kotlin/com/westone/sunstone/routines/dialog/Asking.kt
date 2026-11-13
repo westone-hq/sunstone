@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * 작성: 2026-11-12 18:10:00 · 박건준
- * 수정: 2026-11-13 10:00:00 · 박희정
+ * 수정: 2026-11-13 15:00:00 · 박희정
  * 클래스: QuestionKind
  * 목적: 앱이 먼저 묻는 질문의 종류. 같은 길안내 안에서 거절한 질문을 다시
  *       묻지 않을 때 이 값으로 가린다.
@@ -15,11 +15,16 @@ import kotlinx.coroutines.flow.StateFlow
  *       - `WASH_MODE` — 세차 모드를 켤게요/켤까요(세차 모드 권하기)
  *       - `CHILD_LOCK` — 뒷자리에 누가 탔을 때 뒷창문 잠글까요
  *       - `CHILD_LOCK_AGAIN` — 하원길에 아침처럼 다시 잠글까요
+ *       - `SEAT_ADJUST` — 시트를 말로 맞추는 중([다 됐어요] [원래대로])
+ *       - `SEAT_NAME` — 맞춘 자세를 누구 이름으로 기억할까요
+ *       - `SEAT_NEW_PERSON` — 처음 보는 이름이면 같이 맞춰 볼까요
  * 근거: 인용 — docs/SCREEN.md 6장 시나리오 ① 다시 짠 흐름: 질문을 세 번에서
  *       한 번으로 줄이고 세차 추천은 주유 질문 안에 넣는다.
- *       docs/SCREEN.md 4장 창구에 더해지는 것: CHILD_LOCK, CHILD_LOCK_AGAIN
+ *       docs/SCREEN.md 4장 창구에 더해지는 것: CHILD_LOCK, CHILD_LOCK_AGAIN,
+ *       SEAT_NAME, SEAT_NEW_PERSON. 맞추는 중 패널도 같은 카드로 보여
+ *       SEAT_ADJUST를 더했다(2026-11-13 박희정)
  */
-enum class QuestionKind { FUEL_STOP, WASH_MODE, CHILD_LOCK, CHILD_LOCK_AGAIN }
+enum class QuestionKind { FUEL_STOP, WASH_MODE, CHILD_LOCK, CHILD_LOCK_AGAIN, SEAT_ADJUST, SEAT_NAME, SEAT_NEW_PERSON }
 
 /**
  * 작성: 2026-11-13 03:25:00 · 박건준
@@ -60,18 +65,26 @@ data class Choice(val label: String, val reply: Reply, val waitMs: Long = 0)
 
 /**
  * 작성: 2026-11-12 18:10:00 · 박건준
- * 수정: 2026-11-13 03:25:00 · 박건준
+ * 수정: 2026-11-13 15:00:00 · 박희정
  * 클래스: QuestionRow
  * 목적: 제안 카드의 할 일 칸 하나(세차 모드 다섯 칸).
  * 인자: icon — 아이콘 이름(window, wiper, air, lock, mirror). 화면이 그림으로
  *       바꾼다
  *       text — 칸 글자("창문", "미러")
  *       manual — 사람이 직접 해야 하는 칸이면 true(사이드미러)
- *       note — 칸 아래 작은 글자("직접"). 없으면 null
+ *       note — 칸 아래 작은 글자("직접", "앞으로 옮김"). 없으면 null
+ *       done — 이미 한 칸이면 true(시트 맞추는 중에 움직인 축). 화면은 체크로
+ *       그린다
  * 근거: 인용 — docs/SCREEN.md 6장 할 일 보여 주기: 가로 5칸 한 줄, "직접"은
  *       사람 몫
  */
-data class QuestionRow(val icon: String, val text: String, val manual: Boolean = false, val note: String? = null)
+data class QuestionRow(
+    val icon: String,
+    val text: String,
+    val manual: Boolean = false,
+    val note: String? = null,
+    val done: Boolean = false,
+)
 
 /**
  * 작성: 2026-11-12 18:10:00 · 박건준

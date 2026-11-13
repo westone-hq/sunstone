@@ -6,6 +6,8 @@ import com.westone.sunstone.routines.engine.Source
 import com.westone.sunstone.routines.model.Door
 import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Seat
+import com.westone.sunstone.routines.port.Command
+import com.westone.sunstone.routines.port.Target
 import com.westone.sunstone.routines.script.Prep
 import com.westone.sunstone.routines.script.Scene
 import com.westone.sunstone.routines.script.ScriptBook
@@ -273,11 +275,11 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-13 10:00:00 · 박희정
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: prepare
      * 목적: 준비 한 단계를 넣는다. 처음으로 돌리기 → 연료·세차일 → 장소 → 기어 →
-     *       속도 → 뒷문 → 뒷자리 탑승 → 벨트 순서. 뒷자리는 왼쪽 자리다. 세차일과
-     *       차일드락 날은 기억에 넣는다.
+     *       속도 → 뒷문 → 뒷자리 탑승 → 벨트 → 운전석 시작 자세 순서. 뒷자리는
+     *       왼쪽 자리다. 세차일·차일드락 날·미리 저장할 자세는 기억에 넣는다.
      * 인자: prep — 준비 한 단계
      * 근거: 측정 — 콘솔 `PUT /vehicle/body?door_rl=`이 앱 `doorOpen`에 바로
      *       반영된다(docs/api-spike.md 문 열기 행). `PUT /vehicle/seat?kind=
@@ -291,6 +293,7 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
         prep.fuelPercent?.let(g::overrideFuel) // → 로직 이동: AppGraph.overrideFuel()
         prep.washedDaysAgo?.let { g.memory.recordWash(LocalDate.now().minusDays(it)) }
         prep.childLockDaysAgo?.let { g.memory.recordChildLock(LocalDate.now().minusDays(it)) }
+        prep.seatProfile?.let(g.profiles::save)
         prep.place?.let(g::setPlace) // → 로직 이동: AppGraph.setPlace()
         prep.gear?.let { gear ->
             if (g.pleos != null) VirtualConsole.put("/vehicle/gear?gear=${gear.consoleName()}")
@@ -309,6 +312,10 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
             else g.editFakeCar { it.copy(seatOccupied = it.seatOccupied + (Seat.REAR_LEFT to on)) }
         }
         prep.rearBelt?.let { g.overrideBelt(Seat.REAR_LEFT, it) } // → 로직 이동: AppGraph.overrideBelt()
+        // 시트는 P단에서만 움직이므로 기어를 넣은 뒤 마지막에 옮긴다
+        prep.driverSeat?.forEach { (axis, at) ->
+            g.car.apply(Command(Target.SeatPosition(Seat.DRIVER, axis), at)) // → 로직 이동: CarPort.apply()
+        }
     }
 
     /**

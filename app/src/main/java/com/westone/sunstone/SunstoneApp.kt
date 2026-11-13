@@ -20,6 +20,7 @@ import com.westone.sunstone.routines.dialog.CurrentRoute
 import com.westone.sunstone.routines.dialog.Asking
 import com.westone.sunstone.routines.dialog.QuestionKind
 import com.westone.sunstone.routines.dialog.Reply
+import com.westone.sunstone.routines.dialog.SeatDialog
 import com.westone.sunstone.routines.dialog.TripDialog
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.Phase
@@ -216,9 +217,6 @@ class AppGraph(val app: Context) {
     /** 사람별 시트 자세 저장소 */
     val profiles = PrefsSeatProfiles(app)
 
-    /** 시트 자세 루틴. 자세 저장(`capture`)에도 써서 따로 둔다 */
-    private val seatRoutine = SeatMemoryRoutine(profiles)
-
     /** 사용 기록(마지막 세차일). 데모 `washed N`으로 바꿀 수 있다 */
     val memory = PrefsMemory(app)
 
@@ -230,6 +228,9 @@ class AppGraph(val app: Context) {
 
     /** 지금 길안내 목적지. 길안내 대화가 넣고 차일드락이 하원길·도착을 본다. 둘이 같은 것을 쓴다 */
     private val route = CurrentRoute()
+
+    /** 시트 자세 루틴. 자세 저장(`capture`)에도 써서 따로 둔다. 다 맞추면 토스트를 낸다 */
+    private val seatRoutine = SeatMemoryRoutine(profiles, asking)
 
     /** 루틴 실행기. 만들 때 상황 감지를 시작한다 */
     val runner = RoutineRunner(
@@ -243,6 +244,9 @@ class AppGraph(val app: Context) {
         scope = scope,
         asking = asking,
     ).also { it.start() } // → 로직 이동: RoutineRunner.start()
+
+    /** 시트 맞추기 대화(시나리오 ③). 저장된 자세로 맞출 때는 실행기에 시트 메모리를 요청한다 */
+    val seat = SeatDialog(car, profiles, asking, speaker) { runner.request(it) } // → 로직 이동: RoutineRunner.request()
 
     /**
      * 왼쪽 구역 카드·판 값. 버튼은 대답(`answer()`)과 루틴 끝내기로 가고, 마이크 칸 길게 누르기는 시연 모드
@@ -339,24 +343,35 @@ class AppGraph(val app: Context) {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-13 10:00:00 · 박희정
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: handle
      * 목적: 말·Gleo·화면·데모 입력을 처리한다.
-     *       - `Run` — 루틴 실행을 요청한다
-     *       - `Undo` — 이름이 없으면 가장 최근에 켜진 루틴을 되돌린다
+     *       - `Run` — 루틴 실행을 요청한다. 이름이 있는 시트 메모리("엄마
+     *         자세로")는 시트 대화로 넘긴다(없는 이름이면 같이 맞출지 묻는다)
+     *       - `Undo` — 시트 맞추는 중이면 그것을 되돌리고, 아니면 이름이 없으면
+     *         가장 최근에 켜진 루틴을 되돌린다
      *       - `SaveSeat` — 지금 시트 자세를 이름으로 저장한다
      *       - `Navigate` — 길안내 대화로 목적지를 넘기고, 길안내를 시작한 뒤
      *         루틴 권하기를 다시 본다(하원길 차일드락)
      *       - `Ask` — 기능 카드로 답한다. 차는 바꾸지 않는다
      *       - `Answer` — 길안내 대화의 주유 제안, 그다음 루틴 권하기 순서로
      *         답한다. 둘 다 없으면 못 알아들은 것으로 본다
+     *       - `SeatStart`·`SeatAdjust`·`SeatRecall`·`Name` — 시트 맞추기 대화
      * 인자: action — 알아들은 요청
      */
     fun handle(action: VoiceAction) {
         when (action) {
-            // → 로직 이동: RoutineRunner.request()
-            is VoiceAction.Run -> runner.request(action.request)
+            is VoiceAction.Run -> {
+                val r = action.request // 실행 요청
+                val name = r.profile.takeIf { r.id == RoutineId.SEAT_MEMORY } // 시트 자세 이름, 아니면 null
+                // → 로직 이동: SeatDialog.recall(), RoutineRunner.request()
+                if (name != null) scope.launch { seat.recall(name, r.seat) } else runner.request(r)
+            }
             is VoiceAction.Undo -> {
+                if (seat.active) {
+                    scope.launch { seat.answer(Reply.NO) } // → 로직 이동: SeatDialog.answer()
+                    return
+                }
                 val id = action.id ?: runner.ui.value.runs.values // 되돌릴 루틴, 켜진 것이 없으면 null
                     .filter { it.phase == Phase.ACTIVE }
                     .maxByOrNull { it.startedAtMs }?.id
@@ -381,16 +396,23 @@ class AppGraph(val app: Context) {
                 action.cardId?.let(CardBook::byId)?.let(CardLines::answer) ?: CardLines.NO_CARD,
             )
             is VoiceAction.Answer -> answer(action.reply) // → 로직 이동: AppGraph.answer()
+            // → 로직 이동: SeatDialog.start(), SeatDialog.adjust(),
+            //   SeatDialog.recall(), SeatDialog.name()
+            is VoiceAction.SeatStart -> scope.launch { seat.start(action.seat) }
+            is VoiceAction.SeatAdjust -> scope.launch { seat.adjust(action.axis, action.percent) }
+            is VoiceAction.SeatRecall -> scope.launch { seat.recall(action.name, action.seat) }
+            is VoiceAction.Name -> scope.launch { if (!seat.name(action.name)) notUnderstood() }
         }
     }
 
     /**
      * 작성: 2026-11-11 16:02:00 · 박희정
-     * 수정: 2026-11-12 19:56:00 · 박건준
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: hear
      * 목적: 운전자가 한 말 한마디를 받는다. 대화 기록과 듣는 중 막대(HEARD)에
      *       남기고(아래 줄에 앱이 이어서 할 일), 알아들으면 `handle()`로, 못
      *       알아들으면 그렇다고 말한다.
+     *       시트 자세를 기억할 이름을 기다리는 중이면 들은 말을 이름으로 넘긴다.
      *       화면 입력칸, 시연 대사 버튼, 데모 `say`(talk.ps1)가 함께 쓴다.
      * 인자: text — 운전자가 한 말
      *       source — 어디서 들어온 말인지(화면, 데모)
@@ -400,6 +422,12 @@ class AppGraph(val app: Context) {
         if (said.isEmpty()) return
         addChat(ChatLine(fromDriver = true, text = said))
         val action = PhraseMatcher.match(said, source) // 알아들은 요청, 못 알아들으면 null
+        if (seat.awaitingName && action !is VoiceAction.Answer) {
+            // 시트 자세를 기억할 이름을 기다리는 중이면 들은 말을 이름으로 본다(대답 "괜찮아"는 제외)
+            panels.heard(said, null) // → 로직 이동: PanelPresenter.heard()
+            scope.launch { if (!seat.name(said)) notUnderstood() } // → 로직 이동: SeatDialog.name()
+            return
+        }
         panels.heard(said, nextOf(action)) // → 로직 이동: PanelPresenter.heard()
         // → 로직 이동: AppGraph.handle(), AppGraph.notUnderstood()
         if (action != null) handle(action) else notUnderstood()
@@ -407,12 +435,12 @@ class AppGraph(val app: Context) {
 
     /**
      * 작성: 2026-11-12 19:06:00 · 박건준
-     * 수정: 2026-11-13 03:40:00 · 박건준
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: answer
      * 목적: 앱이 물은 것에 대답한다. 말("응, 세차도 할게", "취소")과 카드
      *       버튼·닫기가 모두 여기로 온다. 카드에 고른 버튼을 먼저 표시하고,
-     *       루틴 권하기(세차 입구)를 본 뒤, 없으면 길안내 대화의 질문을 본다.
-     *       둘 다 없으면 못 알아들은 것으로 본다.
+     *       루틴 권하기(세차 입구) → 길안내 대화의 질문 → 시트 대화 순서로
+     *       본다. 셋 다 아니면 못 알아들은 것으로 본다.
      * 인자: reply — 대답 값
      */
     fun answer(reply: Reply) {
@@ -420,7 +448,7 @@ class AppGraph(val app: Context) {
         scope.launch {
             // → 로직 이동: RoutineRunner.answer(), TripDialog.answer(),
             //   AppGraph.notUnderstood()
-            if (!runner.answer(reply) && !trip.answer(reply)) notUnderstood()
+            if (!runner.answer(reply) && !trip.answer(reply) && !seat.answer(reply)) notUnderstood()
         }
     }
 
@@ -436,7 +464,7 @@ class AppGraph(val app: Context) {
 
     /**
      * 작성: 2026-11-12 19:56:00 · 박건준
-     * 수정: 2026-11-13 03:40:00 · 박건준
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: nextOf
      * 목적: 들은 말 아래에 보일, 앱이 이어서 하는 일을 짧게 고른다. 대답이면
      *       지금 묻는 질문 종류로, 길안내면 길안내로 정한다. 실행 결정은 하지
@@ -452,6 +480,10 @@ class AppGraph(val app: Context) {
             action !is VoiceAction.Answer || kind == null -> return null
             asking.question.value?.accepts(action.reply) != true -> R.string.next_declined
             kind == QuestionKind.WASH_MODE -> R.string.next_wash_mode
+            kind == QuestionKind.CHILD_LOCK || kind == QuestionKind.CHILD_LOCK_AGAIN -> R.string.next_child_lock
+            kind == QuestionKind.SEAT_ADJUST -> R.string.next_seat_done
+            kind == QuestionKind.SEAT_NEW_PERSON -> R.string.next_seat_together
+            kind != QuestionKind.FUEL_STOP -> return null
             asking.question.value?.pick(action.reply)?.reply == Reply.ALL -> R.string.next_fuel_wash
             else -> R.string.next_fuel_stop
         }
@@ -485,7 +517,7 @@ class AppGraph(val app: Context) {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-13 10:00:00 · 박희정
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: restartTrip
      * 목적: 시연을 처음부터 다시 할 수 있게 지운다.
      *       1. 나오던 말을 끊고, 기다리던 말과 떠 있는 질문·거절 기록을 버린다
@@ -493,7 +525,7 @@ class AppGraph(val app: Context) {
      *       3. 길안내 중이면 취소한다. 안내가 없을 때 취소를 보내면 지도 앱이
      *          앞으로 나와 앱 화면을 가린다
      *       4. 대화 기록, 권하기 기록(10분에 한 번), 끝난 실행 기록, 길안내
-     *          목적지를 지운다
+     *          목적지, 시트 대화를 지운다
      *       되돌리는 동안 나오는 말("원래대로 돌렸어요")은 그대로 들린다
      */
     suspend fun restartTrip() {
@@ -504,6 +536,7 @@ class AppGraph(val app: Context) {
         runner.forgetSuggestions() // → 로직 이동: RoutineRunner.forgetSuggestions()
         runner.forgetFinished() // → 로직 이동: RoutineRunner.forgetFinished()
         route.clear()
+        seat.reset()
         chatLines.value = emptyList()
     }
 

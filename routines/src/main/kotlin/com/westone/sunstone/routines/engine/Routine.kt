@@ -2,6 +2,7 @@ package com.westone.sunstone.routines.engine
 
 import com.westone.sunstone.routines.dialog.Question
 import com.westone.sunstone.routines.model.CarState
+import com.westone.sunstone.routines.model.Seat
 import com.westone.sunstone.routines.port.CarPort
 import com.westone.sunstone.routines.port.Command
 import com.westone.sunstone.routines.port.ControlResult
@@ -16,6 +17,8 @@ data class RunRequest(
     /** 시트 메모리에서 누구 자세인지. 다른 루틴은 쓰지 않는다. */
     val profile: String? = null,
     val source: Source = Source.SCREEN,
+    /** 시트 메모리에서 맞출 좌석(운전석·조수석). 다른 루틴은 쓰지 않는다. */
+    val seat: Seat = Seat.DRIVER,
 )
 
 /** 루틴 한 단계. 앱이 직접 바꾸거나, 할 수 없으면 말로 안내한다. */
@@ -81,6 +84,16 @@ data class StepOutcome(val step: Step, val result: ControlResult?)
 interface Routine {
     val id: RoutineId
     val title: String
+
+    /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 함수: runTitle
+     * 목적: 이번 실행의 이름(화면 카드 "○○ 맞추는 중"). 요청마다 다르게 보일
+     *       루틴(시트 메모리: "희정 님 자세로")이 바꾼다. 기본은 [title].
+     * 인자: request — 실행 요청
+     * 반환: 실행 이름
+     */
+    fun runTitle(request: RunRequest): String = title
     /** 시작할 때 하는 말. */
     val intro: String
 

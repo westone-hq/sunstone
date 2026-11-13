@@ -5,18 +5,21 @@ import com.westone.sunstone.routines.dialog.Reply
 import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
 import com.westone.sunstone.routines.model.Seat
+import com.westone.sunstone.routines.model.SeatAxis
 import com.westone.sunstone.routines.model.Window
 import com.westone.sunstone.routines.model.WiperMode
+import com.westone.sunstone.routines.port.SeatProfile
 import com.westone.sunstone.routines.port.Target
 import com.westone.sunstone.routines.understand.VoiceAction
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
- * 수정: 2026-11-13 10:00:00 · 박희정
+ * 수정: 2026-11-13 15:00:00 · 박희정
  * 클래스: ScriptBook
  * 목적: 시연 대사집. 장면 목록과, 말을 대사집에서 먼저 찾는 일을 맡는다.
  *       - `scenarioOne` — 시나리오 ① 출장 가는 길(S1~S9)
  *       - `scenarioTwo` — 시나리오 ② 아이 등원길(S10~S18)
+ *       - `scenarioThree` — 시나리오 ③ 시트 맞추기(S19~S25)
  *       - `lookup()` — 대표 문장·변형과 띄어쓰기·문장부호를 빼고 똑같으면 그
  *         장면의 요청을 돌려준다
  * 근거: 인용 — docs/SCREEN.md 6장 시나리오 ① 다시 짠 흐름 9단계, 4장 ② 표.
@@ -275,11 +278,115 @@ object ScriptBook {
     )
 
     /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 변수: scenarioThree
+     * 목적: 시나리오 ③ 시트 맞추기: 시트 메모리. 말로 운전석을 맞추고 이름으로
+     *       기억한 뒤, 옆자리 사람 이름만 말해도 조수석을 그 자세로 맞춘다.
+     *       S19~S25가 docs/SCREEN.md 4장 ③-1~③-7에 하나씩 맞는다.
+     *       준비: P단, 운전석은 시작 자세로 옮겨 둠, 희정 님 자세는 미리
+     *       저장(조작)
+     * 근거: 인용 — docs/SCREEN.md 4장 ③ 표. ③-1 덧붙인 말과 ③-2·③-3 "네." 대신
+     *       한 일을 말하는 것은 2026-11-13 박희정 추천안(같은 날 확인)
+     * 미구현: 프로토타입이라 운전석 시작 자세와 희정 님 자세를 장면 준비로
+     *       넣는다. 시트 위치를 읽을 수 없어서다(`SeatDialog.save()` 참고)
+     */
+    val scenarioThree: List<Scene> = listOf(
+        Scene(
+            id = "S19",
+            title = "시트 맞추기",
+            prep = listOf(
+                Prep(
+                    gear = Gear.PARK, speedKmh = 0f, place = Place.NONE, resetTrip = true,
+                    driverSeat = mapOf(SeatAxis.FORE_AFT to 40, SeatAxis.HEIGHT to 50, SeatAxis.BACKREST_ANGLE to 50),
+                    seatProfile = SeatProfile(
+                        "희정",
+                        mapOf(SeatAxis.FORE_AFT to 60, SeatAxis.HEIGHT to 30, SeatAxis.BACKREST_ANGLE to 55),
+                    ),
+                ),
+            ),
+            driver = Utterance(
+                text = "시트 좀 맞춰 줘",
+                variants = listOf("시트 맞춰 줘", "시트 좀 조절해 줘", "운전석 시트 맞춰 줘"),
+                intent = VoiceAction.SeatStart(Seat.DRIVER),
+            ),
+            expectSaid = listOf("어떻게 맞춰 드릴까요? 다 되면 '됐어'라고 해 주세요."),
+            expectQuestion = QuestionKind.SEAT_ADJUST,
+        ),
+        Scene(
+            id = "S20",
+            title = "앞으로 조금",
+            driver = Utterance(
+                text = "앞으로 조금",
+                variants = listOf("앞으로 조금만", "조금 앞으로", "시트 앞으로 조금"),
+                intent = VoiceAction.SeatAdjust(SeatAxis.FORE_AFT, 10),
+            ),
+            expectSaid = listOf("앞으로 옮겼어요."),
+            expectCar = mapOf(Target.SeatPosition(Seat.DRIVER, SeatAxis.FORE_AFT) to 50),
+            expectQuestion = QuestionKind.SEAT_ADJUST,
+        ),
+        Scene(
+            id = "S21",
+            title = "등받이 세우기",
+            driver = Utterance(
+                text = "등받이 세워 줘",
+                variants = listOf("등받이 좀 세워 줘", "등받이 세워", "등받이 조금 세워 줘"),
+                intent = VoiceAction.SeatAdjust(SeatAxis.BACKREST_ANGLE, 10),
+            ),
+            expectSaid = listOf("등받이 세웠어요."),
+            expectCar = mapOf(Target.SeatPosition(Seat.DRIVER, SeatAxis.BACKREST_ANGLE) to 60),
+            expectQuestion = QuestionKind.SEAT_ADJUST,
+        ),
+        Scene(
+            id = "S22",
+            title = "다 맞춤",
+            driver = Utterance(
+                text = "됐어",
+                variants = listOf("다 됐어", "이제 됐어", "됐어요"),
+                intent = VoiceAction.Answer(Reply.YES),
+            ),
+            expectSaid = listOf("이 자세를 누구 이름으로 기억할까요?"),
+            expectQuestion = QuestionKind.SEAT_NAME,
+        ),
+        Scene(
+            id = "S23",
+            title = "이름으로 기억",
+            driver = Utterance(
+                text = "건준",
+                variants = listOf("건준이야", "건준이요", "건준 님"),
+                intent = VoiceAction.Name("건준"),
+            ),
+            expectSaid = listOf("건준 님 자세로 기억했어요."),
+            expectNotices = listOf("건준 님 자세를 기억했어요"),
+        ),
+        Scene(
+            id = "S24",
+            title = "옆자리 희정 님",
+            driver = Utterance(
+                text = "옆에 희정이 앉았어",
+                variants = listOf("옆자리에 희정이 앉았어", "옆에 희정이가 앉았어", "옆에 희정 앉았어"),
+                intent = VoiceAction.SeatRecall("희정", Seat.PASSENGER),
+            ),
+            expectSaid = listOf("희정 님 자세로 맞출게요."),
+        ),
+        Scene(
+            id = "S25",
+            title = "희정 님 자세로 맞춤",
+            expectSaid = listOf("희정 님 자세로 맞췄어요."),
+            expectNotices = listOf("희정 님 자세로 맞췄어요"),
+            expectCar = mapOf(
+                Target.SeatPosition(Seat.PASSENGER, SeatAxis.FORE_AFT) to 60,
+                Target.SeatPosition(Seat.PASSENGER, SeatAxis.HEIGHT) to 30,
+                Target.SeatPosition(Seat.PASSENGER, SeatAxis.BACKREST_ANGLE) to 55,
+            ),
+        ),
+    )
+
+    /**
      * 작성: 2026-11-12 16:10:00 · 박희정
      * 변수: all
      * 목적: 모든 시나리오 장면, 시연 순서대로. 시연 모드와 adb `scene`이 쓴다.
      */
-    val all: List<Scene> = scenarioOne + scenarioTwo
+    val all: List<Scene> = scenarioOne + scenarioTwo + scenarioThree
 
     /** 모든 장면의 말(대표 문장·변형)을 띄어쓰기·문장부호를 뺀 글자로 찾는 표 */
     private val byText: Map<String, VoiceAction> = all.mapNotNull { it.driver }

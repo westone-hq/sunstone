@@ -5,6 +5,8 @@ import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RunRequest
 import com.westone.sunstone.routines.engine.Source
 import com.westone.sunstone.routines.knowledge.CardBook
+import com.westone.sunstone.routines.model.Seat
+import com.westone.sunstone.routines.model.SeatAxis
 import com.westone.sunstone.routines.script.ScriptBook
 
 /** 말 한마디를 앱이 할 일로 바꾼 결과. */
@@ -41,6 +43,40 @@ sealed interface VoiceAction {
      * 인자: cardId — 가장 잘 맞는 기능 카드 ID. 맞는 카드가 없으면 null
      */
     data class Ask(val cardId: String?) : VoiceAction
+
+    /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 클래스: SeatStart
+     * 목적: 시트를 말로 맞추기 시작("시트 좀 맞춰 줘").
+     * 인자: seat — 맞출 좌석
+     */
+    data class SeatStart(val seat: Seat) : VoiceAction
+
+    /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 클래스: SeatAdjust
+     * 목적: 시트 축 하나를 조금 움직이기("앞으로 조금", "등받이 세워 줘").
+     * 인자: axis — 축
+     *       percent — 움직일 양(축 전체의 %). 양수면 앞·위·세움
+     */
+    data class SeatAdjust(val axis: SeatAxis, val percent: Int) : VoiceAction
+
+    /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 클래스: SeatRecall
+     * 목적: 이름으로 저장된 자세로 맞추기("옆에 희정이 앉았어").
+     * 인자: name — 이름
+     *       seat — 그 사람이 앉은 좌석
+     */
+    data class SeatRecall(val name: String, val seat: Seat) : VoiceAction
+
+    /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 클래스: Name
+     * 목적: 이름 하나("건준"). 시트 자세를 기억할 이름을 물었을 때의 대답.
+     * 인자: name — 이름
+     */
+    data class Name(val name: String) : VoiceAction
 }
 
 /**
@@ -82,6 +118,8 @@ object PhraseMatcher {
         if (ALL_WORDS.any { it in compact }) return VoiceAction.Answer(Reply.ALL)
         if (ONLY_WORDS.any { it in compact }) return VoiceAction.Answer(Reply.ONLY)
 
+        seatOf(text, compact)?.let { return it } // → 로직 이동: PhraseMatcher.seatOf()
+
         val id = when {
             "세차" in compact -> RoutineId.WASH
             CHILD_WORDS.any { it in compact } -> RoutineId.CHILD_LOCK
@@ -117,6 +155,39 @@ object PhraseMatcher {
     }
 
     /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 함수: seatOf
+     * 목적: 시트 맞추기 말이면 요청으로 바꾼다. 차례로 본다.
+     *       1. "옆에 희정이 앉았어" — 조수석을 그 이름 자세로
+     *       2. "다 됐어" — 맞추기 끝(받아들이는 대답)
+     *       3. "앞으로 조금", "등받이 세워 줘" — 축 하나 조금 움직이기. "많이"면 더
+     *       4. "시트 좀 맞춰 줘" — 맞추기 시작. "옆자리"·"조수석"이면 조수석
+     * 인자: text — 들은 말 그대로
+     *       compact — 띄어쓰기·문장부호를 뺀 말
+     * 반환: 시트 요청. 시트 말이 아니면 null
+     * 근거: 인용 — docs/SCREEN.md 4장 ③ 표 운전자 말, 5장 "조금" 10%·"많이" 30%
+     */
+    private fun seatOf(text: String, compact: String): VoiceAction? {
+        RECALL_PATTERN.find(text)?.let { return VoiceAction.SeatRecall(it.groupValues[1], Seat.PASSENGER) }
+        if (compact in DONE_WORDS) return VoiceAction.Answer(Reply.YES)
+        val amount = if (MORE_WORDS.any { it in compact }) MORE_PERCENT else LITTLE_PERCENT // 움직일 양(%)
+        val up = UP_WORDS.any { it in compact } // 앞·위·세움 쪽 낱말이 있는지
+        val down = DOWN_WORDS.any { it in compact } // 뒤·아래·눕힘 쪽 낱말이 있는지
+        val axis = when { // 움직일 축
+            "등받이" in compact -> SeatAxis.BACKREST_ANGLE
+            HEIGHT_WORDS.any { it in compact } -> SeatAxis.HEIGHT
+            "앞으로" in compact || "뒤로" in compact -> SeatAxis.FORE_AFT
+            else -> null
+        }
+        if (axis != null && up != down) return VoiceAction.SeatAdjust(axis, if (up) amount else -amount)
+        if ("시트" in compact && START_WORDS.any { it in compact }) {
+            val passenger = "옆자리" in compact || "조수석" in compact // 조수석인지
+            return VoiceAction.SeatStart(if (passenger) Seat.PASSENGER else Seat.DRIVER)
+        }
+        return null
+    }
+
+    /**
      * 작성: 2026-11-11 14:28:46 · 박희정
      * 함수: isYes
      * 목적: 짧은 긍정 대답인지 본다. 대답 낱말로 시작하고 뒤에 "요", "해줘"
@@ -133,7 +204,32 @@ object PhraseMatcher {
     private fun dropParticle(name: String): String =
         if (name.length > 1 && name.last() in "가는은이") name.dropLast(1) else name
 
-    private val CHILD_WORDS = listOf("애태웠", "아이태웠", "애탔", "아이탔", "차일드락", "아이탑승")
+    /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 변수: RECALL_PATTERN, DONE_WORDS, START_WORDS, HEIGHT_WORDS, UP_WORDS,
+     *       DOWN_WORDS, MORE_WORDS
+     * 목적: 시트 맞추기 말(`seatOf()`)을 알아보는 낱말들(띄어쓰기를 뺀 꼴).
+     *       "됐어"는 맞추기를 끝내는 말이라 거절 낱말에 넣지 않았다.
+     * 근거: 인용 — docs/SCREEN.md 4장 ③ 운전자 말. 나머지 변형은 미정
+     */
+    private val RECALL_PATTERN = Regex("""옆(?:자리)?에\s*([가-힣A-Za-z]+?)(?:이가|이|가)?\s*앉았""")
+    private val DONE_WORDS = setOf("됐어", "됐어요", "다됐어", "다됐어요", "이제됐어", "다했어")
+    private val START_WORDS = listOf("맞춰", "맞추", "조절")
+    private val HEIGHT_WORDS = listOf("높이", "높여", "낮춰", "올려", "내려", "위로", "아래로")
+    private val UP_WORDS = listOf("앞으로", "세워", "높여", "올려", "위로")
+    private val DOWN_WORDS = listOf("뒤로", "눕혀", "젖혀", "낮춰", "내려", "아래로")
+    private val MORE_WORDS = listOf("많이", "쭉", "더많이")
+
+    /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 변수: LITTLE_PERCENT, MORE_PERCENT
+     * 목적: "조금"·"많이"일 때 움직일 양(축 전체의 %).
+     * 근거: 인용 — docs/SCREEN.md 5장 "조금"의 양 10%(약 0.2초), "많이" 30%
+     */
+    private const val LITTLE_PERCENT = 10
+    private const val MORE_PERCENT = 30
+
+    private val CHILD_WORDS =listOf("애태웠", "아이태웠", "애탔", "아이탔", "차일드락", "아이탑승")
     private val SEAT_WORDS = listOf("운전바꿀", "운전교대", "자세로", "시트메모리", "운전할게")
     private val GENERIC_WORDS = setOf("지금", "이", "내", "현재", "자세")
 

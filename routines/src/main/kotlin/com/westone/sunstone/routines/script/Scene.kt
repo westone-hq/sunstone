@@ -3,6 +3,8 @@ package com.westone.sunstone.routines.script
 import com.westone.sunstone.routines.dialog.QuestionKind
 import com.westone.sunstone.routines.model.Gear
 import com.westone.sunstone.routines.model.Place
+import com.westone.sunstone.routines.model.SeatAxis
+import com.westone.sunstone.routines.port.SeatProfile
 import com.westone.sunstone.routines.port.Target
 import com.westone.sunstone.routines.understand.VoiceAction
 
@@ -53,7 +55,7 @@ data class Scene(
 
 /**
  * 작성: 2026-11-11 16:42:25 · 박희정
- * 수정: 2026-11-13 10:00:00 · 박희정
+ * 수정: 2026-11-13 15:00:00 · 박희정
  * 클래스: Prep
  * 목적: 장면 준비 한 단계. 값이 null인 칸은 바꾸지 않는다. 가짜 차는 앱이,
  *       Pleos 차는 Virtual Console·데모 입력이 넣는다. 뒷좌석은 아이가 타는
@@ -69,6 +71,9 @@ data class Scene(
  *       rearBelt — 뒷좌석 왼쪽 벨트를 맸는지
  *       childLockDaysAgo — 마지막으로 차일드락을 쓴 날이 며칠 전인지. 같은 날
  *       시연을 다시 해도 처음 탈 때 묻게 1(어제)로 넣는다
+ *       driverSeat — 운전석을 옮겨 둘 시작 자세(축별 위치 0~100). 시트 위치를
+ *       읽을 수 없어 앱이 직접 옮겨 둬야 움직인 뒤 위치를 안다
+ *       seatProfile — 미리 저장해 둘 사람 자세(시나리오 ③의 희정 님)
  */
 data class Prep(
     val gear: Gear? = null,
@@ -81,6 +86,8 @@ data class Prep(
     val rearOccupied: Boolean? = null,
     val rearBelt: Boolean? = null,
     val childLockDaysAgo: Long? = null,
+    val driverSeat: Map<SeatAxis, Int>? = null,
+    val seatProfile: SeatProfile? = null,
 )
 
 /**

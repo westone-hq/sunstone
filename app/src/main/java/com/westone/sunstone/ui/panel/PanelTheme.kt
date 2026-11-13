@@ -114,7 +114,7 @@ val AstaSans = FontFamily(
 
 /**
  * 작성: 2026-11-12 18:48:00 · 박건준
- * 수정: 2026-11-13 10:00:00 · 박희정
+ * 수정: 2026-11-13 15:00:00 · 박희정
  * 함수: iconRes
  * 목적: 아이콘 이름을 그림 리소스로 바꾼다.
  * 인자: name — 아이콘 이름(`Fact.icon`, `QuestionRow.icon`, `Step.icon`)
@@ -131,5 +131,8 @@ fun iconRes(name: String?): Int? = when (name) {
     "mirror" -> R.drawable.ic_panel_mirror
     "child" -> R.drawable.ic_panel_child
     "blind" -> R.drawable.ic_panel_blind
+    "seat" -> R.drawable.ic_panel_seat
+    "seat-height" -> R.drawable.ic_panel_seat_height
+    "seat-back" -> R.drawable.ic_panel_seat_back
     else -> null
 }

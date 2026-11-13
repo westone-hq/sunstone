@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 패널 아이콘 "seat-back". 시안 ICONS에 없어 2026-11-13 박희정이 같은 선 굵기로 그렸다(등받이 기울기). 색은 화면이 입힌다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:pathData="M14 38H34 M14 38L20 10 M18 22L26 18"
+        android:strokeWidth="3.4"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

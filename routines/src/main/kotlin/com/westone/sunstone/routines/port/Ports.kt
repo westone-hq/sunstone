@@ -41,6 +41,20 @@ sealed interface Target {
     /** 값: Int. 시트 축 위치(차가 주는 단위 그대로). */
     data class SeatPosition(val seat: Seat, val axis: SeatAxis) : Target
 
+    /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 클래스: SeatNudge
+     * 목적: 시트 축 하나를 지금 자리에서 조금 움직인다("앞으로 조금").
+     *       값: Int. 움직일 양(축 전체의 %). 양수면 앞·위·세움(FORWARD), 음수면
+     *       뒤·아래·눕힘(BACKWARD). 읽을 수 없어 되돌리기는 반대 값으로 한다.
+     * 인자: seat — 좌석
+     *       axis — 축
+     * 근거: 측정 — 시트 위치는 읽을 수 없어 시간으로만 움직인다. 위치로
+     *       맞추면(`SeatPosition`) 맨 뒤로 갔다가 오므로 조금씩 맞출 때는 이
+     *       대상을 쓴다(docs/api-spike.md 시트 행)
+     */
+    data class SeatNudge(val seat: Seat, val axis: SeatAxis) : Target
+
     /** 값: Int. 차에 저장된 시트 메모리 번호. 읽을 수 없어서 되돌리기에는 쓰지 않는다. */
     data class SeatMemory(val seat: Seat) : Target
 }
