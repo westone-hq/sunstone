@@ -10,6 +10,7 @@ junit = "4.13.2"
 vehicleSdk = "2.3.2"
 naviHelper = "3.0.5"
 fusedLocation = "1.1.3"
+pleosSpeech = "3.3.1"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -27,6 +28,8 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 vehicle-sdk = { module = "ai.pleos.playground:Vehicle", version.ref = "vehicleSdk" }
 navi-helper = { module = "ai.pleos.playground:NaviHelper", version.ref = "naviHelper" }
 fused-location = { module = "ai.pleos.playground:FusedLocation", version.ref = "fusedLocation" }
+pleos-tts = { module = "ai.pleos.playground:TextToSpeech", version.ref = "pleosSpeech" }
+pleos-stt = { module = "ai.pleos.playground:SpeechToText", version.ref = "pleosSpeech" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

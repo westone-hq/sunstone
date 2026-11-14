@@ -4,6 +4,10 @@
     <uses-permission android:name="android.car.permission.CONTROL_CAR_SEATS" />
     <!-- 뒷문 차일드락을 AAOS 속성으로 읽고 써 보는 실측(childlock). signature|privileged라 허가되지 않을 수 있다. -->
     <uses-permission android:name="android.car.permission.CONTROL_CAR_DOORS" />
+    <!-- Pleos 음성 인식 실측(speech)이 마이크를 쓴다. 허가는 adb pm grant로 준다. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Pleos 음성 인식 서비스(caas) 실측(speech). protection normal -->
+    <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
 
     <application>
         <!-- 디버그 빌드에만 있는 데모 입력. 출시 빌드에는 들어가지 않는다. -->

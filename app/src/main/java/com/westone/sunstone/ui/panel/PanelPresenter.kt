@@ -5,6 +5,7 @@ import android.util.Log
 import com.westone.sunstone.R
 import com.westone.sunstone.routines.dialog.Asking
 import com.westone.sunstone.routines.dialog.Question
+import com.westone.sunstone.routines.dialog.QuestionKind
 import com.westone.sunstone.routines.dialog.Reply
 import com.westone.sunstone.routines.engine.Phase
 import com.westone.sunstone.routines.engine.RoutineId
@@ -12,6 +13,7 @@ import com.westone.sunstone.routines.engine.RunView
 import com.westone.sunstone.routines.engine.RunnerUi
 import com.westone.sunstone.routines.engine.StepStatus
 import com.westone.sunstone.routines.engine.StepView
+import com.westone.sunstone.routines.model.PlaceHit
 import com.westone.sunstone.ui.SceneControls
 import com.westone.sunstone.ui.SceneView
 import kotlinx.coroutines.CoroutineScope
@@ -33,6 +35,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * 작성: 2026-11-12 18:44:00 · 박건준
  * 수정: 2026-11-13 15:00:00 · 박희정
  * 수정: 2026-11-13 20:00:00 · 박건준
+ * 수정: 2026-11-14 17:00:00 · 박건준
  * 클래스: PanelPresenter
  * 목적: 왼쪽 구역에 그릴 값(`ScreenUi`)을 만든다. 판단은 하지 않고 routines가
  *       준 값을 화면 모양으로만 바꾼다.
@@ -54,6 +57,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  *         질문 말이 끝나고 8초 안에 대답이 없으면 줄만 닫고 카드는 남긴다.
  *         부르는 카드가 떠 있는 동안은 닫지 않는다
  *       - 새 카드가 뜨거나 시연 장면이 바뀌면 남은 토스트를 바로 지운다
+ *       - 목적지 후보가 여럿이면(`places`) 고르기 카드를 띄우고 듣는다
+ *       - 권한 질문은 말이 끝나고 `Asking.NO_REPLY_MS` 동안 대답이 없으면
+ *         닫는다(`onExpire`). 시연 중에는 닫지 않는다
  * 인자: context — 화면 문구(strings.xml)를 읽는다
  *       scope — 타이머와 구독을 돌린다(화면 스레드)
  *       asking — 질문·토스트
@@ -66,10 +72,15 @@ import kotlinx.coroutines.withTimeoutOrNull
  *       onRoutine — 부르는 카드 루틴 줄(루틴, 지금 켜져 있는지)
  *       onHold — 마이크 칸·듣는 중 줄 마이크 칸·카드 앱 아이콘을 길게 눌렀을
  *       때(시연 모드 다음 장면)
+ *       places — 고르기를 기다리는 목적지 후보(`TripDialog.destinations`)
+ *       onPlace — 목적지 후보 줄(후보 번호). -1이면 고르기를 그만둔다
+ *       onExpire — 대답 없이 시간이 지난 질문(`AppGraph.expire()`)
  * 근거: 인용 — docs/SCREEN.md 6장, 1장 상태 흐름, 5장 대답 기다리는 시간 8초.
  *       2026-11-12 박건준 검토: 카드는 그 카드의 말이 시작될 때 띄운다.
  *       2026-11-13 박건준 지시: 부르면 나오는 카드(앱 화면 시안
- *       sunstone-app.html)
+ *       sunstone-app.html). docs/SPEC.md 3장 대답이 없을 때 20초
+ * 미구현: 프로토타입이라 시연 중에는 대답이 없어도 질문을 닫지 않는다. 다음
+ *       장면(운전자 대답)을 설명하다 20초를 넘기면 시연이 끊긴다
  */
 class PanelPresenter(
     private val context: Context,
@@ -83,6 +94,9 @@ class PanelPresenter(
     private val onFinish: (RoutineId) -> Unit,
     private val onRoutine: (RoutineId, Boolean) -> Unit,
     private val onHold: () -> Unit,
+    places: StateFlow<List<PlaceHit>>,
+    private val onPlace: (Int) -> Unit,
+    private val onExpire: (QuestionKind) -> Unit,
 ) {
 
     private companion object {
@@ -149,6 +163,15 @@ class PanelPresenter(
          * 근거: 인용 — docs/SCREEN.md 6장 8단계: 3초 뒤 접힌다
          */
         const val CHIP_MS = 3_000L
+
+        /**
+         * 작성: 2026-11-14 17:00:00 · 박건준
+         * 변수: PLACE_ROWS
+         * 목적: 목적지 고르기 카드에 보일 후보 수. 카드 높이(928)에 줄(112)이
+         *       들어가는 만큼이다.
+         * 근거: 측정 — 제목·설명 아래 줄 다섯과 듣는 중 줄이 카드에 들어간다
+         */
+        const val PLACE_ROWS = 5
 
         /**
          * 작성: 2026-11-13 04:00:00 · 박건준
@@ -218,6 +241,9 @@ class PanelPresenter(
     /** 고른 버튼을 보여 주다 내리는 작업. 없으면 null */
     private var heldJob: Job? = null
 
+    /** 대답 없는 질문을 닫는 타이머. 없으면 null */
+    private var expireJob: Job? = null
+
     /** 듣는 중 판. 질문·들은 말·마이크 칸이 바꾼다 */
     private val listen = MutableStateFlow(ListenUi(ListenState.OFF))
 
@@ -247,9 +273,9 @@ class PanelPresenter(
         combine(shown, held) { q, h -> h ?: q?.let { it to null } },
         runner,
         combine(hiddenRun, chipRun, ::Pair),
-        call,
+        combine(call, places, ::Pair),
         scenes.current,
-    ) { asked, r, (hidden, chip), c, scene -> cardOf(asked, r, hidden, chip, c, scene) }
+    ) { asked, r, (hidden, chip), (c, found), scene -> cardOf(asked, r, hidden, chip, c, found, scene) }
 
     /** 왼쪽 구역에 그릴 것 전부(값이 바뀌면 알려주는 상태) */
     val ui: StateFlow<ScreenUi> = combine(card, listen, toast) { c, l, t -> ScreenUi(c, l, t) }
@@ -260,6 +286,15 @@ class PanelPresenter(
         scope.launch { asking.notices.collect { showToast(it) } }
         scope.launch { asking.alerts.collect { showToast(it, alert = true) } }
         scope.launch { runner.map { liveRun(it) }.collect { onRun(it) } }
+        // 목적지 후보가 생기면 부르는 카드를 닫고 고르는 동안 듣는다. 고르면 듣기를 멈춘다
+        scope.launch {
+            places.map { it.isNotEmpty() }.distinctUntilChanged().collect { choosing ->
+                if (!choosing) return@collect stopListening()
+                call.value = null
+                listenJob?.cancel()
+                listen.value = ListenUi(ListenState.LISTENING, context.getString(R.string.listen_on))
+            }
+        }
         // 처리가 끝나면(결과 토스트가 먼저 온다) 도는 표시 판을 내린다
         scope.launch {
             asking.working.collect { on ->
@@ -402,6 +437,8 @@ class PanelPresenter(
             }
             PanelPress.SceneRestart -> scenes.restart() // → 로직 이동: SceneControls.restart()
             PanelPress.Close -> closeCall()
+            is PanelPress.Place -> onPlace(press.index) // → 로직 이동: AppGraph.choosePlace()
+            PanelPress.PlaceCancel -> onPlace(-1)
         }
     }
 
@@ -440,6 +477,7 @@ class PanelPresenter(
      */
     private fun onQuestion(q: Question?) {
         showJob?.cancel()
+        expireJob?.cancel()
         if (q == null) {
             shown.value = null
             if (listen.value.state == ListenState.LISTENING) {
@@ -453,6 +491,25 @@ class PanelPresenter(
             call.value = null
             shown.value = q
             if (listen.value.state != ListenState.HEARD) startListening()
+            if (q.expires && scenes.current.value == null) expireLater(q) // → 로직 이동: PanelPresenter.expireLater()
+        }
+    }
+
+    /**
+     * 작성: 2026-11-14 17:00:00 · 박건준
+     * 함수: expireLater
+     * 목적: 질문의 말이 끝나고 `Asking.NO_REPLY_MS`가 지나도록 대답이 없으면
+     *       질문을 닫게 한다(`onExpire`). 그 사이 대답했거나 다른 질문으로
+     *       바뀌었으면 하지 않는다.
+     * 인자: q — 띄운 질문
+     * 근거: 인용 — docs/SPEC.md 3장 "대답이 없을 때 20초 뒤 카드를 닫는다"
+     */
+    private fun expireLater(q: Question) {
+        expireJob = scope.launch {
+            withTimeoutOrNull(SPEAK_START_MS) { speaking.first { it } }
+            speaking.first { !it }
+            delay(Asking.NO_REPLY_MS)
+            if (shown.value === q && held.value == null) onExpire(q.kind) // → 로직 이동: AppGraph.expire()
         }
     }
 
@@ -547,13 +604,14 @@ class PanelPresenter(
      * 수정: 2026-11-13 10:00:00 · 박희정
      * 수정: 2026-11-13 20:00:00 · 박건준
      * 함수: cardOf
-     * 목적: 지금 보일 카드를 고른다. 질문(대답한 질문 포함) → 부르는 카드 →
-     *       세차 모드·차일드락 진행(접었으면 켜짐 표시) 순서다.
+     * 목적: 지금 보일 카드를 고른다. 질문(대답한 질문 포함) → 목적지 고르기 →
+     *       부르는 카드 → 세차 모드·차일드락 진행(접었으면 켜짐 표시) 순서다.
      * 인자: asked — 질문과 고른 대답. 질문이 없으면 null, 대답 전이면 대답 null
      *       r — 루틴 실행기 화면 상태
      *       hidden — 닫기로 내린 실행의 시작 시각. 없으면 null
      *       chip — 켜짐 표시로 접은 실행의 시작 시각. 없으면 null
      *       c — 부르는 카드 모양. 없으면 null
+     *       found — 고르기를 기다리는 목적지 후보. 없으면 빈 목록
      *       scene — 지금 시연 장면. 시연 전이면 null
      * 반환: 카드. 보일 것이 없으면 null
      */
@@ -563,9 +621,11 @@ class PanelPresenter(
         hidden: Long?,
         chip: Long?,
         c: Call?,
+        found: List<PlaceHit>,
         scene: SceneView?,
     ): CardUi? {
         if (asked != null) return questionCard(asked.first, asked.second)
+        if (found.isNotEmpty()) return placeCard(found)
         when (c) {
             Call.ROUTINES -> return callCard(r, scene)
             Call.PICK -> return pickCard()
@@ -624,6 +684,25 @@ class PanelPresenter(
             ),
         )
     }
+
+    /**
+     * 작성: 2026-11-14 17:00:00 · 박건준
+     * 함수: placeCard
+     * 목적: 목적지 고르기 카드. 후보 줄(앞에 검은 번호 칸, 아래 주소)을
+     *       `PLACE_ROWS`개까지 보인다. 번호를 말하거나 줄을 눌러 고르고, 닫기는
+     *       고르기를 그만둔다.
+     * 인자: found — 목적지 후보
+     * 반환: 카드
+     * 근거: 인용 — 앱 화면 시안 sunstone-app.html 3번 상태(번호 칸 줄)를 같이 쓴다
+     */
+    private fun placeCard(found: List<PlaceHit>) = CardUi(
+        title = context.getString(R.string.place_title),
+        detail = context.getString(R.string.place_detail),
+        rows = found.take(PLACE_ROWS).mapIndexed { i, place ->
+            RowUi(place.name, place.address.ifBlank { null }, null, i + 1, false, PanelPress.Place(i))
+        },
+        close = PanelPress.PlaceCancel,
+    )
 
     /**
      * 작성: 2026-11-13 20:00:00 · 박건준

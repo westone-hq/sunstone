@@ -25,8 +25,8 @@ android {
         applicationId = "com.westone.sunstone"
         minSdk = 28 // Pleos 요구사항(사이닝 키 로테이션)
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "1.0.0"
     }
 
     signingConfigs {
@@ -56,6 +56,7 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions { unitTests.isReturnDefaultValues = true }
 }
 
 // 서명 값이 없으면 설치되지 않는 APK가 나오므로 release 묶기 전에 이유를 말하고 멈춘다.
@@ -85,6 +86,10 @@ dependencies {
     implementation(libs.navi.helper)
     // Pleos 위치(현재 위치·근접 알림).
     implementation(libs.fused.location)
+    // Pleos 음성 합성(앱이 하는 말, ON_DEVICE).
+    implementation(libs.pleos.tts)
+    // Pleos 음성 인식. 지금은 debug 실측(`speech`)만 쓴다.
+    debugImplementation(libs.pleos.stt)
     implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.androidx.core.ktx)
@@ -97,4 +102,11 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
 
     testImplementation(libs.junit)
+    testImplementation("org.json:json:20240303")
+    testImplementation(libs.kotlinx.coroutines.test)
+}
+
+// 경로만 테스트에 전달한다. 재발급 키는 Gradle 필드·APK에 넣지 않는다.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    systemProperty("sunstone.localProperties", rootProject.file("local.properties").absolutePath)
 }

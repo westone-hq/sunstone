@@ -1,0 +1,14 @@
+# 아래 줄을 저장소에 올리지 않는 local.properties에 옮겨 적고 값을 넣는다.
+# 실제 검색·가격(시연 모드 밖)에만 쓴다. 넣은 뒤 tools/configure-api.ps1로 기기에 보낸다.
+# 카카오 로컬 REST 키(목적지 후보, 근처 주유소, 좌표 변환)
+sunstone.kakao.restKey=
+# 오피넷 무료 API 키(근처 주유소 가격, 세차 시설 여부). 없으면 카카오 주유소 검색(가격 없음)을 쓴다
+sunstone.opinet.key=
+# 유종: 휘발유 B027, 경유 D047. 에뮬레이터 차(전기차)와 상관없는 시연 가정이다
+sunstone.fuel.code=B027
+
+# release 서명(assembleRelease에만 필요)
+release.storeFile=
+release.storePassword=
+release.keyAlias=
+release.keyPassword=

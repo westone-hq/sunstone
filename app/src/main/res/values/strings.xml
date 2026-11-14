@@ -11,7 +11,7 @@
     <string name="row_wash_say">“세차할게”</string>
     <string name="row_child">차일드락</string>
     <string name="row_child_say">“애 태웠어”</string>
-    <string name="row_seat">시트 맞추기</string>
+    <string name="row_seat">시트 메모리</string>
     <string name="row_seat_say">“시트 좀 맞춰 줘”</string>
     <string name="row_on">켜짐</string>
     <string name="add_routine">루틴 추가</string>
@@ -44,6 +44,10 @@
     <string name="listen_heard">“%1$s”</string>
     <!-- 들은 말 아래 안내: 앱이 이어서 하는 일 -->
     <string name="next_navigate">길안내를 시작할게요</string>
+    <string name="next_weather">날씨 예보를 확인할게요</string>
+    <!-- 목적지 고르기 카드 -->
+    <string name="place_title">어디로 갈까요?</string>
+    <string name="place_detail">번호를 말하거나 눌러서 고르세요.</string>
     <string name="next_fuel_stop">경유지로 넣을게요</string>
     <string name="next_fuel_wash">경유지에 넣고 세차를 예약할게요</string>
     <string name="next_wash_mode">세차 모드를 켤게요</string>

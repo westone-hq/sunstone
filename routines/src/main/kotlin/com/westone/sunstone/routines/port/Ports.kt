@@ -2,7 +2,9 @@ package com.westone.sunstone.routines.port
 
 import com.westone.sunstone.routines.model.CarState
 import com.westone.sunstone.routines.model.GasStation
+import com.westone.sunstone.routines.model.GeoPoint
 import com.westone.sunstone.routines.model.PlaceHit
+import com.westone.sunstone.routines.model.RainOutlook
 import com.westone.sunstone.routines.model.RouteSummary
 import java.time.LocalDate
 import com.westone.sunstone.routines.model.Seat
@@ -119,6 +121,16 @@ interface NaviPort {
     /** 이름으로 장소를 찾는다. 못 찾으면 null */
     suspend fun findPlace(query: String): PlaceHit?
 
+    /**
+     * 작성: 2026-11-14 13:41:10 · 박희정
+     * 함수: findPlaces
+     * 목적: 이름으로 장소 후보를 모두 찾는다. 여럿이면 길안내 대화가 운전자에게
+     *       고르게 한다. 기본은 `findPlace()` 하나.
+     * 인자: query — 운전자가 말한 목적지
+     * 반환: 후보들. 못 찾으면 빈 목록
+     */
+    suspend fun findPlaces(query: String): List<PlaceHit> = listOfNotNull(findPlace(query))
+
     /** 목적지로 경로를 시작한다. 실패하면 null */
     suspend fun startRoute(destination: PlaceHit): RouteSummary?
 
@@ -128,16 +140,27 @@ interface NaviPort {
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
+ * 수정: 2026-11-14 16:00:00 · 박건준
  * 클래스: InfoPort
- * 목적: 기능 → 바깥 정보 창구(주유소, 날씨). 키가 없으면 앱이 고정 응답으로
- *       채운다.
+ * 목적: 기능 → 바깥 정보 창구(주유소, 날씨). 앱은 시연 중이면 준비 값을,
+ *       아니면 실제 API(오피넷·카카오·Open-Meteo)를 잇는다.
  */
 interface InfoPort {
+    /** 지금 위치 근처를 실제로 찾은 값이면 true. 시연 준비 값이면 false("가는 길에"로 말한다) */
+    val nearbyStations: Boolean get() = false
+
     /** 지금 위치 근처 주유소들. 못 찾으면 빈 목록 */
     suspend fun gasStations(): List<GasStation>
 
-    /** 앞으로 [days]일 안에 비 소식이 있으면 true, 없으면 false, 모르면 null */
-    suspend fun rainWithin(days: Int): Boolean?
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: rain
+     * 목적: 앞으로 [days]일 동안 비가 오는 가장 가까운 날을 준다.
+     * 인자: point — 볼 곳(세차할 주유소). null이면 지금 위치
+     *       days — 볼 기간(일)
+     * 반환: 비 예보. 날씨를 받지 못했으면 null
+     */
+    suspend fun rain(point: GeoPoint?, days: Int): RainOutlook?
 }
 
 /**
@@ -160,6 +183,20 @@ interface MemoryPort {
 
     /** 차일드락을 쓴 날을 남긴다 */
     fun recordChildLock(date: LocalDate)
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: declinedOn, recordDeclined, clearDeclined
+     * 목적: 권유를 거절한 날을 기억한다. 같은 권유는 하루에 한 번만 한다.
+     *       기본 구현은 기억하지 않는다.
+     * 인자: key — 권유 이름(질문 종류 이름, 세차 권유는 "WASH_OFFER")
+     *       date — 거절한 날
+     * 반환: `declinedOn` — 마지막으로 거절한 날. 없으면 null
+     * 근거: 인용 — docs/SPEC.md 3장 "같은 권유 하루에 한 번"
+     */
+    fun declinedOn(key: String): LocalDate? = null
+    fun recordDeclined(key: String, date: LocalDate) {}
+    fun clearDeclined() {}
 }
 
 /**
@@ -173,6 +210,18 @@ class InMemoryMemory(private var lastWash: LocalDate? = null) : MemoryPort {
 
     /** 마지막으로 차일드락을 쓴 날. `recordChildLock()`이 채운다. 없으면 null */
     private var lastChildLock: LocalDate? = null
+
+    /** 권유마다 마지막으로 거절한 날 */
+    private val declined = mutableMapOf<String, LocalDate>()
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: declinedOn, recordDeclined, clearDeclined
+     * 목적: 권유를 거절한 날을 돌려주고, 남기고, 모두 지운다.
+     */
+    override fun declinedOn(key: String) = declined[key]
+    override fun recordDeclined(key: String, date: LocalDate) { declined[key] = date }
+    override fun clearDeclined() = declined.clear()
 
     /**
      * 작성: 2026-11-12 16:10:00 · 박희정
