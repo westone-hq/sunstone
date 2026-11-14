@@ -1,6 +1,7 @@
 package com.westone.sunstone.routines
 
 import com.westone.sunstone.routines.dialog.Asking
+import com.westone.sunstone.routines.dialog.CurrentRoute
 import com.westone.sunstone.routines.dialog.Choice
 import com.westone.sunstone.routines.dialog.Fact
 import com.westone.sunstone.routines.dialog.QuestionKind
@@ -43,14 +44,14 @@ import java.time.LocalDate
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
- * 수정: 2026-11-13 03:25:00 · 박건준
+ * 수정: 2026-11-14 03:00:00 · 박건준
  * 클래스: TripScenarioTest
  * 목적: 시나리오 ① 길안내 대화에서 대사집에 없는 경우(연료 넉넉, 거절, 주유만,
  *       최근 세차, 비 소식, 세차 입구 취소 등)와 질문 카드(`Asking`) 값을 가짜
  *       차·가짜 내비·고정 정보로 본다. 대사집 장면 S1~S9 자체는 `ScriptTest`가
  *       돌린다.
  *       기본 준비: P단, 연료 18%, 마지막 세차 36일 전
- * 근거: 인용 — Tab 1 4.3 시나리오 ① 준비 줄, docs/SCREEN.md 6장
+ * 근거: 인용 — 시연 시나리오 ① 준비 줄, docs/SCREEN.md 6장
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TripScenarioTest {
@@ -119,8 +120,11 @@ class TripScenarioTest {
     /** 질문·토스트. 길안내 대화와 실행기가 함께 쓴다 */
     private val asking = Asking()
 
+    /** 지금 길안내 목적지. 길안내 대화와 차일드락이 함께 쓴다 */
+    private val route = CurrentRoute()
+
     /** 길안내 대화 */
-    private val trip = TripDialog(car, navi, info, memory, booking, asking, { said += it }, { TODAY })
+    private val trip = TripDialog(car, navi, info, memory, booking, asking, { said += it }, { TODAY }, route)
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
@@ -136,7 +140,7 @@ class TripScenarioTest {
             car = car,
             routines = listOf(
                 WashRoutine(booking, memory, asking, { TODAY }),
-                ChildLockRoutine(),
+                ChildLockRoutine(route, memory, asking, { TODAY }),
                 SeatMemoryRoutine(InMemorySeatProfiles()),
             ),
             speaker = { said += it },
@@ -418,15 +422,15 @@ class TripScenarioTest {
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-13 03:25:00 · 박건준
+     * 수정: 2026-11-14 03:00:00 · 박건준
      * 함수: 세차 기록이 없으면 세차를 묻지 않는다
      * 목적: 마지막 세차일을 모르면 주유만 묻는지 본다(모르는 사실로 판단하지
-     *       않는다, Tab 1 2장).
+     *       않는다는 설계 결정 규칙).
      */
     @Test
     fun `세차 기록이 없으면 세차를 묻지 않는다`() = runTest {
         val noMemory = InMemoryMemory(lastWash = null) // 세차 기록 없음
-        val fresh = TripDialog(car, navi, info, noMemory, booking, asking, { said += it }, { TODAY }) // 기록 없는 대화
+        val fresh = TripDialog(car, navi, info, noMemory, booking, asking, { said += it }, { TODAY }, route) // 기록 없는 대화
 
         fresh.navigate("파라다이스 호텔 부산")
 
@@ -599,7 +603,9 @@ class TripScenarioTest {
     @Test
     fun `경유지를 20초 안에 못 넣으면 실패를 알린다`() = runTest {
         val logged = mutableListOf<String>() // 남긴 로그
-        val slow = TripDialog(car, navi, info, memory, booking, asking, { said += it }, { TODAY }) { logged += it }
+        val slow = TripDialog(car, navi, info, memory, booking, asking, { said += it }, { TODAY }, route) {
+            logged += it
+        }
         backgroundScope.launch { asking.notices.collect { noticed += it } }
         slow.navigate("파라다이스 호텔 부산")
         navi.waypointDelayMs = 30_000

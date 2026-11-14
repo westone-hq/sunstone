@@ -61,28 +61,32 @@ import com.westone.sunstone.routines.dialog.Fact
 
 /**
  * 작성: 2026-11-13 03:40:00 · 박건준
- * 수정: 2026-11-13 04:20:00 · 박건준
- * 변수: CARD_SIDE, CARD_TOP, CARD_WIDTH, PLATE_BOTTOM, PLATE_HEIGHT
- * 목적: 왼쪽 구역 안 카드·판 자리(px = dp). 카드는 좌우 24, 상태줄 아래 86
- *       (화면 176)에서 시작하고, 판은 좌우 24, 아래 24에 높이 112로 뜬다.
- *       구역 폭은 853이라 카드·판 폭은 853 − 48 = 805.
+ * 수정: 2026-11-13 20:00:00 · 박건준
+ * 변수: CARD_SIDE, CARD_TOP, CARD_WIDTH, CARD_HEIGHT, BAR_HEIGHT
+ * 목적: 왼쪽 구역 안 카드 자리(px = dp). 카드는 좌우 24, 상태줄 아래 86
+ *       (화면 176)에서 시작해 미디어 줄 위 16(화면 1104)까지 내려온다. 구역
+ *       폭은 853이라 카드 폭은 853 − 48 = 805. 듣는 중 줄은 높이 88.
  * 식: CARD_TOP = 운전대 표시 아이콘 아래 끝 160 + 16 − 상태줄 90 = 86
- * 근거: 인용 — 시안 template2.html `.noti`(left 24, right 24, top 176),
- *       `.voice`·`.toast`(bottom 24, height 112). 측정 — 왼쪽 구역 폭 853,
- *       상태줄 90, 운전대 표시 아이콘 y 106~160(docs/api-spike.md 왼쪽 구역
- *       그리기 행)
+ *     CARD_HEIGHT = 미디어 줄 위 끝 1120 − 16 − 카드 위 176 = 928
+ * 근거: 인용 — 시안 template2.html `.noti`(left 24, right 24, top 176), 앱
+ *       화면 시안 sunstone-app.html `.noti.show`(미디어 줄 위 16), `.vrow`
+ *       (88). 측정 — 왼쪽 구역 폭 853, 상태줄 90, 운전대 표시 아이콘 y
+ *       106~160, 미디어 줄 위 끝 y 1120(docs/api-spike.md 왼쪽 구역 그리기
+ *       행). 시안은 미디어 줄을 160으로 그려 아래에서 176이지만 에뮬레이터
+ *       미디어 줄은 180이라 아래에서 196이다
  */
 internal const val CARD_SIDE = 24
 internal const val CARD_TOP = 86
 internal const val CARD_WIDTH = 805
-internal const val PLATE_BOTTOM = 24
-internal const val PLATE_HEIGHT = 112
+internal const val CARD_HEIGHT = 928
+internal const val BAR_HEIGHT = 88
 
 /**
  * 작성: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 변수: SHADOW
- * 목적: 카드·판 그림자가 그려질 바깥 여백(px = dp). 창은 이만큼 크게 잡고
- *       안쪽에 카드·판을 그린다.
+ * 목적: 카드 그림자가 그려질 바깥 여백(px = dp). 창은 이만큼 크게 잡고
+ *       안쪽에 카드를 그린다.
  * 근거: 인용 — 시안 template2.html `--noti-shadow: 0 2px 8px`(아래로 10까지
  *       번진다)
  */
@@ -90,8 +94,9 @@ internal const val SHADOW = 12
 
 /**
  * 작성: 2026-11-12 18:50:00 · 박건준
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 변수: SHADE
- * 목적: 카드·판 그림자 색(검정 12%).
+ * 목적: 카드·듣는 중 줄 그림자 색(검정 12%).
  * 근거: 인용 — 시안 template2.html `--noti-shadow: 0 2px 8px rgba(0,0,0,.12)`
  */
 private val SHADE = Color.Black.copy(alpha = .12f)
@@ -173,48 +178,195 @@ private fun Modifier.holdOrTap(onTap: (() -> Unit)?, onHold: () -> Unit): Modifi
 
 /**
  * 작성: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 함수: NotiCard
  * 목적: 왼쪽 주행 화면 위에 뜨는 카드. Pleos 시스템 알림과 같은 짜임을 각진
- *       흰 면에 그린다.
+ *       흰 면에 그린다. 켜짐 표시가 아니면 높이 `CARD_HEIGHT`로 미디어 줄
+ *       위까지 왼쪽 구역을 다 쓰고, 내용은 위에서부터, 버튼과 듣는 중 줄은
+ *       맨 아래에 붙이고 그 사이는 흰 바탕으로 비운다.
  *       - 머리: 앱 아이콘 72 | 제목 36/44 ExtraBold + 설명 26/34(최대 2줄,
  *         굵게 보일 낱말) | 닫기 40(구분선 없음). 안쪽 여백 28
  *       - 근거 칸(제안 카드): 제목 아래 회색 칸, 높이 48, 아이콘 30 + 글 24 Bold
  *       - 할 일 칸: 가로 한 줄, 높이 128
+ *       - 줄(부르는 카드): 높이 112, 회색
  *       - 버튼: 높이 88, 30/38 Bold, 둘이면 반반. 채운 버튼 검정, 다른 하나는
  *         회색(basic)
- *       켜짐 표시(`chip`)면 높이 88 한 줄로 그린다.
+ *       - [+ 루틴 추가], 시연 줄, 듣는 중 줄(높이 88)
+ *       켜짐 표시(`chip`)면 높이 88 한 줄로 그리고 듣는 중 줄은 그 아래에 붙인다.
  * 인자: card — 그릴 카드
- *       onPress — 버튼·닫기를 누르면 부른다
- *       onHold — 앱 아이콘을 길게 누르면 부른다(시연 모드 다음 장면)
- * 근거: 인용 — docs/SCREEN.md 6장 카드, 시안 template2.html `.noti`
+ *       plate — 듣는 중 줄에 보일 것. 없으면 null(줄을 그리지 않는다)
+ *       onPress — 버튼·줄·닫기를 누르면 부른다
+ *       onCall — 앱 아이콘을 누르면 부른다(부르는 카드. 켜짐 표시가 마이크
+ *       칸을 가리고 있을 때 왼쪽 구역에서 부르는 길)
+ *       onHold — 앱 아이콘·듣는 중 줄 마이크 칸을 길게 누르면 부른다(시연 모드
+ *       다음 장면)
+ * 근거: 인용 — docs/SCREEN.md 6장 카드, 시안 template2.html `.noti`, 앱 화면
+ *       시안 sunstone-app.html `.noti.show`, `.sp`, `.vrow`
  */
 @Composable
-fun NotiCard(card: CardUi, onPress: (PanelPress) -> Unit, onHold: () -> Unit) {
+private fun NotiCard(
+    card: CardUi,
+    plate: Plate?,
+    onPress: (PanelPress) -> Unit,
+    onCall: () -> Unit,
+    onHold: () -> Unit,
+) {
     val c = panelColors() // 색 토큰
     Column(
-        // 카드 면: 모서리 0, 그림자 0 2 8 검정 12%
+        // 카드 면: 모서리 0, 그림자 0 2 8 검정 12%. 켜짐 표시가 아니면 미디어 줄 위까지
         Modifier
             .width(CARD_WIDTH.dp)
+            .then(if (card.chip) Modifier else Modifier.height(CARD_HEIGHT.dp))
             .shadow(4.dp, RectangleShape, ambientColor = SHADE, spotColor = SHADE)
             .background(c.surface),
     ) {
         if (card.chip) {
-            ChipRow(card, onPress, onHold)
+            ChipRow(card, onPress, onCall, onHold)
+            plate?.let {
+                Spacer(Modifier.height(GAP))
+                VoiceRow(it, onHold)
+            }
             return@Column
         }
-        CardHead(card, onPress, onHold)
+        CardHead(card, onPress, onCall, onHold)
         if (card.facts.isNotEmpty()) FactRow(card.facts)
         if (card.cells.isNotEmpty()) {
             Row(Modifier.padding(top = GAP), horizontalArrangement = Arrangement.spacedBy(GAP)) {
                 card.cells.forEach { Cell(it, Modifier.weight(1f)) }
             }
         }
+        if (card.rows.isNotEmpty()) Rows(card.rows, onPress)
+        Spacer(Modifier.weight(1f))
         if (card.actions.isNotEmpty()) {
             Row(
                 Modifier.padding(top = GAP).fillMaxWidth().height(88.dp),
                 horizontalArrangement = Arrangement.spacedBy(GAP),
             ) {
                 card.actions.forEachIndexed { i, a -> ActionButton(a, card.key to i, onPress, Modifier.weight(1f)) }
+            }
+        }
+        if (card.addRoutine) AddButton(onPress)
+        card.demo?.let { DemoRow(it, card.key, onPress) }
+        plate?.let {
+            Spacer(Modifier.height(GAP))
+            VoiceRow(it, onHold)
+        }
+    }
+}
+
+/**
+ * 작성: 2026-11-13 20:00:00 · 박건준
+ * 함수: Rows
+ * 목적: 부르는 카드 줄들(높이 112, 사이 2, 회색). 왼쪽 칸 112에 아이콘 48이나
+ *       검은 번호 칸 44, 이름 30/38 Bold + 켜는 말 24/30, 켜져 있으면 오른쪽에
+ *       "켜짐" 26 Bold.
+ * 인자: rows — 줄들
+ *       onPress — 줄을 누르면 부른다
+ * 근거: 인용 — 앱 화면 시안 sunstone-app.html `.crows`, `.crow`, `.crow .no`,
+ *       `.crow i.on`
+ */
+@Composable
+private fun Rows(rows: List<RowUi>, onPress: (PanelPress) -> Unit) {
+    val c = panelColors() // 색 토큰
+    Column(Modifier.padding(top = GAP), verticalArrangement = Arrangement.spacedBy(GAP)) {
+        rows.forEach { row ->
+            Row(
+                // 줄 하나: [아이콘·번호 칸 112] [이름·켜는 말] [켜짐]
+                Modifier
+                    .fillMaxWidth()
+                    .height(112.dp)
+                    .background(c.basic)
+                    .holdOrTap({ onPress(row.press) }, {}),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(112.dp), contentAlignment = Alignment.Center) {
+                    row.number?.let { n ->
+                        Box(Modifier.size(44.dp).background(c.t1), contentAlignment = Alignment.Center) {
+                            Text("$n", style = text(24, 30, FontWeight.Bold, c.surface))
+                        }
+                    }
+                    iconRes(row.icon)?.let { Icon(painterResource(it), null, Modifier.size(48.dp), tint = c.t1) }
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(row.title, style = text(30, 38, FontWeight.Bold, c.t1), maxLines = 1)
+                    row.sub?.let { Text(it, style = text(24, 30, FontWeight.Normal, c.t3), maxLines = 1) }
+                }
+                if (row.on) {
+                    Text(
+                        stringResource(R.string.row_on),
+                        Modifier.padding(end = 28.dp),
+                        style = text(26, 34, FontWeight.Bold, c.t1),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 작성: 2026-11-13 20:00:00 · 박건준
+ * 함수: AddButton
+ * 목적: [+ 루틴 추가] 회색 버튼(높이 88, 더하기 36 + 글 30 Bold).
+ * 인자: onPress — 누르면 부른다
+ * 근거: 인용 — 앱 화면 시안 sunstone-app.html `.add`
+ */
+@Composable
+private fun AddButton(onPress: (PanelPress) -> Unit) {
+    val c = panelColors() // 색 토큰
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(88.dp)
+            .background(c.basic)
+            .holdOrTap({ onPress(PanelPress.AddRoutine) }, {}),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(R.drawable.ic_panel_plus), null, Modifier.size(36.dp), tint = c.t1)
+        Text(stringResource(R.string.add_routine), style = text(30, 38, FontWeight.Bold, c.t1))
+    }
+}
+
+/**
+ * 작성: 2026-11-13 20:00:00 · 박건준
+ * 함수: DemoRow
+ * 목적: [+ 루틴 추가] 아래 시연 줄.
+ *       - 시연 전 — 작은 줄 "시연"(높이 72, 24 흐린 글자, 오른쪽 화살표 32)
+ *       - 시연 중 — 장면 이름 26 Bold + 위치 22 | [다음 장면] 200 | [처음]
+ *         140(높이 88)
+ * 인자: demo — 시연 줄 값
+ *       key — 같은 카드인지 가르는 값(버튼 그리기에 넘긴다)
+ *       onPress — 누르면 부른다
+ * 근거: 인용 — 앱 화면 시안 sunstone-app.html `.more`, `.dfoot`
+ */
+@Composable
+private fun DemoRow(demo: DemoUi, key: Any?, onPress: (PanelPress) -> Unit) {
+    val c = panelColors() // 색 토큰
+    when (demo) {
+        DemoUi.Entry -> Row(
+            Modifier
+                .padding(top = GAP)
+                .fillMaxWidth()
+                .height(72.dp)
+                .holdOrTap({ onPress(PanelPress.DemoPick) }, {})
+                .padding(start = 28.dp, end = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val style = text(24, 30, FontWeight.Normal, c.t3) // "시연" 글자 모양
+            Text(stringResource(R.string.demo_entry), Modifier.weight(1f), style = style)
+            Icon(painterResource(R.drawable.ic_panel_chevron), null, Modifier.size(32.dp), tint = c.t4)
+        }
+        is DemoUi.Playing -> Row(
+            Modifier.padding(top = GAP).fillMaxWidth().height(88.dp),
+            horizontalArrangement = Arrangement.spacedBy(GAP),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f).padding(horizontal = 28.dp)) {
+                Text(demo.title, style = text(26, 32, FontWeight.Bold, c.t1), maxLines = 1)
+                Text(demo.where, style = text(22, 28, FontWeight.Normal, c.t3), maxLines = 1)
+            }
+            demo.actions.forEachIndexed { i, a ->
+                ActionButton(a, key to i, onPress, Modifier.width(if (i == 0) 200.dp else 140.dp))
             }
         }
     }
@@ -227,11 +379,12 @@ fun NotiCard(card: CardUi, onPress: (PanelPress) -> Unit, onHold: () -> Unit) {
  *       근거 칸이 있으면 아래 여백을 8 줄여 근거 칸을 제목 쪽으로 붙인다.
  * 인자: card — 그릴 카드
  *       onPress — 닫기를 누르면 부른다
+ *       onCall — 앱 아이콘을 누르면 부른다
  *       onHold — 앱 아이콘을 길게 누르면 부른다
  * 근거: 인용 — 시안 template2.html `.nh`, `.facts { margin-top: -8px }`
  */
 @Composable
-private fun CardHead(card: CardUi, onPress: (PanelPress) -> Unit, onHold: () -> Unit) {
+private fun CardHead(card: CardUi, onPress: (PanelPress) -> Unit, onCall: () -> Unit, onHold: () -> Unit) {
     val c = panelColors() // 색 토큰
     val bottom = if (card.facts.isEmpty()) 28.dp else 20.dp // 머리 아래 여백
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
@@ -239,7 +392,7 @@ private fun CardHead(card: CardUi, onPress: (PanelPress) -> Unit, onHold: () -> 
             Modifier.weight(1f).padding(start = 28.dp, top = 28.dp, bottom = bottom),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            AppIcon(72, onHold)
+            AppIcon(72, onCall, onHold)
             Column {
                 Text(card.title, style = text(36, 44, FontWeight.ExtraBold, c.t1).copy(letterSpacing = (-0.3).sp))
                 if (card.detail.isNotEmpty()) {
@@ -365,12 +518,13 @@ private fun Cell(cell: CellUi, modifier: Modifier) {
 
 /**
  * 작성: 2026-11-13 03:40:00 · 박건준
- * 수정: 2026-11-13 04:20:00 · 박건준
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 함수: ActionButton
  * 목적: 카드 버튼 하나. 칸을 꽉 채우는 각진 막대.
  *       - 기다리는 버튼(`waitMs`)이면 흰색 18%가 그 시간 동안 왼쪽부터 차오른다
  *       - 고른 버튼(`picked`)이면 채운 버튼은 흰색 18%를 버튼 전체에 덮고(기다림이
  *         다 찬 모습과 같다), 회색 버튼은 눌린 회색으로 둔다
+ *       - 지금 하는 일이 없는 버튼(`dim`)이면 글자를 40%로 흐리게
  * 인자: action — 버튼 값
  *       key — 같은 카드의 같은 버튼인지 가르는 값. 바뀌면 다시 채운다
  *       onPress — 누르면 부른다
@@ -406,7 +560,8 @@ private fun ActionButton(action: ActionUi, key: Any?, onPress: (PanelPress) -> U
                 },
             )
         }
-        Text(action.label, style = text(30, 38, FontWeight.Bold, if (action.filled) c.onFilled else c.t1))
+        val ink = if (action.filled) c.onFilled else c.t1 // 글자 색
+        Text(action.label, style = text(30, 38, FontWeight.Bold, if (action.dim) ink.copy(alpha = .4f) else ink))
     }
 }
 
@@ -417,18 +572,19 @@ private fun ActionButton(action: ActionUi, key: Any?, onPress: (PanelPress) -> U
  *       24/30 | 회색 버튼 폭 180.
  * 인자: card — 켜짐 표시 카드
  *       onPress — 버튼을 누르면 부른다
+ *       onCall — 앱 아이콘을 누르면 부른다
  *       onHold — 앱 아이콘을 길게 누르면 부른다
  * 근거: 인용 — docs/SCREEN.md 6장 8단계, 시안 template2.html `.chipc`
  */
 @Composable
-private fun ChipRow(card: CardUi, onPress: (PanelPress) -> Unit, onHold: () -> Unit) {
+private fun ChipRow(card: CardUi, onPress: (PanelPress) -> Unit, onCall: () -> Unit, onHold: () -> Unit) {
     val c = panelColors() // 색 토큰
     Row(
         Modifier.fillMaxWidth().height(88.dp).padding(start = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        AppIcon(56, onHold)
+        AppIcon(56, onCall, onHold)
         Column(Modifier.weight(1f)) {
             Text(card.title, style = text(30, 38, FontWeight.Bold, c.t1), maxLines = 1)
             Text(card.detail, style = text(24, 30, FontWeight.Normal, c.t2), maxLines = 1)
@@ -439,23 +595,25 @@ private fun ChipRow(card: CardUi, onPress: (PanelPress) -> Unit, onHold: () -> U
 
 /**
  * 작성: 2026-11-12 18:50:00 · 박건준
- * 수정: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 함수: AppIcon
  * 목적: 앱 아이콘. 검은 칸에 3×3 로고, 로고 칸 다섯은 주황. 주황은 여기서만
- *       쓴다. 72면 로고 칸 14·사이 4, 56이면 10·3. 길게 누르면 `onHold`.
+ *       쓴다. 72면 로고 칸 14·사이 4, 56이면 10·3. 누르면 `onCall`, 길게
+ *       누르면 `onHold`.
  * 인자: size — 아이콘 크기(72, 56)
+ *       onCall — 누르면 부른다(부르는 카드)
  *       onHold — 길게 누르면 부른다(시연 모드 다음 장면)
  * 근거: 인용 — 시안 template2.html `.appicon .logo`, `.chipc .appicon`.
  *       docs/SCREEN.md 5장 앱 아이콘 주황은 브랜드색으로 아이콘 안에서만
  */
 @Composable
-private fun AppIcon(size: Int, onHold: () -> Unit) {
+private fun AppIcon(size: Int, onCall: () -> Unit, onHold: () -> Unit) {
     val c = panelColors() // 색 토큰
     val lit = setOf(1, 3, 4, 5, 7) // 주황 칸 번호(0~8, 십자 모양)
     val dot = if (size >= 72) 14 else 10 // 로고 칸 크기
     val gap = if (size >= 72) 4 else 3 // 로고 칸 사이
     Box(
-        Modifier.size(size.dp).background(BAR_BLACK).holdOrTap(null, onHold),
+        Modifier.size(size.dp).background(BAR_BLACK).holdOrTap(onCall, onHold),
         contentAlignment = Alignment.Center,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(gap.dp)) {
@@ -471,39 +629,55 @@ private fun AppIcon(size: Int, onHold: () -> Unit) {
 }
 
 /**
- * 작성: 2026-11-13 03:40:00 · 박건준
- * 함수: PlateView
- * 목적: 아래 판 하나(높이 112, 폭 805, 검정, 그림자). 듣는 중 판과 토스트가 같은
- *       자리를 번갈아 쓴다.
- *       - 듣는 중 — 마이크 칸 112(초록, 들은 뒤 #2A2C31, 아이콘 48), 파형,
- *         글자 30/38 Bold, 들은 뒤 아래 줄 24/30
- *       - 토스트 — 체크 칸 112(#2A2C31), 글자 30/38 Bold
+ * 작성: 2026-11-13 20:00:00 · 박건준
+ * 함수: VoiceBar
+ * 목적: 카드 없이 듣는 중 줄만 보일 때(들은 말, 결과 토스트). 카드 자리(위
+ *       176)에 카드 폭 그대로, 그림자를 두고 뜬다.
  * 인자: plate — 그릴 것
  *       onHold — 마이크 칸을 길게 누르면 부른다(시연 모드 다음 장면)
- * 근거: 인용 — docs/SCREEN.md 6장 듣는 중 판과 토스트, 시안 template2.html
- *       `.voice`, `.toast`
+ * 근거: 인용 — 2026-11-13 박건준 지시: 카드 없이 결과만 알릴 때는 이 줄만 카드
+ *       자리에 떴다가 사라진다
  */
 @Composable
-fun PlateView(plate: Plate, onHold: () -> Unit) {
+private fun VoiceBar(plate: Plate, onHold: () -> Unit) {
+    Box(Modifier.width(CARD_WIDTH.dp).shadow(4.dp, RectangleShape, ambientColor = SHADE, spotColor = SHADE)) {
+        VoiceRow(plate, onHold)
+    }
+}
+
+/**
+ * 작성: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 20:00:00 · 박건준
+ * 함수: VoiceRow
+ * 목적: 듣는 중 줄(높이 88, 검정). 듣는 중과 토스트가 같은 줄을 번갈아 쓴다.
+ *       - 듣는 중 — 마이크 칸 88(초록, 들은 뒤 #2A2C31, 아이콘 40), 파형,
+ *         글자 28 Bold, 들은 뒤 아래 줄 22/28
+ *       - 토스트 — 체크 칸 88(#2A2C31, 아이콘 40), 글자 28 Bold. 경고
+ *         토스트(벨트 풀림)는 체크 대신 경고 아이콘
+ * 인자: plate — 그릴 것
+ *       onHold — 마이크 칸을 길게 누르면 부른다(시연 모드 다음 장면)
+ * 근거: 인용 — 앱 화면 시안 sunstone-app.html `.vrow`(88, 마이크 칸 88 초록,
+ *       아이콘 40, 글자 28 Bold). 아래 줄·토스트 칸은 시안에 없어 2차 시안
+ *       `.voice .vh`·`.toast`를 88 높이에 맞춰 줄였다
+ */
+@Composable
+private fun VoiceRow(plate: Plate, onHold: () -> Unit) {
     Row(
-        Modifier
-            .width(CARD_WIDTH.dp)
-            .height(PLATE_HEIGHT.dp)
-            .shadow(4.dp, RectangleShape, ambientColor = SHADE, spotColor = SHADE)
-            .background(BAR_BLACK),
+        Modifier.fillMaxWidth().height(BAR_HEIGHT.dp).background(BAR_BLACK),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         when (plate) {
             is Plate.Listen -> ListenRow(plate.listen, onHold)
             is Plate.Toast -> {
-                Box(Modifier.size(PLATE_HEIGHT.dp).background(BAR_HEARD), contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_panel_check), null, Modifier.size(48.dp), tint = Color.White)
+                Box(Modifier.size(BAR_HEIGHT.dp).background(BAR_HEARD), contentAlignment = Alignment.Center) {
+                    val icon = if (plate.alert) R.drawable.ic_panel_alert else R.drawable.ic_panel_check // 칸 아이콘
+                    Icon(painterResource(icon), null, Modifier.size(40.dp), tint = Color.White)
                 }
                 Text(
                     plate.text,
-                    Modifier.padding(horizontal = 32.dp),
-                    style = text(30, 38, FontWeight.Bold, Color.White),
-                    maxLines = 1,
+                    Modifier.padding(horizontal = 28.dp),
+                    style = text(28, 34, FontWeight.Bold, Color.White),
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -513,21 +687,21 @@ fun PlateView(plate: Plate, onHold: () -> Unit) {
 
 /**
  * 작성: 2026-11-12 18:50:00 · 박건준
- * 수정: 2026-11-13 04:20:00 · 박건준
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 함수: ListenRow
- * 목적: 듣는 중 판 안쪽. 듣는 중이면 마이크 칸 초록·파형 움직임·"듣고
+ * 목적: 듣는 중 줄 안쪽. 듣는 중이면 마이크 칸 초록·파형 움직임·"듣고
  *       있어요" 한 줄, 들은 뒤면 #2A2C31·파형 멈춤·들은 말 아래 앱이 할 일.
  *       처리 중이면 들은 뒤와 같고 마이크 대신 도는 표시를 둔다.
- * 인자: listen — 판 값
+ * 인자: listen — 줄 값
  *       onHold — 마이크 칸을 길게 누르면 부른다
- * 근거: 인용 — 시안 template2.html `.voice`, `.wave`(padding 0 24 0 32)
+ * 근거: 인용 — 앱 화면 시안 sunstone-app.html `.vrow .wave`(padding 0 20 0 28)
  */
 @Composable
 private fun ListenRow(listen: ListenUi, onHold: () -> Unit) {
     val c = panelColors() // 색 토큰
     val heard = listen.state != ListenState.LISTENING // 들은 뒤인지(처리 중 포함)
     Box(
-        Modifier.size(PLATE_HEIGHT.dp).background(if (heard) BAR_HEARD else c.green).holdOrTap(null, onHold),
+        Modifier.size(BAR_HEIGHT.dp).background(if (heard) BAR_HEARD else c.green).holdOrTap(null, onHold),
         contentAlignment = Alignment.Center,
     ) {
         if (listen.state == ListenState.WORKING) {
@@ -536,41 +710,43 @@ private fun ListenRow(listen: ListenUi, onHold: () -> Unit) {
             Icon(
                 painterResource(R.drawable.ic_panel_mic),
                 null,
-                Modifier.size(48.dp),
+                Modifier.size(40.dp),
                 tint = if (heard) Color.White else BAR_BLACK,
             )
         }
     }
-    Wave(moving = !heard, Modifier.padding(start = 32.dp, end = 24.dp))
-    Column(Modifier.padding(end = 32.dp)) {
+    Wave(moving = !heard, Modifier.padding(start = 28.dp, end = 20.dp))
+    Column(Modifier.padding(end = 28.dp)) {
         Text(
             listen.text,
-            style = text(30, 38, FontWeight.Bold, Color.White),
-            maxLines = 2,
+            style = text(28, 34, FontWeight.Bold, Color.White),
+            maxLines = if (listen.next == null) 2 else 1,
             overflow = TextOverflow.Ellipsis,
         )
         listen.next?.let {
             Spacer(Modifier.height(4.dp))
-            Text(it, style = text(24, 30, FontWeight.Normal, Color.White.copy(alpha = .64f)), maxLines = 1)
+            Text(it, style = text(22, 28, FontWeight.Normal, Color.White.copy(alpha = .64f)), maxLines = 1)
         }
     }
 }
 
 /**
  * 작성: 2026-11-13 04:20:00 · 박건준
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 함수: Spinner
- * 목적: 처리 중 표시. 지름 44(마이크 아이콘 48 칸 안), 테두리 5, 흰색 24% 원 위에
- *       흰 호가 0.9초에 한 바퀴 돈다.
- * 근거: 인용 — 1차 시안 template.html `.spin`(0.9초 한 바퀴, 테두리 5)을 판
- *       색(검정 바탕 흰색)으로 옮겼다. 2차 시안에는 처리 중 표시가 없다
+ * 목적: 처리 중 표시. 지름 36(마이크 아이콘 40 칸 안), 테두리 4, 흰색 24% 원
+ *       위에 흰 호가 0.9초에 한 바퀴 돈다.
+ * 근거: 인용 — 1차 시안 template.html `.spin`(0.9초 한 바퀴, 테두리 5)을 검정
+ *       바탕 흰색으로 옮기고, 듣는 중 줄이 112에서 88로 줄어 같은 비율로
+ *       줄였다. 2차 시안·앱 화면 시안에는 처리 중 표시가 없다
  */
 @Composable
 private fun Spinner() {
     val turn by rememberInfiniteTransition(label = "spin").animateFloat(
         0f, 360f, infiniteRepeatable(tween(900, easing = LinearEasing)), label = "turn",
     )
-    Canvas(Modifier.size(44.dp).rotate(turn)) {
-        val w = 5.dp.toPx() // 테두리 굵기
+    Canvas(Modifier.size(36.dp).rotate(turn)) {
+        val w = 4.dp.toPx() // 테두리 굵기
         val r = size.minDimension / 2 - w / 2 // 원 반지름
         drawCircle(Color.White.copy(alpha = .24f), radius = r, style = Stroke(w))
         drawArc(
@@ -591,7 +767,8 @@ private fun Spinner() {
  *       40%.
  * 인자: moving — 움직이면 true
  *       modifier — 배치
- * 근거: 인용 — 시안 template2.html `.wave`, `@keyframes wv`
+ * 근거: 인용 — 시안 template2.html `.wave`, `@keyframes wv`. 앱 화면 시안
+ *       `.vrow .wave`도 같은 값
  */
 @Composable
 private fun Wave(moving: Boolean, modifier: Modifier) {
@@ -623,11 +800,31 @@ private fun Wave(moving: Boolean, modifier: Modifier) {
 }
 
 /**
+ * 작성: 2026-11-13 20:00:00 · 박건준
+ * 함수: CardOrBar
+ * 목적: 카드 자리에 그릴 것. 카드가 있으면 카드(듣는 중 줄은 그 안 맨 아래),
+ *       없으면 듣는 중 줄만 그린다. 왼쪽 구역 창과 앱 화면 안 대안이 같이
+ *       쓴다.
+ * 인자: ui — 그릴 값
+ *       panels — 누르기 처리
+ */
+@Composable
+fun CardOrBar(ui: ScreenUi, panels: PanelPresenter) {
+    val card = ui.card // 카드, 없으면 null
+    val plate = ui.plate // 듣는 중 줄, 없으면 null
+    when {
+        card != null -> NotiCard(card, plate, panels::press, panels::tapMic, panels::hold)
+        plate != null -> VoiceBar(plate, panels::hold)
+    }
+}
+
+/**
  * 작성: 2026-11-12 18:50:00 · 박건준
- * 수정: 2026-11-13 03:40:00 · 박건준
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 함수: MicCell
- * 목적: 말 걸기 칸 112. 카드·판이 없을 때 상태줄 바로 아래 왼쪽에 둔다. 누르면
- *       듣는 중 판을 띄우고, 0.8초 길게 누르면 `onHold`(시연 모드 다음 장면).
+ * 목적: 말 걸기 칸 112. 카드·듣는 중 줄이 없을 때 상태줄 바로 아래 왼쪽에
+ *       둔다. 누르면 부르는 카드를 띄우고, 0.8초 길게 누르면
+ *       `onHold`(시연 모드 다음 장면).
  *       초록은 마이크가 켜졌을 때만 쓰므로 여기는 검정이다.
  * 인자: onTap — 누르면 부른다
  *       onHold — 길게 누르면 부른다

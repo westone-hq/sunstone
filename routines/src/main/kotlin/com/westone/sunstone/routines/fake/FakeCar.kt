@@ -37,10 +37,22 @@ class FakeCar(initial: CarState = CarState(gear = Gear.PARK)) : CarPort {
     override suspend fun read(target: Target): Any? =
         if (target in unsupported) null else value(target)
 
+    /**
+     * 수정: 2026-11-13 15:00:00 · 박희정
+     * 함수: apply
+     * 목적: 값을 바꾼다. 시트 조금 움직이기(`SeatNudge`)는 그 좌석·축의 위치에
+     *       더한다(0~100으로 자른다).
+     */
     override suspend fun apply(command: Command): ControlResult {
         if (command.target in unsupported) return ControlResult.Unsupported("가짜 차에서 지원 안 함")
         applied += command
-        values[command.target] = command.value
+        val target = command.target // 바꿀 대상
+        if (target is Target.SeatNudge) {
+            val at = Target.SeatPosition(target.seat, target.axis) // 움직일 위치 칸
+            values[at] = ((value(at) as Int) + command.value as Int).coerceIn(0, 100)
+            return ControlResult.Done
+        }
+        values[target] = command.value
         return ControlResult.Done
     }
 
@@ -54,5 +66,6 @@ class FakeCar(initial: CarState = CarState(gear = Gear.PARK)) : CarPort {
         is Target.Climate -> false
         is Target.SeatPosition -> 50
         is Target.SeatMemory -> null
+        is Target.SeatNudge -> null
     }
 }

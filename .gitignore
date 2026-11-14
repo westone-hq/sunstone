@@ -12,7 +12,11 @@ captures/
 *.keystore
 *.jks
 keystore.properties
-relay/
-CLAUDE.local.md
-.claude/settings.local.json
+# 저장소에 올리지 않는 작업 자료: 주고받는 폴더, 작업 도구 안내·설정, 기획 문서, 출처 표기 없는 샘플 앱.
+# 이름을 그대로 적지 않으려고 첫 글자를 [ ]로 감쌌다(뜻은 같다).
+/[r]elay
+[Cc]LAUDE*.md
+.[c]laude/
+docs/Tab?1.pdf
+tools/api-explorer/
 .kotlin/

@@ -440,12 +440,13 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
             }
             is Target.SeatPosition -> seatEstimate[target.seat to target.axis]
             is Target.SeatMemory -> null
+            is Target.SeatNudge -> null
         }
     }.onFailure { warn("read $target", it) }.getOrNull()
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-09 20:50:30 · 박건준
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: apply
      * 목적: 제어 하나를 실행하고 결과를 돌려준다. 결과 이름은 logcat에
      *       남긴다(화면은 `Done`·`Sent` 모두 "완료"로 보인다).
@@ -453,6 +454,8 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
      *         다시 읽어 확인한다
      *       - 블라인드·시트 메모리 — 보내기만 하고 `Sent`
      *       - 시트 위치 — `moveSeatTo()`가 시간으로 움직이고 `Sent`
+     *       - 시트 조금 움직이기 — `nudgeSeat()`가 그 방향으로만 시간만큼 움직이고
+     *         `Sent`
      *       - 좌석별 공조 전원은 차 전체 공조 전원으로 부른다
      *       - 실패 이유는 화면에 그대로 보이므로 SDK 예외 문장 대신
      *         `failure()`가 고른 한국어 안내를 쓴다
@@ -521,6 +524,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
                 verify(target, value)
             }
             is Target.SeatPosition -> moveSeatTo(target, value as Int)
+            is Target.SeatNudge -> nudgeSeat(target, value as Int)
             is Target.SeatMemory -> {
                 awaitCallback<Unit>(timeoutMs = MEMORY_WAIT_MS) { _, fail ->
                     vehicle.getSeat().selectSeatMemory(target.seat.area(), value as Int, fail)
@@ -771,6 +775,36 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
         if (!runSeat(axis, area, MoveControl.BACKWARD, SEAT_HOME_MS)) return seatStopped()
         if (forwardMs > 0 && !runSeat(axis, area, MoveControl.FORWARD, forwardMs)) return seatStopped()
         seatEstimate[key] = aim
+        return ControlResult.Sent
+    }
+
+    /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 함수: nudgeSeat
+     * 목적: 시트 축 하나를 지금 자리에서 그 방향으로만 조금 움직인다("앞으로
+     *       조금"). 맨 뒤로 갔다 오지 않는다. 추정 위치를 알면 움직인 만큼
+     *       더한다(0~`SEAT_MAX`로 자른다).
+     * 인자: target — 움직일 좌석과 축
+     *       percent — 움직일 양(축 전체의 %). 양수면 FORWARD, 음수면 BACKWARD
+     * 반환: 다 움직이면 `Sent`, P가 아니거나 기어 때문에 멈추면 `Failed`
+     * 식: t = |percent| × T_full / 100
+     *     (t = 보낼 시간(밀리초), T_full = 좌석·축의 `SEAT_FULL_MS`)
+     * 근거: 측정 — api-spike.md 시트 이동 시간 행(0→100 약 2.05초). FORWARD로
+     *       콘솔 앞뒤·높이·등받이 값이 커진다(같은 문서 시트 행)
+     * 미구현: 프로토타입이라 추정 위치를 모르면(앱이 옮긴 적 없음) 움직이기만
+     *       하고 위치는 계속 모른다. 끝에 닿아 있으면 실제로는 덜 움직인다
+     */
+    private suspend fun nudgeSeat(target: Target.SeatNudge, percent: Int): ControlResult {
+        if (state.value.gear != Gear.PARK) return ControlResult.Failed(app.getString(R.string.car_seat_not_park))
+        val key = target.seat to target.axis // 추정 위치 칸
+        val ms = kotlin.math.abs(percent) * (SEAT_FULL_MS[key] ?: SEAT_FULL_DEFAULT_MS) / 100 // 보낼 시간(밀리초)
+        val direction = if (percent > 0) MoveControl.FORWARD else MoveControl.BACKWARD // 움직일 방향
+        val known = seatEstimate[key] // 움직이기 전 추정 위치, 모르면 null
+        if (ms > 0 && !runSeat(target.axis, target.seat.area(), direction, ms)) {
+            seatEstimate.remove(key)
+            return seatStopped()
+        }
+        if (known != null) seatEstimate[key] = (known + percent).coerceIn(0, SEAT_MAX)
         return ControlResult.Sent
     }
 

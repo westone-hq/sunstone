@@ -15,7 +15,8 @@ import java.time.temporal.ChronoUnit
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
- * 수정: 2026-11-13 03:25:00 · 박건준
+ * 수정: 2026-11-13 10:00:00 · 박희정
+ * 수정: 2026-11-14 03:00:00 · 박건준
  * 클래스: TripDialog
  * 목적: 길안내 대화(docs/SCREEN.md 6장 시나리오 ① 1~3단계). 목적지를 말하면
  *       길안내를 시작하고, 연료가 낮으면 주유소를 찾아 한 번 묻는다. 마지막
@@ -34,8 +35,9 @@ import java.time.temporal.ChronoUnit
  *       asking — 질문·토스트. `RoutineRunner`·`WashRoutine`과 같은 것을 넘긴다
  *       speaker — 말하기
  *       today — 오늘 날짜. 테스트에서 고정한다
- *       log — 실패를 남길 곳(앱은 logcat). 없으면 버린다
- * 근거: 인용 — Tab 1 2장 결정 규칙: 앱이 먼저 권한 것·경로를 바꾸는 것은 "네"
+ *       currentRoute — 지금 길안내 목적지. `ChildLockRoutine`과 같은 것을 넘긴다
+ *       log —실패를 남길 곳(앱은 logcat). 없으면 버린다
+ * 근거: 인용 — 설계 결정 규칙: 앱이 먼저 권한 것·경로를 바꾸는 것은 "네"
  *       받고 실행. 대화 정책: 주행 중 새 제안 금지. docs/SCREEN.md 3장 대화 규칙
  */
 class TripDialog(
@@ -47,7 +49,8 @@ class TripDialog(
     private val asking: Asking,
     private val speaker: Speaker,
     private val today: () -> LocalDate,
-    private val log: (String) -> Unit = {},
+    private val currentRoute: CurrentRoute,
+    private val log:(String) -> Unit = {},
 ) {
 
     private companion object {
@@ -70,9 +73,10 @@ class TripDialog(
 
         /**
          * 작성: 2026-11-11 15:14:38 · 박희정
+         * 수정: 2026-11-14 03:00:00 · 박건준
          * 변수: RAIN_DAYS
          * 목적: 비 소식을 볼 기간(일). 이 안에 비가 오면 세차를 추천하지 않는다.
-         * 근거: 인용 — Tab 1 4.3 시나리오 ① #2 "일주일간 비 소식이 없어"
+         * 근거: 인용 — 시연 시나리오 ① #2 "일주일간 비 소식이 없어"
          */
         const val RAIN_DAYS = 7
 
@@ -96,12 +100,13 @@ class TripDialog(
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
-     * 수정: 2026-11-13 03:25:00 · 박건준
+     * 수정: 2026-11-13 10:00:00 · 박희정
      * 함수: navigate
      * 목적: 목적지를 찾아 길안내를 시작하고 "○○으로 안내할게요."만 말한다.
      *       연료가 낮고 정차 중이면 주유소를 찾아, 찾았을 때만 한 번 묻는다.
      *       세차 되는 곳이고 세차할 때(`washDays()`)면 같은 카드에서 세차도
      *       묻는다. 새 길안내를 시작하면 이전 질문·거절 기록·세차 예약을 지운다.
+     *       경로를 시작하면 목적지를 `CurrentRoute`에 남긴다.
      * 인자: query — 운전자가 말한 목적지("파라다이스 호텔 부산")
      * 식: 주유 제안 = fuel ≤ LOW_FUEL_PERCENT 이고 정차 중이고 주유소를 찾음
      *     fuel — `CarState.fuelPercent`(모르면 제안하지 않음)
@@ -110,6 +115,7 @@ class TripDialog(
     suspend fun navigate(query: String) = lock.withLock {
         asking.newTrip() // → 로직 이동: Asking.newTrip()
         booking.clear()
+        currentRoute.clear()
         offered = null
         val destination = navi.findPlace(query) // 찾은 목적지, 못 찾으면 null
         if (destination == null) {
@@ -120,6 +126,7 @@ class TripDialog(
             speaker.say(TripLines.ROUTE_FAILED)
             return@withLock
         }
+        currentRoute.start(destination)
         speaker.say(TripLines.routeStarted(destination.name))
         val state = car.state.value // 지금 차 상태
         val fuel = state.fuelPercent // 연료(%), 모르면 null
@@ -174,12 +181,13 @@ class TripDialog(
 
     /**
      * 작성: 2026-11-13 03:25:00 · 박건준
+     * 수정: 2026-11-14 03:00:00 · 박건준
      * 함수: washDays
      * 목적: 세차를 권할 때인지 보고, 그렇다면 마지막 세차 뒤 날 수를 준다.
      *       마지막 세차가 `WASH_DUE_DAYS`일 이상 전이고 `RAIN_DAYS`일 안에 비
      *       소식이 없을 때다. 마지막 세차일·날씨를 모르면 권하지 않는다.
      * 반환: 마지막 세차 뒤 날 수. 권하지 않으면 null
-     * 근거: 인용 — Tab 1 2장 모르는 사실로 판단하지 않는다. docs/SCREEN.md 6장 2단계
+     * 근거: 인용 — 설계 결정 규칙: 모르는 사실로 판단하지 않는다. docs/SCREEN.md 6장 2단계
      */
     private suspend fun washDays(): Long? {
         val last = memory.lastWashDate() ?: return null // 마지막 세차일
@@ -253,12 +261,13 @@ class TripDialog(
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
+     * 수정: 2026-11-14 03:00:00 · 박건준
      * 함수: pickStation
      * 목적: 세차 되는 주유소 중 가장 싼 곳을 고른다. 세차 되는 곳이 없으면
      *       가장 싼 곳.
      * 인자: stations — 근처 주유소들
      * 반환: 고른 주유소. 목록이 비었으면 null
-     * 근거: 인용 — Tab 1 4.3 시나리오 ① #2 "가격이 괜찮고 세차도 되는"
+     * 근거: 인용 — 시연 시나리오 ① #2 "가격이 괜찮고 세차도 되는"
      */
     private fun pickStation(stations: List<GasStation>): GasStation? =
         stations.filter { it.carWash }.minByOrNull { it.priceWon } ?: stations.minByOrNull { it.priceWon }

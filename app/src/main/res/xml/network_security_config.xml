@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 평문 HTTP는 에뮬레이터 안 Virtual Console(127.0.0.1:8088)에만 연다. 시연 모드가 차 상황을 넣는 데 쓴다. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

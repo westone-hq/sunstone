@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 앱 아이콘 앞면. 카드 머리의 앱 아이콘과 같은 3×3 네모(가운데 십자 다섯 칸 주황, 네 귀퉁이 회색).
+     네모 12·사이 4로 폭 44라 적응형 아이콘 안전 영역(가운데 지름 66) 안에 들어간다(대각선 62.2). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FF45474D" android:pathData="M32,32h12v12h-12z" />
+    <path android:fillColor="#FFF09A1C" android:pathData="M48,32h12v12h-12z" />
+    <path android:fillColor="#FF45474D" android:pathData="M64,32h12v12h-12z" />
+    <path android:fillColor="#FFF09A1C" android:pathData="M32,48h12v12h-12z" />
+    <path android:fillColor="#FFF09A1C" android:pathData="M48,48h12v12h-12z" />
+    <path android:fillColor="#FFF09A1C" android:pathData="M64,48h12v12h-12z" />
+    <path android:fillColor="#FF45474D" android:pathData="M32,64h12v12h-12z" />
+    <path android:fillColor="#FFF09A1C" android:pathData="M48,64h12v12h-12z" />
+    <path android:fillColor="#FF45474D" android:pathData="M64,64h12v12h-12z" />
+</vector>

@@ -1,6 +1,7 @@
 package com.westone.sunstone.routines
 
 import com.westone.sunstone.routines.dialog.Asking
+import com.westone.sunstone.routines.dialog.CurrentRoute
 import com.westone.sunstone.routines.dialog.QuestionKind
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.RoutineId
@@ -72,6 +73,9 @@ class WashScenarioTest {
     /** 질문·토스트 */
     private val asking = Asking()
 
+    /** 지금 길안내 목적지. 길안내 대화와 차일드락이 함께 쓴다 */
+    private val route = CurrentRoute()
+
     /** 선루프 두 개. Pleos 에뮬레이터 차처럼 지원하지 않게 둔다 */
     private val roofs = setOf(Target.WindowPosition(Window.ROOF_1), Target.WindowPosition(Window.ROOF_2))
 
@@ -93,7 +97,7 @@ class WashScenarioTest {
             car = car,
             routines = listOf(
                 WashRoutine(booking, memory, asking, { TODAY }),
-                ChildLockRoutine(),
+                ChildLockRoutine(route, memory, asking, { TODAY }),
                 SeatMemoryRoutine(InMemorySeatProfiles()),
             ),
             speaker = { said += it },

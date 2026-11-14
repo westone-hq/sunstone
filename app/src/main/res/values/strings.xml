@@ -3,70 +3,32 @@
 <resources>
     <string name="app_name">Sunstone</string>
 
-    <!-- 상태 줄: 기어 · 속도 · 장소 · 열린 문 · 탑승 -->
-    <string name="status_line">기어 %1$s · %2$.0fkm/h · 장소 %3$s · 문 %4$s · 탑승 %5$s</string>
-    <string name="status_fake_car">" · 가짜 차"</string>
-    <!-- 받은 경우에만 상태 줄 뒤에 붙는다 -->
-    <string name="status_fuel">" · 연료 %1$d%%"</string>
-    <string name="status_doors_closed">닫힘</string>
-    <string name="status_seats_empty">-</string>
-    <string name="gear_park">P</string>
-    <string name="gear_reverse">R</string>
-    <string name="gear_neutral">N</string>
-    <string name="gear_drive">D</string>
-    <string name="gear_unknown">모름</string>
-    <string name="place_car_wash">세차장</string>
-    <string name="place_gas_station">주유소</string>
-    <string name="place_kids">아이 시설</string>
-    <string name="place_none">없음</string>
-
-    <!-- 권하기 카드 -->
-    <string name="suggestion_yes">네</string>
-    <string name="suggestion_no">아니요</string>
-
-    <!-- 루틴 카드 -->
-    <string name="routine_running">실행 중</string>
-    <string name="routine_active">켜짐</string>
-    <string name="routine_undoing">되돌리는 중</string>
-    <string name="routine_idle">대기</string>
-    <string name="routine_run">실행</string>
-    <string name="routine_undo">원래대로</string>
-    <!-- 주행 중에는 켜진 루틴 이름만 보인다 -->
-    <string name="routine_active_while_driving">%1$s 켜짐</string>
-
-    <!-- 실행 기록: 루틴 이름 · 분:초, 단계마다 결과와 이유 -->
-    <string name="run_title">%1$s · %2$d:%3$02d</string>
-    <string name="step_line">%1$s %2$s</string>
-    <string name="step_line_with_note">%1$s %2$s  (%3$s)</string>
-    <string name="step_done">완료</string>
-    <string name="step_guided">안내</string>
-
-    <!-- 저장한 자세 줄 -->
-    <string name="profiles_label">자세:</string>
-
-    <!-- 말 입력칸(음성 인식 대신) -->
-    <string name="say_hint">말 한마디</string>
-    <string name="say_send">말하기</string>
-    <string-array name="say_quick">
-        <item>파라다이스 호텔 부산까지 길안내 해줘</item>
-        <item>그래</item>
-        <item>그래 그러자</item>
-        <item>응</item>
-        <item>괜찮아</item>
-        <item>세차 모드가 뭐야?</item>
-        <item>세차할게</item>
-        <item>세차 끝났어</item>
-        <item>애 태웠어</item>
-        <item>지금 자세 엄마로 저장해줘</item>
-        <item>엄마 자세로</item>
-        <item>원래대로</item>
-    </string-array>
+    <!-- 부르면 나오는 카드: 마이크 칸이나 하단 막대 아이콘으로 부른다 -->
+    <string name="call_title">무엇을 할까요?</string>
+    <string name="call_detail">말하거나 눌러서 켜세요.</string>
+    <!-- 루틴 줄: 이름과 켜는 말 -->
+    <string name="row_wash">세차 모드</string>
+    <string name="row_wash_say">“세차할게”</string>
+    <string name="row_child">차일드락</string>
+    <string name="row_child_say">“애 태웠어”</string>
+    <string name="row_seat">시트 맞추기</string>
+    <string name="row_seat_say">“시트 좀 맞춰 줘”</string>
+    <string name="row_on">켜짐</string>
+    <string name="add_routine">루틴 추가</string>
+    <!-- [+ 루틴 추가]를 누르면 듣는 중 줄에 알린다 -->
+    <string name="add_routine_soon">루틴 만들기는 준비 중이에요</string>
+    <!-- 시연 줄과 시나리오 고르기 -->
+    <string name="demo_entry">시연</string>
+    <string name="demo_title">시연</string>
+    <string name="demo_detail">시나리오를 고르면 장면을 차례로 보여줍니다.</string>
 
     <!-- 왼쪽 구역 카드(docs/SCREEN.md 6장). 질문 카드 글자는 routines/의 문장 틀에 있다 -->
     <string name="panel_close">닫기</string>
     <string name="panel_running">%1$s 맞추는 중</string>
     <string name="panel_ready">%1$s 준비됐어요</string>
     <string name="panel_ready_detail">사이드미러는 직접 접어 주세요.</string>
+    <string name="panel_ready_detail_child">뒷문 차일드락은 직접 걸어 주세요.</string>
+    <string name="panel_ready_detail_seat">축마다 맞췄어요.</string>
     <string name="panel_progress">%1$d개 중 %2$d개 맞췄어요.</string>
     <!-- panel_progress에서 굵게 보일 앞부분 -->
     <string name="panel_progress_bold">%1$d개 중 %2$d개</string>
@@ -75,6 +37,7 @@
     <!-- 켜짐 표시(준비되고 3초 뒤 카드를 접은 한 줄) -->
     <string name="chip_title">%1$s 켜짐</string>
     <string name="chip_detail">출발하면 원래대로 돌려놓아요</string>
+    <string name="chip_detail_child">도착하면 뒷창문 잠금을 풀어요</string>
     <string name="chip_finish">끝내기</string>
     <!-- 듣는 중 막대와 마이크 칸 -->
     <string name="listen_on">듣고 있어요</string>
@@ -85,6 +48,9 @@
     <string name="next_fuel_wash">경유지에 넣고 세차를 예약할게요</string>
     <string name="next_wash_mode">세차 모드를 켤게요</string>
     <string name="next_declined">알겠어요</string>
+    <string name="next_child_lock">뒷창문을 잠글게요</string>
+    <string name="next_seat_done">자세를 기억할게요</string>
+    <string name="next_seat_together">같이 맞춰 볼게요</string>
     <string name="mic_cell">말 걸기</string>
 
     <!-- 앱이 말하는 안내 -->
@@ -99,16 +65,21 @@
     <string name="gleo_save">%1$s 자세 저장</string>
     <string name="gleo_answer">대답</string>
 
-    <!-- 시연 모드 줄 -->
-    <string name="scene_ready">시연 모드 · 시나리오 ① 출장 가는 길</string>
+    <!-- 시연 중 줄: 장면 이름, 시나리오 · 장면 수 중 몇 번째 -->
     <string name="scene_title">%1$s · %2$s</string>
-    <string name="scene_start">시연 시작</string>
+    <string name="scene_where">%1$s · %2$d장면 중 %3$d</string>
     <string name="scene_next">다음 장면</string>
     <!-- 장면 준비(Prep)를 넣는 동안 [다음 장면] 버튼 글자 -->
     <string name="scene_preparing">준비 중</string>
     <string name="scene_restart">처음</string>
+    <string-array name="scene_scenarios">
+        <item>출장 가는 길</item>
+        <item>아이 등원길</item>
+        <item>시트 맞추기</item>
+    </string-array>
     <string name="gleo_navigate">%1$s 길안내</string>
     <string name="gleo_ask">기능 설명</string>
+    <string name="gleo_seat">시트 맞추기</string>
 
     <!-- 차 제어 단계가 안내로 바뀐 이유(실행 기록에 보인다) -->
     <string name="car_unsupported">이 차에서는 지원하지 않아요</string>

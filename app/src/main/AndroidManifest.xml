@@ -40,18 +40,28 @@
     <!-- 왼쪽 구역(시스템 주행 화면) 위에 패널을 띄운다. 시연에서는 adb appops로 허가한다(LeftZoneOverlay) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- 시연 모드가 에뮬레이터 안 Virtual Console(127.0.0.1:8088, http)로 기어·속도·문·탑승을 넣는다.
+         프로토타입이라 제출 빌드에도 둔다. 평문 HTTP는 127.0.0.1에만 연다(network_security_config) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".SunstoneApp"
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:label="Sunstone"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
 
+        <!-- 화면을 그리지 않는 입구. 왼쪽 구역 카드를 띄우고 바로 닫혀 오른쪽 내비 화면이 그대로 남게 투명 테마를 쓴다.
+             왼쪽 구역 창 허가가 없을 때만 앱 화면 안에 카드를 그린다. -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
-            android:launchMode="singleTop">
-            <!-- 주행 중에도 열 수 있다. 주행 중 화면은 상태 한 줄만 보인다. -->
+            android:launchMode="singleTop"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <!-- 주행 중에도 열 수 있다. 카드는 왼쪽 구역에 뜬다. -->
             <meta-data android:name="distractionOptimized" android:value="true" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

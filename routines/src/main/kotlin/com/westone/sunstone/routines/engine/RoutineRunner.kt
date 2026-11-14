@@ -89,9 +89,10 @@ class RoutineRunner(
     private companion object {
         /**
          * 작성: 2026-11-11 14:28:46 · 박희정
+         * 수정: 2026-11-14 03:00:00 · 박건준
          * 변수: DECLINED
          * 목적: 권하기를 거절했을 때 하는 말.
-         * 근거: 미정 — Tab 1 대사집에 거절 문장이 없어 짧게 정했다
+         * 근거: 미정 — 대사집에 거절 문장이 없어 짧게 정했다
          */
         const val DECLINED = "알겠어요."
     }
@@ -120,7 +121,7 @@ class RoutineRunner(
 
     fun request(request: RunRequest): Job = scope.launch { mutex.withLock { run(request) } }
 
-    fun undo(id: RoutineId): Job = scope.launch { mutex.withLock { undoLocked(id) } }
+    fun undo(id: RoutineId): Job = scope.launch { mutex.withLock { undoLocked(id, auto = false) } }
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
@@ -225,7 +226,7 @@ class RoutineRunner(
         if (_ui.value.suggestion?.id == request.id) _ui.update { it.copy(suggestion = null) }
 
         val steps = routine.plan(request, car)
-        val run = ActiveRun(routine, start, steps, clock(), request.source)
+        val run = ActiveRun(routine, start, steps, clock(), request.source, routine.runTitle(request))
         active[request.id] = run
         publish(run)
         val atEnd = routine.reportsAtEnd // 끝에 한 번에 말하는 루틴인지
@@ -298,7 +299,20 @@ class RoutineRunner(
 
     // ---------------------------------------------------------------- 되돌리기
 
-    private suspend fun undoLocked(id: RoutineId) {
+    /**
+     * 수정: 2026-11-13 12:00:00 · 박희정
+     * 수정: 2026-11-14 03:00:00 · 박건준
+     * 함수: undoLocked
+     * 목적: 켜진 루틴을 저장한 원래 값으로 되돌리고 끝낸다. 끝나면 그 루틴의
+     *       권하기 기록(10분에 한 번)도 지운다. 한 번 쓰고 끝난 뒤 다시 생긴
+     *       상황(아이가 내렸다가 다시 탐)은 새로 권해야 한다. 저절로
+     *       되돌렸으면(`shouldUndo`) `Routine.autoUndoSay`를, 사람이
+     *       끝냈으면([끝내기], "원래대로") `Routine.afterUndo`를 말한다.
+     * 인자: id — 되돌릴 루틴
+     *       auto — 저절로 되돌리는 것이면 true
+     * 근거: 인용 — 시연 시나리오 ② #4 뒤 #5 "차일드락 이어서 할까요?"
+     */
+    private suspend fun undoLocked(id: RoutineId, auto: Boolean) {
         val run = active[id] ?: return
         if (run.phase != Phase.ACTIVE) return
         run.phase = Phase.UNDOING
@@ -306,9 +320,11 @@ class RoutineRunner(
         for (command in run.saved.asReversed()) {
             runCatching { car.apply(command) }
         }
-        run.routine.afterUndo.forEach(::say)
+        val lines = if (auto) run.routine.autoUndoSay ?: run.routine.afterUndo else run.routine.afterUndo // 할 말
+        lines.forEach(::say)
         run.routine.undoNotice?.let { asking?.notice(it) } // → 로직 이동: Asking.notice()
         run.phase = Phase.FINISHED
+        lastSuggestedAt.remove(id)
         publish(run)
     }
 
@@ -318,9 +334,13 @@ class RoutineRunner(
         val running = active.values.filter { it.phase == Phase.ACTIVE }
         running.forEach { run ->
             run.routine.watch(before, now)?.let(::say)
-            if (run.routine.shouldUndo(run.start, now)) undo(run.routine.id)
+            if (run.routine.shouldUndo(run.start, now)) {
+                scope.launch { mutex.withLock { undoLocked(run.routine.id, auto = true) } }
+            }
         }
         if (_ui.value.suggestion != null) return
+        // 길안내 대화가 묻는 중(주유 질문)이면 권하지 않는다. 질문은 한 번에 하나다(docs/SCREEN.md 3장 대화 규칙)
+        if (asking?.question?.value != null) return
         val busy = active.filterValues { it.phase != Phase.FINISHED }.keys
         for (routine in routines.values) {
             if (routine.id in busy) continue
@@ -337,6 +357,19 @@ class RoutineRunner(
             question?.choices?.firstOrNull { it.waitMs > 0 }?.let { waitThenAccept(suggestion, it.waitMs) }
             return
         }
+    }
+
+    /**
+     * 작성: 2026-11-13 10:00:00 · 박희정
+     * 함수: recheck
+     * 목적: 차 상태는 그대로인데 루틴이 보는 다른 값(길안내 목적지)이 바뀌었을 때
+     *       권하기·되돌리기를 다시 본다. 길안내를 시작한 뒤 부른다.
+     * 근거: 인용 — docs/SCREEN.md 4장 ②-8: "집에 가자" → "집으로 안내할게요."
+     *       이어서 "아침처럼 뒷창문 잠가 드릴까요?"
+     */
+    fun recheck() {
+        val now = car.state.value // 지금 차 상태
+        onCarChanged(now, now)
     }
 
     /**
@@ -374,6 +407,8 @@ class RoutineRunner(
         val steps: List<Step>,
         val startedAtMs: Long,
         val source: Source,
+        /** 화면에 보일 실행 이름(`Routine.runTitle()`) */
+        val title: String,
     ) {
         var phase: Phase = Phase.RUNNING
         val saved = mutableListOf<Command>()
@@ -391,7 +426,7 @@ class RoutineRunner(
 
         fun view() = RunView(
             id = routine.id,
-            title = routine.title,
+            title = title,
             phase = phase,
             steps = steps.mapIndexed { i, s ->
                 StepView(s.title, status[i], notes[i], s.icon, s is Step.Guide)

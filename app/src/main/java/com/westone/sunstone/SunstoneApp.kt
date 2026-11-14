@@ -10,20 +10,23 @@ import com.westone.sunstone.connect.AndroidSpeaker
 import com.westone.sunstone.connect.KeepAwakeService
 import com.westone.sunstone.connect.PrefsMemory
 import com.westone.sunstone.connect.PrefsSeatProfiles
-import com.westone.sunstone.demo.installDemo
+import com.westone.sunstone.demo.ScenePlayer
 import com.westone.sunstone.info.FixedInfo
 import com.westone.sunstone.navi.PlaceWatcher
 import com.westone.sunstone.navi.PleosNavi
 import com.westone.sunstone.navi.PleosNaviPort
 import com.westone.sunstone.navi.Proximity
+import com.westone.sunstone.routines.dialog.CurrentRoute
 import com.westone.sunstone.routines.dialog.Asking
 import com.westone.sunstone.routines.dialog.QuestionKind
 import com.westone.sunstone.routines.dialog.Reply
+import com.westone.sunstone.routines.dialog.SeatDialog
 import com.westone.sunstone.routines.dialog.TripDialog
 import com.westone.sunstone.routines.dialog.WashBooking
 import com.westone.sunstone.routines.engine.Phase
 import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RoutineRunner
+import com.westone.sunstone.routines.engine.RunRequest
 import com.westone.sunstone.routines.engine.Source
 import com.westone.sunstone.routines.fake.FakeCar
 import com.westone.sunstone.routines.fake.FakeNavi
@@ -40,6 +43,7 @@ import com.westone.sunstone.routines.model.Window
 import com.westone.sunstone.routines.port.CarPort
 import com.westone.sunstone.routines.port.Speaker
 import com.westone.sunstone.routines.port.Target
+import com.westone.sunstone.routines.script.ScriptBook
 import com.westone.sunstone.routines.speech.CardLines
 import com.westone.sunstone.routines.understand.PhraseMatcher
 import com.westone.sunstone.routines.understand.VoiceAction
@@ -71,14 +75,13 @@ class SunstoneApp : Application() {
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
      * 수정: 2026-11-11 16:42:25 · 박희정
+     * 수정: 2026-11-13 20:00:00 · 박건준
      * 함수: onCreate
-     * 목적: 조립부를 만들고, debug 빌드면 시연 모드를 붙인다(출시 빌드의
-     *       `installDemo()`는 아무것도 하지 않는다).
+     * 목적: 조립부를 만든다. 시연 모드는 조립부가 만든다.
      */
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph(this)
-        installDemo(graph) // → 로직 이동: installDemo()
     }
 }
 
@@ -92,8 +95,9 @@ val Context.graph: AppGraph get() = (applicationContext as SunstoneApp).graph
 
 /**
  * 작성: 2026-11-11 16:02:00 · 박희정
+ * 수정: 2026-11-13 20:00:00 · 박건준
  * 클래스: ChatLine
- * 목적: 대화 기록 한 줄. 화면이 말풍선처럼 보여준다.
+ * 목적: 대화 기록 한 줄. 시연 모드가 앱이 답한 말 수를 세는 데 쓴다.
  * 인자: fromDriver — 운전자가 한 말이면 true, Sunstone이 한 말이면 false
  *       text — 말
  */
@@ -101,7 +105,7 @@ data class ChatLine(val fromDriver: Boolean, val text: String)
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-12 19:06:00 · 박건준
+ * 수정: 2026-11-13 10:00:00 · 박희정
  * 클래스: AppGraph
  * 목적: 기능 구현(routines)과 앱 연결을 한곳에서 잇는 조립부. 의존성 주입
  *       라이브러리 없이 손으로 만든다.
@@ -150,13 +154,16 @@ class AppGraph(val app: Context) {
 
         /**
          * 작성: 2026-11-11 17:40:00 · 박희정
-         * 변수: NO_SUNROOF
-         * 목적: 가짜 차가 지원하지 않는 대상(선루프 두 개).
-         * 근거: 측정 — Pleos 에뮬레이터 v2.1.0에는 선루프가 없다(docs/api-spike.md
-         *       세차 선루프 행). 안전 경로도 실제 경로와 같은 말을 해야 한다(Tab 1
-         *       1장 시연 통과 조건 1)
+         * 수정: 2026-11-13 10:00:00 · 박희정
+         * 수정: 2026-11-14 03:00:00 · 박건준
+         * 변수: FAKE_UNSUPPORTED
+         * 목적: 가짜 차가 지원하지 않는 대상(선루프 두 개, 뒷유리 블라인드).
+         * 근거: 측정 — Pleos 에뮬레이터 v2.1.0에는 선루프와 뒷유리 블라인드가
+         *       없다(docs/api-spike.md 세차 선루프·차일드락 블라인드 행). 안전
+         *       경로도 실제 경로와 같은 말을 해야 한다(시연 통과 조건)
          */
-        val NO_SUNROOF = setOf(Target.WindowPosition(Window.ROOF_1), Target.WindowPosition(Window.ROOF_2))
+        val FAKE_UNSUPPORTED =
+            setOf(Target.WindowPosition(Window.ROOF_1), Target.WindowPosition(Window.ROOF_2), Target.RearBlind)
 
         /**
          * 작성: 2026-11-11 17:40:00 · 박희정
@@ -182,9 +189,9 @@ class AppGraph(val app: Context) {
 
     /**
      * 가짜 차. 데모 설정(`fake on`)이거나 Pleos 연결에 실패하면 만든다(안전 경로). Pleos 에뮬레이터 차처럼
-     * 선루프가 없어서 대사집과 같은 말을 한다. Pleos를 쓰면 null
+     * 선루프·뒷유리 블라인드가 없어서 대사집과 같은 말을 한다. Pleos를 쓰면 null
      */
-    val fake: FakeCar? = if (pleos == null) FakeCar().apply { unsupported = NO_SUNROOF } else null
+    val fake: FakeCar? = if (pleos == null) FakeCar().apply { unsupported = FAKE_UNSUPPORTED } else null
 
     /** 루틴이 쓰는 차. Pleos 차, 없으면 가짜 차 */
     val car: CarPort = pleos ?: fake!!
@@ -192,14 +199,11 @@ class AppGraph(val app: Context) {
     /** 음성 안내(녹음본·TTS를 한 줄로 낸다) */
     private val voice = AndroidSpeaker(app)
 
-    /** 대화 기록. 운전자 말과 Sunstone 말을 차례로 쌓고, 화면이 보여준다. 최근 `CHAT_KEEP`줄만 둔다 */
+    /** 대화 기록. 운전자 말과 Sunstone 말을 차례로 쌓는다. 최근 `CHAT_KEEP`줄만 둔다 */
     private val chatLines = MutableStateFlow<List<ChatLine>>(emptyList())
 
-    /** 화면이 보는 대화 기록(값이 바뀌면 알려주는 상태) */
+    /** 시연 모드가 보는 대화 기록(값이 바뀌면 알려주는 상태) */
     val chat: StateFlow<List<ChatLine>> = chatLines
-
-    /** 시연 모드 장면 실행기. debug 빌드의 `installDemo()`가 앱 시작 때 넣고, 출시 빌드에서는 null */
-    var scenes: SceneControls? = null
 
     /**
      * 말하기. 대화 기록에 남기고 음성으로 말한다. 루틴·길안내 대화가 모두 이것으로 말한다. 그때 떠 있는
@@ -213,9 +217,6 @@ class AppGraph(val app: Context) {
     /** 사람별 시트 자세 저장소 */
     val profiles = PrefsSeatProfiles(app)
 
-    /** 시트 자세 루틴. 자세 저장(`capture`)에도 써서 따로 둔다 */
-    private val seatRoutine = SeatMemoryRoutine(profiles)
-
     /** 사용 기록(마지막 세차일). 데모 `washed N`으로 바꿀 수 있다 */
     val memory = PrefsMemory(app)
 
@@ -225,18 +226,37 @@ class AppGraph(val app: Context) {
     /** 지금 묻는 질문과 토스트. 길안내 대화·세차 모드·루틴 실행기가 함께 쓰고 패널이 그린다 */
     val asking = Asking()
 
+    /** 지금 길안내 목적지. 길안내 대화가 넣고 차일드락이 하원길·도착을 본다. 둘이 같은 것을 쓴다 */
+    private val route = CurrentRoute()
+
+    /** 시트 자세 루틴. 자세 저장(`capture`)에도 써서 따로 둔다. 다 맞추면 토스트를 낸다 */
+    private val seatRoutine = SeatMemoryRoutine(profiles, asking)
+
     /** 루틴 실행기. 만들 때 상황 감지를 시작한다 */
     val runner = RoutineRunner(
         car = car,
-        routines = listOf(WashRoutine(booking, memory, asking) { LocalDate.now() }, ChildLockRoutine(), seatRoutine),
+        routines = listOf(
+            WashRoutine(booking, memory, asking) { LocalDate.now() },
+            ChildLockRoutine(route, memory, asking) { LocalDate.now() },
+            seatRoutine,
+        ),
         speaker = speaker,
         scope = scope,
         asking = asking,
     ).also { it.start() } // → 로직 이동: RoutineRunner.start()
 
+    /** 시트 맞추기 대화(시나리오 ③). 저장된 자세로 맞출 때는 실행기에 시트 메모리를 요청한다 */
+    val seat = SeatDialog(car, profiles, asking, speaker) { runner.request(it) } // → 로직 이동: RoutineRunner.request()
+
     /**
-     * 왼쪽 구역 카드·판 값. 버튼은 대답(`answer()`)과 루틴 끝내기로 가고, 마이크 칸 길게 누르기는 시연 모드
-     * 다음 장면(debug 빌드만 `scenes`가 있다)으로 간다
+     * 시연 모드 장면 실행기. 대사집 시나리오 ①②③을 넣는다. 부르는 카드가 시연 줄로 쓴다. 프로토타입이라
+     * 차 상황을 스스로 만들 수 없어 제출(release) 빌드에도 둔다
+     */
+    val scenes: SceneControls = ScenePlayer(this, ScriptBook.all)
+
+    /**
+     * 왼쪽 구역 카드·듣는 중 줄 값. 버튼은 대답(`answer()`)과 루틴 끝내기로, 부르는 카드 루틴 줄은
+     * `switchRoutine()`으로 가고, 마이크 칸 길게 누르기는 시연 모드 다음 장면으로 간다
      */
     val panels = PanelPresenter(
         context = app,
@@ -245,9 +265,11 @@ class AppGraph(val app: Context) {
         runner = runner.ui,
         speaking = voice.speaking,
         starts = voice.starts,
+        scenes = scenes,
         onAnswer = ::answer,
         onFinish = { id -> runner.undo(id) }, // → 로직 이동: RoutineRunner.undo()
-        onHold = { scenes?.next() }, // → 로직 이동: SceneControls.next()
+        onRoutine = ::switchRoutine,
+        onHold = { scenes.next() }, // → 로직 이동: SceneControls.next()
     )
 
     /** 왼쪽 구역 창. 화면이 뜰 때 `showPanels()`가 띄운다 */
@@ -277,7 +299,7 @@ class AppGraph(val app: Context) {
      */
     val trip = TripDialog(
         car = car,
-        navi = navi?.let { n -> PleosNaviPort(n) { places?.spots?.map { it.hit }.orEmpty() } }
+        navi = navi?.let { n -> PleosNaviPort(n) { places?.spots.orEmpty() } }
             ?: FakeNavi(fixedPlaces()),
         info = FixedInfo(),
         memory = memory,
@@ -285,6 +307,7 @@ class AppGraph(val app: Context) {
         asking = asking,
         speaker = speaker,
         today = { LocalDate.now() },
+        currentRoute = route,
         log = { Log.w(TAG, it) },
     )
 
@@ -328,23 +351,35 @@ class AppGraph(val app: Context) {
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준
-     * 수정: 2026-11-12 19:06:00 · 박건준
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: handle
      * 목적: 말·Gleo·화면·데모 입력을 처리한다.
-     *       - `Run` — 루틴 실행을 요청한다
-     *       - `Undo` — 이름이 없으면 가장 최근에 켜진 루틴을 되돌린다
+     *       - `Run` — 루틴 실행을 요청한다. 이름이 있는 시트 메모리("엄마
+     *         자세로")는 시트 대화로 넘긴다(없는 이름이면 같이 맞출지 묻는다)
+     *       - `Undo` — 시트 맞추는 중이면 그것을 되돌리고, 아니면 이름이 없으면
+     *         가장 최근에 켜진 루틴을 되돌린다
      *       - `SaveSeat` — 지금 시트 자세를 이름으로 저장한다
-     *       - `Navigate` — 길안내 대화로 목적지를 넘긴다
+     *       - `Navigate` — 길안내 대화로 목적지를 넘기고, 길안내를 시작한 뒤
+     *         루틴 권하기를 다시 본다(하원길 차일드락)
      *       - `Ask` — 기능 카드로 답한다. 차는 바꾸지 않는다
      *       - `Answer` — 길안내 대화의 주유 제안, 그다음 루틴 권하기 순서로
      *         답한다. 둘 다 없으면 못 알아들은 것으로 본다
+     *       - `SeatStart`·`SeatAdjust`·`SeatRecall`·`Name` — 시트 맞추기 대화
      * 인자: action — 알아들은 요청
      */
     fun handle(action: VoiceAction) {
         when (action) {
-            // → 로직 이동: RoutineRunner.request()
-            is VoiceAction.Run -> runner.request(action.request)
+            is VoiceAction.Run -> {
+                val r = action.request // 실행 요청
+                val name = r.profile.takeIf { r.id == RoutineId.SEAT_MEMORY } // 시트 자세 이름, 아니면 null
+                // → 로직 이동: SeatDialog.recall(), RoutineRunner.request()
+                if (name != null) scope.launch { seat.recall(name, r.seat) } else runner.request(r)
+            }
             is VoiceAction.Undo -> {
+                if (seat.active) {
+                    scope.launch { seat.answer(Reply.NO) } // → 로직 이동: SeatDialog.answer()
+                    return
+                }
                 val id = action.id ?: runner.ui.value.runs.values // 되돌릴 루틴, 켜진 것이 없으면 null
                     .filter { it.phase == Phase.ACTIVE }
                     .maxByOrNull { it.startedAtMs }?.id
@@ -359,24 +394,34 @@ class AppGraph(val app: Context) {
                     else app.getString(R.string.voice_seat_unreadable),
                 )
             }
-            // → 로직 이동: TripDialog.navigate()
-            is VoiceAction.Navigate -> scope.launch { trip.navigate(action.destination) }
+            // → 로직 이동: TripDialog.navigate(), RoutineRunner.recheck()
+            is VoiceAction.Navigate -> scope.launch {
+                trip.navigate(action.destination)
+                runner.recheck()
+            }
             // → 로직 이동: CardBook.byId(), CardLines.answer(), Speaker.say()
             is VoiceAction.Ask -> speaker.say(
                 action.cardId?.let(CardBook::byId)?.let(CardLines::answer) ?: CardLines.NO_CARD,
             )
             is VoiceAction.Answer -> answer(action.reply) // → 로직 이동: AppGraph.answer()
+            // → 로직 이동: SeatDialog.start(), SeatDialog.adjust(),
+            //   SeatDialog.recall(), SeatDialog.name()
+            is VoiceAction.SeatStart -> scope.launch { seat.start(action.seat) }
+            is VoiceAction.SeatAdjust -> scope.launch { seat.adjust(action.axis, action.percent) }
+            is VoiceAction.SeatRecall -> scope.launch { seat.recall(action.name, action.seat) }
+            is VoiceAction.Name -> scope.launch { if (!seat.name(action.name)) notUnderstood() }
         }
     }
 
     /**
      * 작성: 2026-11-11 16:02:00 · 박희정
-     * 수정: 2026-11-12 19:56:00 · 박건준
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: hear
-     * 목적: 운전자가 한 말 한마디를 받는다. 대화 기록과 듣는 중 막대(HEARD)에
+     * 목적: 운전자가 한 말 한마디를 받는다. 대화 기록과 듣는 중 줄(HEARD)에
      *       남기고(아래 줄에 앱이 이어서 할 일), 알아들으면 `handle()`로, 못
      *       알아들으면 그렇다고 말한다.
-     *       화면 입력칸, 시연 대사 버튼, 데모 `say`(talk.ps1)가 함께 쓴다.
+     *       시트 자세를 기억할 이름을 기다리는 중이면 들은 말을 이름으로 넘긴다.
+     *       시연 운전자 대사와 데모 `say`(talk.ps1)가 함께 쓴다.
      * 인자: text — 운전자가 한 말
      *       source — 어디서 들어온 말인지(화면, 데모)
      */
@@ -385,6 +430,12 @@ class AppGraph(val app: Context) {
         if (said.isEmpty()) return
         addChat(ChatLine(fromDriver = true, text = said))
         val action = PhraseMatcher.match(said, source) // 알아들은 요청, 못 알아들으면 null
+        if (seat.awaitingName && action !is VoiceAction.Answer) {
+            // 시트 자세를 기억할 이름을 기다리는 중이면 들은 말을 이름으로 본다(대답 "괜찮아"는 제외)
+            panels.heard(said, null) // → 로직 이동: PanelPresenter.heard()
+            scope.launch { if (!seat.name(said)) notUnderstood() } // → 로직 이동: SeatDialog.name()
+            return
+        }
         panels.heard(said, nextOf(action)) // → 로직 이동: PanelPresenter.heard()
         // → 로직 이동: AppGraph.handle(), AppGraph.notUnderstood()
         if (action != null) handle(action) else notUnderstood()
@@ -392,12 +443,12 @@ class AppGraph(val app: Context) {
 
     /**
      * 작성: 2026-11-12 19:06:00 · 박건준
-     * 수정: 2026-11-13 03:40:00 · 박건준
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: answer
      * 목적: 앱이 물은 것에 대답한다. 말("응, 세차도 할게", "취소")과 카드
      *       버튼·닫기가 모두 여기로 온다. 카드에 고른 버튼을 먼저 표시하고,
-     *       루틴 권하기(세차 입구)를 본 뒤, 없으면 길안내 대화의 질문을 본다.
-     *       둘 다 없으면 못 알아들은 것으로 본다.
+     *       루틴 권하기(세차 입구) → 길안내 대화의 질문 → 시트 대화 순서로
+     *       본다. 셋 다 아니면 못 알아들은 것으로 본다.
      * 인자: reply — 대답 값
      */
     fun answer(reply: Reply) {
@@ -405,7 +456,25 @@ class AppGraph(val app: Context) {
         scope.launch {
             // → 로직 이동: RoutineRunner.answer(), TripDialog.answer(),
             //   AppGraph.notUnderstood()
-            if (!runner.answer(reply) && !trip.answer(reply)) notUnderstood()
+            if (!runner.answer(reply) && !trip.answer(reply) && !seat.answer(reply)) notUnderstood()
+        }
+    }
+
+    /**
+     * 작성: 2026-11-13 20:00:00 · 박건준
+     * 함수: switchRoutine
+     * 목적: 부르는 카드의 루틴 줄을 눌렀을 때. 켜져 있으면 원래대로 돌리고,
+     *       아니면 켠다. 시트 맞추기는 말로 맞추는 대화("시트 좀 맞춰 줘")를
+     *       시작한다.
+     * 인자: id — 루틴
+     *       on — 지금 켜져 있으면 true
+     */
+    private fun switchRoutine(id: RoutineId, on: Boolean) {
+        when {
+            on -> runner.undo(id) // → 로직 이동: RoutineRunner.undo()
+            // → 로직 이동: AppGraph.handle()
+            id == RoutineId.SEAT_MEMORY -> handle(VoiceAction.SeatStart(Seat.DRIVER))
+            else -> handle(VoiceAction.Run(RunRequest(id, source = Source.SCREEN)))
         }
     }
 
@@ -421,7 +490,7 @@ class AppGraph(val app: Context) {
 
     /**
      * 작성: 2026-11-12 19:56:00 · 박건준
-     * 수정: 2026-11-13 03:40:00 · 박건준
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: nextOf
      * 목적: 들은 말 아래에 보일, 앱이 이어서 하는 일을 짧게 고른다. 대답이면
      *       지금 묻는 질문 종류로, 길안내면 길안내로 정한다. 실행 결정은 하지
@@ -437,6 +506,10 @@ class AppGraph(val app: Context) {
             action !is VoiceAction.Answer || kind == null -> return null
             asking.question.value?.accepts(action.reply) != true -> R.string.next_declined
             kind == QuestionKind.WASH_MODE -> R.string.next_wash_mode
+            kind == QuestionKind.CHILD_LOCK || kind == QuestionKind.CHILD_LOCK_AGAIN -> R.string.next_child_lock
+            kind == QuestionKind.SEAT_ADJUST -> R.string.next_seat_done
+            kind == QuestionKind.SEAT_NEW_PERSON -> R.string.next_seat_together
+            kind != QuestionKind.FUEL_STOP -> return null
             asking.question.value?.pick(action.reply)?.reply == Reply.ALL -> R.string.next_fuel_wash
             else -> R.string.next_fuel_stop
         }
@@ -470,14 +543,15 @@ class AppGraph(val app: Context) {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-12 19:06:00 · 박건준
+     * 수정: 2026-11-13 15:00:00 · 박희정
      * 함수: restartTrip
      * 목적: 시연을 처음부터 다시 할 수 있게 지운다.
      *       1. 나오던 말을 끊고, 기다리던 말과 떠 있는 질문·거절 기록을 버린다
      *       2. 켜진 루틴을 되돌린다(차 값을 원래대로)
      *       3. 길안내 중이면 취소한다. 안내가 없을 때 취소를 보내면 지도 앱이
      *          앞으로 나와 앱 화면을 가린다
-     *       4. 대화 기록, 권하기 기록(10분에 한 번), 끝난 실행 기록을 지운다
+     *       4. 대화 기록, 권하기 기록(10분에 한 번), 끝난 실행 기록, 길안내
+     *          목적지, 시트 대화를 지운다
      *       되돌리는 동안 나오는 말("원래대로 돌렸어요")은 그대로 들린다
      */
     suspend fun restartTrip() {
@@ -487,14 +561,18 @@ class AppGraph(val app: Context) {
         if (navi?.routing?.value == true) navi.cancelRoute() // → 로직 이동: PleosNavi.cancelRoute()
         runner.forgetSuggestions() // → 로직 이동: RoutineRunner.forgetSuggestions()
         runner.forgetFinished() // → 로직 이동: RoutineRunner.forgetFinished()
+        route.clear()
+        seat.reset()
         chatLines.value = emptyList()
     }
 
     /**
      * 작성: 2026-11-11 17:40:00 · 박희정
+     * 수정: 2026-11-13 10:00:00 · 박희정
      * 함수: fixedPlaces
      * 목적: 시연 장소 고정 목록(assets/places.json)을 읽어 가짜 내비가 찾을 장소로
-     *       만든다. 읽지 못하면 빈 목록(목적지를 "찾지 못했어요"로 답한다).
+     *       만든다. 장소의 성격(집·유치원)도 읽는다. 읽지 못하면 빈
+     *       목록(목적지를 "찾지 못했어요"로 답한다).
      * 반환: 장소들
      * 미구현: 프로토타입이라 장소 검색 API 대신 고정 목록을 쓴다. Pleos 차는 같은
      *       파일을 `PlaceWatcher`가 읽는다
@@ -504,7 +582,8 @@ class AppGraph(val app: Context) {
         val array = json.getJSONArray("places") // 장소 배열
         (0 until array.length()).map { i ->
             val o = array.getJSONObject(i) // 장소 하나
-            PlaceHit(o.getString("name"), GeoPoint(o.getDouble("lat"), o.getDouble("lng")))
+            val kind = Place.entries.firstOrNull { it.name == o.optString("place") } ?: Place.NONE // 장소 성격
+            PlaceHit(o.getString("name"), GeoPoint(o.getDouble("lat"), o.getDouble("lng")), kind)
         }
     }.onFailure { Log.w(TAG, "시연 장소 읽기 실패: ${it.message}") }.getOrDefault(emptyList())
 

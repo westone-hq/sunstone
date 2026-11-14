@@ -1,9 +1,19 @@
 // 앱 연결 모듈. Pleos SDK·화면·음성·Gleo·데모 입력을 routines 모듈의 루틴에 이어 붙인다.
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
+
+// release 서명 값. 저장소에 올리지 않는 local.properties에서 읽는다(keystore도 저장소 밖에 둔다).
+val localProps = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val signingKeys = listOf("release.storeFile", "release.storePassword", "release.keyAlias", "release.keyPassword")
+val missingSigning = signingKeys.filter { localProps.getProperty(it).isNullOrBlank() }
 
 android {
     namespace = "com.westone.sunstone"
@@ -19,9 +29,21 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        if (missingSigning.isEmpty()) {
+            create("release") {
+                storeFile = file(localProps.getProperty("release.storeFile"))
+                storePassword = localProps.getProperty("release.storePassword")
+                keyAlias = localProps.getProperty("release.keyAlias")
+                keyPassword = localProps.getProperty("release.keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
     compileOptions {
@@ -36,12 +58,32 @@ android {
     }
 }
 
+// 서명 값이 없으면 설치되지 않는 APK가 나오므로 release 묶기 전에 이유를 말하고 멈춘다.
+tasks.matching { it.name == "packageRelease" }.configureEach {
+    doFirst {
+        if (missingSigning.isNotEmpty()) {
+            throw GradleException(
+                "release 서명 값이 없습니다. local.properties에 ${missingSigning.joinToString()}를 넣으세요 " +
+                    "(README '테스트 환경과 필요 설정' 참고).",
+            )
+        }
+    }
+}
+
+// 공모전 규정 파일명으로 제출 APK를 apk/에 둔다.
+val copyReleaseApk by tasks.registering(Copy::class) {
+    from(layout.buildDirectory.file("outputs/apk/release/app-release.apk"))
+    into(rootProject.layout.projectDirectory.dir("apk"))
+    rename { "westone_Sunstone_release.apk" }
+}
+tasks.matching { it.name == "assembleRelease" }.configureEach { finalizedBy(copyReleaseApk) }
+
 dependencies {
     implementation(project(":routines"))
     implementation(libs.vehicle.sdk)
-    // Pleos 내비(경로·경유지·남은 거리·도착). 지금은 debug 실측(`navi`)만 쓴다.
+    // Pleos 내비(경로·경유지·남은 거리·도착).
     implementation(libs.navi.helper)
-    // Pleos 위치(현재 위치·근접 알림). 지금은 debug 실측(`location`)만 쓴다.
+    // Pleos 위치(현재 위치·근접 알림).
     implementation(libs.fused.location)
     implementation(libs.kotlinx.coroutines.android)
 

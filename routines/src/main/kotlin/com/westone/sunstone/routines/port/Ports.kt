@@ -41,6 +41,20 @@ sealed interface Target {
     /** 값: Int. 시트 축 위치(차가 주는 단위 그대로). */
     data class SeatPosition(val seat: Seat, val axis: SeatAxis) : Target
 
+    /**
+     * 작성: 2026-11-13 15:00:00 · 박희정
+     * 클래스: SeatNudge
+     * 목적: 시트 축 하나를 지금 자리에서 조금 움직인다("앞으로 조금").
+     *       값: Int. 움직일 양(축 전체의 %). 양수면 앞·위·세움(FORWARD), 음수면
+     *       뒤·아래·눕힘(BACKWARD). 읽을 수 없어 되돌리기는 반대 값으로 한다.
+     * 인자: seat — 좌석
+     *       axis — 축
+     * 근거: 측정 — 시트 위치는 읽을 수 없어 시간으로만 움직인다. 위치로
+     *       맞추면(`SeatPosition`) 맨 뒤로 갔다가 오므로 조금씩 맞출 때는 이
+     *       대상을 쓴다(docs/api-spike.md 시트 행)
+     */
+    data class SeatNudge(val seat: Seat, val axis: SeatAxis) : Target
+
     /** 값: Int. 차에 저장된 시트 메모리 번호. 읽을 수 없어서 되돌리기에는 쓰지 않는다. */
     data class SeatMemory(val seat: Seat) : Target
 }
@@ -128,8 +142,11 @@ interface InfoPort {
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
+ * 수정: 2026-11-12 16:10:00 · 박희정
  * 클래스: MemoryPort
  * 목적: 기능 → 기억 창구. 앱을 다시 켜도 남아야 하는 사용 기록을 둔다.
+ *       - 마지막 세차일 — 세차 추천(시나리오 ①)
+ *       - 마지막 차일드락 날 — "차일드락 이어서 할까요?"(시나리오 ② #5)
  */
 interface MemoryPort {
     /** 마지막으로 세차 모드를 쓴 날. 기록이 없으면 null */
@@ -137,15 +154,42 @@ interface MemoryPort {
 
     /** 세차한 날을 남긴다 */
     fun recordWash(date: LocalDate)
+
+    /** 마지막으로 차일드락을 쓴 날. 기록이 없으면 null */
+    fun lastChildLockDate(): LocalDate?
+
+    /** 차일드락을 쓴 날을 남긴다 */
+    fun recordChildLock(date: LocalDate)
 }
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
+ * 수정: 2026-11-12 16:10:00 · 박희정
  * 클래스: InMemoryMemory
  * 목적: 메모리에만 두는 기억. 테스트와 가짜 차 시연에 쓴다.
  * 인자: lastWash — 처음 마지막 세차일. 없으면 null
  */
 class InMemoryMemory(private var lastWash: LocalDate? = null) : MemoryPort {
+
+    /** 마지막으로 차일드락을 쓴 날. `recordChildLock()`이 채운다. 없으면 null */
+    private var lastChildLock: LocalDate? = null
+
+    /**
+     * 작성: 2026-11-12 16:10:00 · 박희정
+     * 함수: lastChildLockDate
+     * 목적: 마지막으로 차일드락을 쓴 날을 돌려준다.
+     */
+    override fun lastChildLockDate() = lastChildLock
+
+    /**
+     * 작성: 2026-11-12 16:10:00 · 박희정
+     * 함수: recordChildLock
+     * 목적: 차일드락을 쓴 날을 남긴다.
+     */
+    override fun recordChildLock(date: LocalDate) {
+        lastChildLock = date
+    }
+
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
      * 함수: lastWashDate
