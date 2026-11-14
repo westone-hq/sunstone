@@ -37,6 +37,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -252,7 +253,7 @@ class TripScenarioTest {
             listOf(
                 "파라다이스 호텔 부산으로 안내할게요.",
                 "연료가 18%예요. 가는 길에 말죽거리주유소가 있어요. " +
-                    "세차 안 하신 지 36일 됐고 일주일간 비 소식이 없어서 세차도 추천드려요.",
+                    "세차 안 하신 지 36일 됐고, 일주일간 비 예보가 없어서 세차도 추천드려요.",
             ),
             said,
         )
@@ -393,7 +394,7 @@ class TripScenarioTest {
         assertEquals("주유할까요?", q.title)
         assertEquals("가는 길에 말죽거리주유소가 있어요.", q.detail)
         assertEquals(listOf(Fact("fuel", "연료 18%")), q.facts)
-        assertEquals(listOf(Choice("경유지로 넣기", Reply.YES), Choice("괜찮아요", Reply.NO)), q.choices)
+        assertEquals(listOf(Choice("주유소 경유", Reply.YES), Choice("경유 안 함", Reply.NO)), q.choices)
 
         said.clear()
         assertTrue(say(runner, "그래")); runCurrent()
@@ -620,5 +621,150 @@ class TripScenarioTest {
         assertEquals(listOf("경유지 넣기 20초 넘김: 말죽거리주유소"), logged)
         assertFalse(booking.atGasStation)
         assertTrue(navi.waypoints.isEmpty())
+    }
+
+    @Test fun `비 예보와 조회 실패는 주유만 경유하고 예약하지 않는다`() = runTest {
+        for (rain in listOf(true, null)) {
+            info.rain = rain
+            trip.navigate("파라다이스 호텔 부산")
+            val question = asking.question.value!!
+            assertEquals(listOf(Reply.YES, Reply.NO), question.choices.map { it.reply })
+            assertTrue(said.last().contains(if (rain == true) "세차는 추천드리지 않아요" else "세차 추천은 보류"))
+            assertTrue(trip.answer(Reply.YES))
+            assertFalse(booking.atGasStation)
+            assertEquals(listOf("말죽거리주유소"), navi.waypoints.map { it.name })
+        }
+    }
+
+    @Test fun `추천하지 않은 세차 동의를 주유로 바꾸지 않는다`() = runTest {
+        info.rain = true
+        trip.navigate("파라다이스 호텔 부산")
+        trip.answer(Reply.ALL)
+        assertTrue(navi.waypoints.isEmpty())
+        assertFalse(booking.atGasStation)
+        assertNotNull(asking.question.value)
+    }
+
+    @Test fun `세차 날씨는 부산 목적지가 아닌 선택 주유소 좌표로 조회`() = runTest {
+        var queried: GeoPoint? = null
+        val source = object : com.westone.sunstone.routines.port.InfoPort {
+            override suspend fun gasStations() = listOf(WASH_STATION)
+            override suspend fun rainWithin(days: Int): Boolean? = error("좌표 없는 호출 금지")
+            override suspend fun rainAt(point: GeoPoint, days: Int): Boolean? {
+                queried = point
+                return false
+            }
+        }
+        TripDialog(car, navi, source, memory, booking, asking, { said += it }, { TODAY }, route)
+            .navigate("파라다이스 호텔 부산")
+        assertEquals(WASH_STATION.place.point, queried)
+        assertEquals(Reply.ALL, asking.question.value!!.choices.first().reply)
+    }
+
+    @Test fun `느린 예보 중 재시작하면 질문을 올리지 않는다`() = runTest {
+        val source = object : com.westone.sunstone.routines.port.InfoPort {
+            override suspend fun gasStations() = listOf(WASH_STATION)
+            override suspend fun rainWithin(days: Int): Boolean? {
+                kotlinx.coroutines.delay(1000)
+                return false
+            }
+        }
+        val dialog = TripDialog(car, navi, source, memory, booking, asking, { said += it }, { TODAY }, route)
+        val job = launch { dialog.navigate("파라다이스 호텔 부산") }
+        runCurrent()
+        assertTrue(asking.working.value)
+        dialog.invalidate()
+        advanceTimeBy(1001)
+        job.join()
+        assertFalse(asking.working.value)
+        assertNull(asking.question.value)
+    }
+
+    @Test fun `복수 목적지 선택 전에는 길안내를 시작하지 않는다`() = runTest {
+        val second = RESORT.copy(name = "테스트 목적지", address = "후보 주소", point = GeoPoint(37.0, 127.0))
+        val port = object : com.westone.sunstone.routines.port.NaviPort by navi {
+            override suspend fun findPlaces(query: String) = listOf(RESORT, second)
+        }
+        val dialog = TripDialog(car, port, info, memory, booking, asking, { said += it }, { TODAY }, route)
+        dialog.navigate("호텔")
+        assertNull(navi.destination)
+        assertEquals(2, dialog.destinations.value.size)
+        dialog.selectDestination(1)
+        assertEquals(second, navi.destination)
+        assertTrue(dialog.destinations.value.isEmpty())
+    }
+
+    @Test fun `주변 주유소 날씨 안내 시설 불명 가격 표시 없음`() = runTest {
+        val unknownFacility = WASH_STATION.copy(carWash = true, facilityKnown = false)
+        val source = object : com.westone.sunstone.routines.port.InfoPort {
+            override val nearbyStations = true
+            override suspend fun gasStations() = listOf(unknownFacility)
+            override suspend fun rainWithin(days: Int) = false
+        }
+        val dialog = TripDialog(car, navi, source, memory, booking, asking, { said += it }, { TODAY }, route)
+        dialog.navigate("파라다이스 호텔 부산")
+        assertTrue(said.last().contains("현재 위치 주변에"))
+        assertFalse(said.last().contains("가는 길에"))
+        assertTrue(said.last().contains("세차도 추천"))
+        assertTrue(said.last().contains("세차 시설은 확인이 필요"))
+        assertFalse(asking.question.value!!.detail.contains("원/L"))
+        dialog.answer(Reply.ONLY)
+        assertFalse(booking.atGasStation)
+    }
+
+    @Test fun `실제 가격 없음은 가상 추천으로 대체하지 않는다`() = runTest {
+        val source = object : com.westone.sunstone.routines.port.InfoPort {
+            override val nearbyStations = true
+            override suspend fun gasStations() = emptyList<GasStation>()
+            override suspend fun rainWithin(days: Int): Boolean? = null
+        }
+        TripDialog(car, navi, source, memory, booking, asking, { said += it }, { TODAY }, route)
+            .navigate("파라다이스 호텔 부산")
+        assertNull(asking.question.value)
+        assertTrue(said.last().contains("주유소를 찾지 못했어요"))
+        assertFalse(booking.atGasStation)
+    }
+
+    @Test fun `경유 성공 도착 등록 실패는 세차 예약 보류`() = runTest {
+        navi.route = navi.route!!.copy(arrivalTracked = false)
+        trip.navigate("파라다이스 호텔 부산")
+        trip.answer(Reply.ALL)
+        assertEquals(WASH_STATION.place.point, navi.waypoints.single().point)
+        assertFalse(booking.atGasStation)
+    }
+
+    @Test fun `출장 시작은 목적지 입력을 기다리고 자동 안내하지 않는다`() = runTest {
+        trip.awaitDestination()
+        assertEquals(com.westone.sunstone.routines.dialog.TripStage.DESTINATION_INPUT, trip.stage.value)
+        assertNull(navi.destination)
+        assertTrue(said.last().contains("목적지를 입력"))
+        trip.navigate("파라다이스 호텔 부산")
+        assertEquals(RESORT, navi.destination)
+        assertEquals(com.westone.sunstone.routines.dialog.TripStage.WAITING_REPLY, trip.stage.value)
+        trip.answer(Reply.ALL)
+        assertEquals(com.westone.sunstone.routines.dialog.TripStage.RESERVED, trip.stage.value)
+    }
+
+    @Test fun `가격 없는 카카오 주유소 거리순 선택과 날씨 세갈래`() = runTest {
+        val close = WASH_STATION.copy(priceWon = null, carWash = false, facilityKnown = false, distanceM = 100)
+        val far = PRICEY_WASH_STATION.copy(priceWon = null, carWash = false, facilityKnown = false, distanceM = 900)
+        for (rain in listOf(false, true, null)) {
+            var queried: GeoPoint? = null
+            val source = object : com.westone.sunstone.routines.port.InfoPort {
+                override val nearbyStations = true
+                override suspend fun gasStations() = listOf(far, close)
+                override suspend fun rainWithin(days: Int): Boolean? = rain
+                override suspend fun rainAt(point: GeoPoint, days: Int): Boolean? { queried = point; return rain }
+            }
+            val dialog = TripDialog(car, navi, source, memory, booking, asking, { said += it }, { TODAY }, route)
+            dialog.navigate("파라다이스 호텔 부산")
+            assertEquals(close.place.point, queried)
+            assertTrue(asking.question.value!!.detail.contains(close.place.name))
+            assertFalse(asking.question.value!!.detail.contains("원/L"))
+            assertEquals(rain == false, asking.question.value!!.choices.any { it.reply == Reply.ALL })
+            dialog.answer(if (rain == false) Reply.ALL else Reply.YES)
+            assertEquals(rain == false, booking.atGasStation)
+            assertEquals(close.place.point, navi.waypoints.single().point)
+        }
     }
 }

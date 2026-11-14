@@ -11,7 +11,14 @@ import com.westone.sunstone.connect.KeepAwakeService
 import com.westone.sunstone.connect.PrefsMemory
 import com.westone.sunstone.connect.PrefsSeatProfiles
 import com.westone.sunstone.demo.installDemo
-import com.westone.sunstone.info.FixedInfo
+import com.westone.sunstone.info.OpenMeteo
+import com.westone.sunstone.info.LiveInfo
+import com.westone.sunstone.info.WeatherConversation
+import com.westone.sunstone.info.WeatherLocation
+import com.westone.sunstone.info.ApiKeys
+import com.westone.sunstone.info.KakaoPlaces
+import com.westone.sunstone.navi.SelectedStation
+import com.westone.sunstone.routines.port.InfoPort
 import com.westone.sunstone.navi.PlaceWatcher
 import com.westone.sunstone.navi.PleosNavi
 import com.westone.sunstone.navi.PleosNaviPort
@@ -283,17 +290,65 @@ class AppGraph(val app: Context) {
     val navi: PleosNavi? = proximity?.let { PleosNavi(app, it) }
 
     /** 시연 장소 근접 알림. 들어가고 나가면 Pleos 차 장소를 바꾼다. 위치 권한을 받은 뒤 시작한다 */
-    val places: PlaceWatcher? = proximity?.let { p -> PlaceWatcher(app, p) { place -> setPlace(place) } }
+    private val selectedStation: SelectedStation? = proximity?.let { p ->
+        SelectedStation(
+            add = { place, enter, exit -> p.add(
+                com.westone.sunstone.navi.GeoPoint(place.point.lat, place.point.lng), 150f, enter, exit,
+            ) },
+            remove = p::remove,
+            onPlace = { setPlace(it) },
+        )
+    }
+    val places: PlaceWatcher? = proximity?.let { p -> PlaceWatcher(app, p) { place ->
+        if (selectedStation?.isInside != true) setPlace(place)
+    } }
 
     /**
      * 길안내 대화(시나리오 ① #1~#2). Pleos 차면 Pleos 내비, 가짜 차면 장소가 없는 가짜 내비를 쓴다.
-     * 주유소·날씨는 고정 응답이다(`FixedInfo`)
+     * 기본 모드는 카카오·Open-Meteo이며 고정 정보는 debug 조립으로만 선택한다.
      */
+    private val weather = OpenMeteo()
+    private val weatherLocation = WeatherLocation(app)
+    private val apiKeys = ApiKeys(java.io.File(app.filesDir, "api.properties"))
+    private val kakao = KakaoPlaces({ apiKeys.read("sunstone.kakao.restKey") })
+    private val weatherConversation by lazy { WeatherConversation(weather, weatherLocation, speaker, scope) }
+    private val liveInfo: InfoPort = LiveInfo(weather) {
+        val point = weatherLocation.current() ?: error("현재 위치 확인 불가")
+        kakao.nearbyStations(point)
+    }
+
+    /** debug 조립부에서만 가짜 정보로 바꾼다. 기본값은 실제 Open-Meteo다. */
+    var tripInfo: InfoPort = liveInfo
+
+    private val selectedInfo = object : InfoPort {
+        override val weatherSource: String? get() = tripInfo.weatherSource
+        override val nearbyStations: Boolean get() = tripInfo.nearbyStations
+        override suspend fun gasStations() = tripInfo.gasStations()
+        override suspend fun rainWithin(days: Int) = tripInfo.rainWithin(days)
+        override suspend fun rainAt(point: GeoPoint, days: Int) = tripInfo.rainAt(point, days)
+    }
+
+    /** 함수: useLiveWeather
+     * 목적: debug 가짜 응답을 제거하고 실제 API로 되돌린다.
+     */
+    fun useLiveWeather() { tripInfo = liveInfo }
+
+    /** 현재 에뮬레이터의 전기차 속성과 구분해 표시하는 시연 가정이다. */
+    val externalModeLabel: String get() =
+        (if (tripInfo.nearbyStations) "실시간 외부 정보 모드" else "고정 시연 정보 모드") +
+            " · ${if (apiKeys.read("sunstone.fuel.code") == "D047") "경유" else "휘발유"} 차량 가정"
+
     val trip = TripDialog(
         car = car,
-        navi = navi?.let { n -> PleosNaviPort(n) { places?.spots.orEmpty() } }
+        navi = navi?.let { n -> PleosNaviPort(n,
+            places = { places?.spots.orEmpty() },
+            search = { query -> kakao.search(query) },
+            searchEnabled = { tripInfo.nearbyStations },
+            selectedStation = { place -> selectedStation?.watch(place) },
+            clearStation = { selectedStation?.clear() },
+        ) }
             ?: FakeNavi(fixedPlaces()),
-        info = FixedInfo(),
+        info = selectedInfo,
         memory = memory,
         booking = booking,
         asking = asking,
@@ -421,6 +476,34 @@ class AppGraph(val app: Context) {
         val said = text.trim() // 앞뒤 빈칸을 뺀 말
         if (said.isEmpty()) return
         addChat(ChatLine(fromDriver = true, text = said))
+        if (!seat.awaitingName && trip.destinations.value.isNotEmpty()) {
+            val index = said.trim().removeSuffix("번").toIntOrNull()?.minus(1)
+            if (index != null && index in trip.destinations.value.indices) {
+                chooseDestination(index)
+                return
+            }
+            if (said in setOf("취소", "그만", "괜찮아")) {
+                trip.invalidate()
+                speaker.say("목적지 선택을 취소했어요.")
+                return
+            }
+        }
+        if (!seat.awaitingName && weatherConversation.hear(said)) {
+            panels.heard(said, "날씨 예보를 확인할게요")
+            return
+        }
+        weatherConversation.cancel()
+        if (!seat.awaitingName && trip.stage.value == com.westone.sunstone.routines.dialog.TripStage.DESTINATION_INPUT) {
+            if (said in setOf("취소", "그만")) {
+                trip.invalidate()
+                speaker.say("목적지 입력을 취소했어요.")
+                return
+            }
+            val request = PhraseMatcher.match(said, source) as? VoiceAction.Navigate
+            panels.heard(said, "목적지를 검색할게요")
+            handle(request ?: VoiceAction.Navigate(said))
+            return
+        }
         val action = PhraseMatcher.match(said, source) // 알아들은 요청, 못 알아들으면 null
         if (seat.awaitingName && action !is VoiceAction.Answer) {
             // 시트 자세를 기억할 이름을 기다리는 중이면 들은 말을 이름으로 본다(대답 "괜찮아"는 제외)
@@ -450,6 +533,13 @@ class AppGraph(val app: Context) {
             //   AppGraph.notUnderstood()
             if (!runner.answer(reply) && !trip.answer(reply) && !seat.answer(reply)) notUnderstood()
         }
+    }
+
+    /** 함수: chooseDestination
+     * 목적: 화면·번호 입력의 선택을 같은 목적지 확정 흐름으로 보낸다.
+     */
+    fun chooseDestination(index: Int) {
+        scope.launch { trip.selectDestination(index); runner.recheck() }
     }
 
     /**
@@ -529,6 +619,9 @@ class AppGraph(val app: Context) {
      *       되돌리는 동안 나오는 말("원래대로 돌렸어요")은 그대로 들린다
      */
     suspend fun restartTrip() {
+        selectedStation?.clear()
+        weatherConversation.cancel()
+        trip.invalidate()
         voice.stop() // → 로직 이동: AndroidSpeaker.stop()
         asking.newTrip() // → 로직 이동: Asking.newTrip()
         runner.activeIds().forEach { runner.undo(it).join() } // → 로직 이동: RoutineRunner.undo()

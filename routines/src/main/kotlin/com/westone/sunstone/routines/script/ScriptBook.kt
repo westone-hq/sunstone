@@ -63,7 +63,7 @@ object ScriptBook {
             title = "한 번의 질문",
             expectSaid = listOf(
                 "연료가 18%예요. 가는 길에 말죽거리주유소가 있어요. " +
-                    "세차 안 하신 지 36일 됐고 일주일간 비 소식이 없어서 세차도 추천드려요.",
+                    "세차 안 하신 지 36일 됐고, 일주일간 비 예보가 없어서 세차도 추천드려요.",
             ),
             expectQuestion = QuestionKind.FUEL_STOP,
         ),

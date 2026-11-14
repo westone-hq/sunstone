@@ -13,6 +13,7 @@ import com.westone.sunstone.routines.script.Scene
 import com.westone.sunstone.routines.script.ScriptBook
 import com.westone.sunstone.ui.SceneControls
 import com.westone.sunstone.ui.SceneView
+import com.westone.sunstone.routines.dialog.TripStage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -104,11 +105,30 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
 
     /** 준비·건너뛰기 작업. 도는 중이면 새 요청을 받지 않는다 */
     private var job: Job? = null
+    private var interactiveTrip = false
 
     /** 운전자 대사 녹음본 재생기 */
     private val driver = DriverVoice(g.app)
 
     init {
+        g.scope.launch {
+            g.trip.stage.collect { stage ->
+                if (!interactiveTrip || index !in 0..2 || stage == TripStage.IDLE) return@collect
+                val (at, title) = when (stage) {
+                    TripStage.DESTINATION_INPUT -> 0 to "목적지를 입력해 주세요"
+                    TripStage.SEARCHING -> 0 to "목적지 검색 중"
+                    TripStage.CHOOSING -> 0 to "목적지를 선택해 주세요"
+                    TripStage.ROUTING -> 0 to "길안내 시작 중"
+                    TripStage.RECOMMENDING -> 1 to "주변 주유소·날씨 확인 중"
+                    TripStage.WAITING_REPLY -> 1 to "주유·세차 여부를 선택해 주세요"
+                    TripStage.RESERVED -> 2 to "세차 모드 예약 완료"
+                    else -> 2 to "길안내 중 · 세차 예약 없음"
+                }
+                index = at
+                view.value = SceneView("S${at + 1}", title, busy = false,
+                    last = stage == TripStage.COMPLETE, canAdvance = stage == TripStage.RESERVED)
+            }
+        }
         if (g.pleos != null) {
             g.scope.launch {
                 while (isActive) {
@@ -128,6 +148,7 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
      *       중"을 남기고 하지 않는다. 마지막 장면이면 하지 않는다.
      */
     override fun next() {
+        if (interactiveTrip && view.value?.canAdvance == false) return
         if (preparing("next")) return
         if (index + 1 >= scenes.size) return
         job = g.scope.launch {
@@ -147,6 +168,7 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
     override fun restart() {
         if (preparing("restart")) return
         job = g.scope.launch {
+            interactiveTrip = false
             index = -1
             view.value = null
             g.restartTrip() // → 로직 이동: AppGraph.restartTrip()
@@ -166,8 +188,14 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
         val first = scenes.indices.filter { k -> scenes[k].prep.any { it.resetTrip } } // 시나리오마다 첫 장면
             .getOrNull(scenario - 1) ?: return
         job = g.scope.launch {
+            interactiveTrip = scenario == 1
             enter(first) // → 로직 이동: ScenePlayer.enter()
-            speak(first) // → 로직 이동: ScenePlayer.speak()
+            if (interactiveTrip) {
+                view.value = view.value?.copy(title = "목적지를 입력해 주세요", canAdvance = false)
+                g.trip.awaitDestination()
+            } else {
+                speak(first) // → 로직 이동: ScenePlayer.speak()
+            }
             ready()
         }
     }
@@ -192,6 +220,7 @@ internal class ScenePlayer(private val g: AppGraph, private val scenes: List<Sce
         val target = scenes.indexOfFirst { it.id.equals(id, ignoreCase = true) } // 갈 장면 번호
         if (target < 0) return false
         if (preparing("scene $id")) return true
+        interactiveTrip = false // 명시적인 장면 주입은 기존 자동 대사집을 유지한다
         val first = (target downTo 0).firstOrNull { k -> scenes[k].prep.any { it.resetTrip } } ?: 0 // 시나리오 첫 장면
         job = g.scope.launch {
             g.restartTrip() // → 로직 이동: AppGraph.restartTrip()

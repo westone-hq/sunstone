@@ -119,6 +119,11 @@ interface NaviPort {
     /** 이름으로 장소를 찾는다. 못 찾으면 null */
     suspend fun findPlace(query: String): PlaceHit?
 
+    /** 함수: findPlaces
+     * 목적: 여러 후보를 임의로 확정하지 않고 대화 쪽에 반환한다.
+     */
+    suspend fun findPlaces(query: String): List<PlaceHit> = listOfNotNull(findPlace(query))
+
     /** 목적지로 경로를 시작한다. 실패하면 null */
     suspend fun startRoute(destination: PlaceHit): RouteSummary?
 
@@ -133,11 +138,22 @@ interface NaviPort {
  *       채운다.
  */
 interface InfoPort {
+    /** 실제 예보 또는 명시적인 debug 테스트 출처. 기존 테스트는 표시하지 않는다. */
+    val weatherSource: String? get() = null
+    /** 실제 주변 검색인지 구분한다. 고정 시연 문구에는 영향을 주지 않는다. */
+    val nearbyStations: Boolean get() = false
     /** 지금 위치 근처 주유소들. 못 찾으면 빈 목록 */
     suspend fun gasStations(): List<GasStation>
 
     /** 앞으로 [days]일 안에 비 소식이 있으면 true, 없으면 false, 모르면 null */
     suspend fun rainWithin(days: Int): Boolean?
+
+    /**
+     * 함수: rainAt
+     * 목적: 세차할 장소의 예보를 조회한다. 기존 테스트 구현은 기존 창구로 위임한다.
+     * 인자: point — 주유소 좌표, days — 확인할 기간(일)
+     */
+    suspend fun rainAt(point: com.westone.sunstone.routines.model.GeoPoint, days: Int): Boolean? = rainWithin(days)
 }
 
 /**

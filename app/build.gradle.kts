@@ -34,6 +34,7 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions { unitTests.isReturnDefaultValues = true }
 }
 
 dependencies {
@@ -59,4 +60,11 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
 
     testImplementation(libs.junit)
+    testImplementation("org.json:json:20240303")
+    testImplementation(libs.kotlinx.coroutines.test)
+}
+
+// 경로만 테스트에 전달한다. 재발급 키는 Gradle 필드·APK에 넣지 않는다.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    systemProperty("sunstone.localProperties", rootProject.file("local.properties").absolutePath)
 }

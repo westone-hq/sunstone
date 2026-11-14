@@ -1,5 +1,14 @@
 # Sunstone
 
+카카오 목적지·주변 주유소 검색과 Open-Meteo 강수 예보를 연결했다. 오피넷은 제거했다. 기본 모드는 실시간이며,
+기존 고정 데이터는 debug 시연에서 명시적으로 선택한다.
+[통합 사용법·실제 API 결과·남은 검증](docs/INTEGRATION.md)을 참고한다.
+
+①을 누르면 직접 목적지를 입력한다. [현재 시나리오 ① 사용법·검증](docs/SCENARIO_ONE.md)을 참고한다.
+
+이 PC에서 에뮬레이터를 열려면 `Start Sunstone.cmd`를 더블클릭한다.
+[설치된 Pleos 실행·테스트 방법](docs/EMULATOR.md)을 참고한다.
+
 **현대차에 이미 있지만 잘 안 쓰는 기능을, 운전자가 편하게 쓰도록 대신 세팅해 주는 Pleos Connect 앱**
 
 Pleos Connect 앱 · Android (Kotlin, Jetpack Compose) · 2026 현대자동차그룹 차량용 앱 개발 공모전

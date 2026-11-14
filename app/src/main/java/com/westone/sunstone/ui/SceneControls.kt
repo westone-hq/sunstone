@@ -52,4 +52,6 @@ interface SceneControls {
  *       busy — 준비 상황·대사를 넣는 중이면 true(버튼을 막는다)
  *       last — 그 시나리오의 마지막 장면이면 true([다음 장면]을 막는다)
  */
-data class SceneView(val id: String, val title: String, val busy: Boolean, val last: Boolean)
+data class SceneView(
+    val id: String, val title: String, val busy: Boolean, val last: Boolean, val canAdvance: Boolean = true,
+)

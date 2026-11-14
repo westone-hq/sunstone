@@ -10,6 +10,17 @@ package com.westone.sunstone.routines.speech
  * 근거: 인용 — docs/SCREEN.md 6장 시나리오 ① 다시 짠 흐름 1~3
  */
 object TripLines {
+    const val ENTER_DESTINATION = "어디로 가실 건가요? 말 한마디 입력칸에 목적지를 입력해 주세요."
+    const val CHOOSE_DESTINATION = "목적지 후보가 여러 곳이에요. 화면에서 선택해 주세요."
+    const val FACILITY_UNCONFIRMED = "이 주유소의 세차 시설은 확인이 필요해요."
+    const val ARRIVAL_UNAVAILABLE = "경유지는 추가했지만 도착 자동 감지를 등록하지 못해 세차 예약은 보류했어요"
+    const val FIXED_DESTINATION = "실제 장소 검색을 완료하지 못해 등록된 시연 목적지를 사용할게요."
+    const val STATIONS_UNAVAILABLE = "현재 위치 주변의 주유소를 찾지 못했어요. 위치와 통신 상태를 확인해 주세요."
+
+    /** 변수: WASH_NOT_OFFERED
+     * 목적: 세차를 제안하지 않은 카드에서 세차 동의를 주유 동의로 바꾸지 않는다.
+     */
+    const val WASH_NOT_OFFERED = "지금은 세차를 추천하지 않아요. 주유소를 경유할지 선택해 주세요."
 
     /**
      * 작성: 2026-11-13 03:25:00 · 박건준
@@ -29,8 +40,8 @@ object TripLines {
      *       "주유할까요?" + [경유지로 넣기] [괜찮아요]
      */
     const val FUEL_TITLE = "주유할까요?"
-    const val FUEL_YES = "경유지로 넣기"
-    const val NO_THANKS = "괜찮아요"
+    const val FUEL_YES = "주유소 경유"
+    const val NO_THANKS = "경유 안 함"
 
     /**
      * 작성: 2026-11-13 03:25:00 · 박건준
@@ -97,8 +108,9 @@ object TripLines {
      * 반환: "가는 길에 말죽거리주유소가 있어요. 세차도 되는 곳이에요."
      * 근거: 인용 — 시안 template2.html `card()` fuel 설명
      */
-    fun fuelDetail(station: String, carWash: Boolean) =
-        "가는 길에 ${withSubject(station)} 있어요." + if (carWash) " $CAR_WASH_OK" else ""
+    fun fuelDetail(station: String, carWash: Boolean, nearby: Boolean = false) =
+        "${if (nearby) "현재 위치 주변에" else "가는 길에"} ${withSubject(station)} 있어요." +
+            if (carWash) (if (nearby) " 세차 시설이 확인된 곳이에요." else " $CAR_WASH_OK") else ""
 
     /**
      * 작성: 2026-11-13 03:25:00 · 박건준
@@ -143,11 +155,22 @@ object TripLines {
      * 근거: 인용 — docs/SCREEN.md 6장 2단계 말(사용자가 정한 세차 추천 문장이
      *       이 질문 안에 들어간다)
      */
-    fun fuelOffer(percent: Int, station: String, daysSinceWash: Long?): String {
-        val fuel = "연료가 $percent%예요. 가는 길에 ${withSubject(station)} 있어요." // 주유 권하는 앞 두 문장
+    fun fuelOffer(
+        percent: Int, station: String, daysSinceWash: Long?, rain: Boolean? = false, nearby: Boolean = false,
+    ): String {
+        val fuel = "연료가 $percent%예요. " + fuelDetail(station, false, nearby)
         if (daysSinceWash == null) return fuel
-        return "$fuel 세차 안 하신 지 ${daysSinceWash}일 됐고 일주일간 비 소식이 없어서 세차도 추천드려요."
+        return fuel + when (rain) {
+            false -> " 세차 안 하신 지 ${daysSinceWash}일 됐고, 일주일간 비 예보가 없어서 세차도 추천드려요."
+            true -> " 세차 안 하신 지 ${daysSinceWash}일 됐지만, 일주일간 비 예보가 있어서 세차는 추천드리지 않아요."
+            null -> " 현재 비 예보를 확인할 수 없어 세차 추천은 보류할게요."
+        }
     }
+
+    /** 함수: rainFact
+     * 목적: 세차 추천 보류 이유를 카드에도 표시한다.
+     */
+    fun rainFact(rain: Boolean?) = if (rain == true) "7일 내 비 예보 있음" else "예보 확인 불가"
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정

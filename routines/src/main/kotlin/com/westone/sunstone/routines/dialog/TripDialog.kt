@@ -10,6 +10,9 @@ import com.westone.sunstone.routines.speech.TripLines
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import com.westone.sunstone.routines.model.PlaceHit
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -96,6 +99,38 @@ class TripDialog(
     @Volatile
     private var offered: GasStation? = null
 
+    /** 새 길안내·시연 재시작 이후의 이전 응답을 폐기하는 번호. */
+    private var generation = 0L
+    private val choices = MutableStateFlow<List<PlaceHit>>(emptyList())
+    val destinations: StateFlow<List<PlaceHit>> = choices
+    private val stageValue = MutableStateFlow(TripStage.IDLE)
+    val stage: StateFlow<TripStage> = stageValue
+
+    /** 함수: invalidate
+     * 목적: 대기 중 예보 결과가 재시작한 시연에 끼어들지 않게 한다.
+     */
+    fun invalidate() {
+        generation++; offered = null; choices.value = emptyList(); stageValue.value = TripStage.IDLE
+    }
+
+    /** 함수: awaitDestination
+     * 목적: 출장 첫 단계는 고정 대사 없이 사용자 목적지 입력을 기다린다.
+     */
+    fun awaitDestination() {
+        invalidate()
+        stageValue.value = TripStage.DESTINATION_INPUT
+        speaker.say(TripLines.ENTER_DESTINATION)
+    }
+
+    /** 함수: selectDestination
+     * 목적: 사용자 선택 후에만 후보 좌표로 길안내를 시작한다.
+     */
+    suspend fun selectDestination(index: Int) {
+        val selected = choices.value.getOrNull(index) ?: return
+        choices.value = emptyList()
+        navigate(selected.name, selected)
+    }
+
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
      * 수정: 2026-11-13 10:00:00 · 박희정
@@ -110,30 +145,77 @@ class TripDialog(
      *     fuel — `CarState.fuelPercent`(모르면 제안하지 않음)
      * 근거: 인용 — docs/SCREEN.md 6장 시나리오 ① 다시 짠 흐름 1·2
      */
-    suspend fun navigate(query: String) = lock.withLock {
-        asking.newTrip() // → 로직 이동: Asking.newTrip()
-        booking.clear()
-        currentRoute.clear()
-        offered = null
-        val destination = navi.findPlace(query) // 찾은 목적지, 못 찾으면 null
-        if (destination == null) {
-            speaker.say(TripLines.notFound(query)) // → 로직 이동: Speaker.say()
-            return@withLock
+    suspend fun navigate(query: String, selected: PlaceHit? = null) {
+        val request = ++generation // 가장 최근 요청만 질문을 올린다
+        stageValue.value = if (selected == null) TripStage.SEARCHING else TripStage.ROUTING
+        lock.withLock {
+            if (request != generation) return@withLock
+            asking.newTrip() // → 로직 이동: Asking.newTrip()
+            booking.clear()
+            currentRoute.clear()
+            offered = null
+            choices.value = emptyList()
+            val candidates = if (selected != null) listOf(selected) else navi.findPlaces(query)
+            if (request != generation) return@withLock
+            if (candidates.size > 1) {
+                choices.value = candidates
+                stageValue.value = TripStage.CHOOSING
+                speaker.say(TripLines.CHOOSE_DESTINATION)
+                return@withLock
+            }
+            val destination = candidates.singleOrNull() // 사용자 선택 전에는 내비 요청을 보내지 않는다
+            if (destination == null) {
+                stageValue.value = TripStage.DESTINATION_INPUT
+                speaker.say(TripLines.notFound(query)) // → 로직 이동: Speaker.say()
+                return@withLock
+            }
+            if (destination.source == "고정 목적지 대체") speaker.say(TripLines.FIXED_DESTINATION)
+            stageValue.value = TripStage.ROUTING
+            if (navi.startRoute(destination) == null) { // → 로직 이동: NaviPort.startRoute()
+                stageValue.value = TripStage.DESTINATION_INPUT
+                speaker.say(TripLines.ROUTE_FAILED)
+                return@withLock
+            }
+            if (request != generation) return@withLock
+            currentRoute.start(destination)
+            stageValue.value = TripStage.RECOMMENDING
+            speaker.say(TripLines.routeStarted(destination.name))
+            val state = car.state.value // 지금 차 상태
+            val fuel = state.fuelPercent // 연료(%), 모르면 null
+            if (fuel == null || fuel > LOW_FUEL_PERCENT || !state.stopped) {
+                stageValue.value = TripStage.COMPLETE
+                return@withLock
+            }
+            val stations = try {
+                asking.work(true)
+                info.gasStations()
+            } finally { asking.work(false) }
+            val pick = pickStation(stations)
+            if (pick == null) {
+                if (info.nearbyStations) speaker.say(TripLines.STATIONS_UNAVAILABLE)
+                stageValue.value = TripStage.COMPLETE
+                return@withLock
+            }
+            offered = pick
+            val days = if (info.nearbyStations || (pick.carWash && pick.facilityKnown)) washDays() else null
+            val rain = if (days != null) {
+                asking.work(true)
+                try {
+                    info.rainAt(pick.place.point, RAIN_DAYS) // → 로직 이동: InfoPort.rainAt()
+                } finally {
+                    asking.work(false)
+                }
+            } else null
+            if (request != generation) { offered = null; return@withLock }
+            if (!car.state.value.stopped) {
+                offered = null; stageValue.value = TripStage.COMPLETE; return@withLock
+            }
+            asking.ask(fuelQuestion(pick, fuel, days, rain)) // → 로직 이동: Asking.ask()
+            stageValue.value = TripStage.WAITING_REPLY
+            val facilityNote = info.nearbyStations && !pick.facilityKnown && days != null && rain == false
+            speaker.say(TripLines.fuelOffer(fuel, pick.place.name, days, rain, info.nearbyStations) +
+                if (facilityNote) " ${TripLines.FACILITY_UNCONFIRMED}" else "")
         }
-        if (navi.startRoute(destination) == null) { // → 로직 이동: NaviPort.startRoute()
-            speaker.say(TripLines.ROUTE_FAILED)
-            return@withLock
-        }
-        currentRoute.start(destination)
-        speaker.say(TripLines.routeStarted(destination.name))
-        val state = car.state.value // 지금 차 상태
-        val fuel = state.fuelPercent // 연료(%), 모르면 null
-        if (fuel == null || fuel > LOW_FUEL_PERCENT || !state.stopped) return@withLock
-        val pick = pickStation(info.gasStations()) ?: return@withLock // 넣을 주유소, 못 찾으면 묻지 않는다
-        offered = pick
-        val days = if (pick.carWash) washDays() else null // 세차도 권할 때 마지막 세차 뒤 날 수, 아니면 null
-        asking.ask(fuelQuestion(pick, fuel, days)) // → 로직 이동: Asking.ask()
-        speaker.say(TripLines.fuelOffer(fuel, pick.place.name, days))
     }
 
     /**
@@ -150,23 +232,25 @@ class TripDialog(
      * 근거: 인용 — docs/SCREEN.md 6장 2단계, 2026-11-13 박건준 2차 업그레이드
      *       지시(세차 조건이 안 맞을 때 카드)
      */
-    private fun fuelQuestion(pick: GasStation, fuel: Int, days: Long?): Question {
+    private fun fuelQuestion(pick: GasStation, fuel: Int, days: Long?, rain: Boolean?): Question {
         val name = pick.place.name // 주유소 이름, 설명에서 굵게
         val fuelFact = Fact("fuel", TripLines.fuelFact(fuel)) // 연료 근거 칸
-        if (days == null) {
+        if (days == null || rain != false) {
             return Question(
                 kind = QuestionKind.FUEL_STOP,
                 title = TripLines.FUEL_TITLE,
-                detail = TripLines.fuelDetail(name, carWash = false),
+                detail = detailWithSource(pick, false),
                 emphasis = name,
-                facts = listOf(fuelFact),
+                facts = listOf(fuelFact) + if (days != null) listOf(
+                    Fact("calendar", TripLines.washFact(days)), Fact("sun", TripLines.rainFact(rain)),
+                ) else emptyList(),
                 choices = listOf(Choice(TripLines.FUEL_YES, Reply.YES), Choice(TripLines.NO_THANKS, Reply.NO)),
             )
         }
         return Question(
             kind = QuestionKind.FUEL_STOP,
             title = TripLines.FUEL_WASH_TITLE,
-            detail = TripLines.fuelDetail(name, carWash = true),
+            detail = detailWithSource(pick, true),
             emphasis = name,
             facts = listOf(
                 fuelFact,
@@ -177,12 +261,20 @@ class TripDialog(
         )
     }
 
+    /** 함수: detailWithSource
+     * 목적: 가짜 예보를 실제 예보와 혼동하지 않게 카드에도 출처를 남긴다.
+     */
+    private fun detailWithSource(station: GasStation, carWash: Boolean) =
+        TripLines.fuelDetail(station.place.name, carWash && station.facilityKnown, info.nearbyStations) +
+            (station.distanceM?.let { " · 약 ${it}m" } ?: "") +
+            (if (info.nearbyStations && !station.facilityKnown) " · ${TripLines.FACILITY_UNCONFIRMED}" else "") +
+            (info.weatherSource?.let { " · $it" } ?: "")
+
     /**
      * 작성: 2026-11-13 03:25:00 · 박건준
      * 함수: washDays
      * 목적: 세차를 권할 때인지 보고, 그렇다면 마지막 세차 뒤 날 수를 준다.
-     *       마지막 세차가 `WASH_DUE_DAYS`일 이상 전이고 `RAIN_DAYS`일 안에 비
-     *       소식이 없을 때다. 마지막 세차일·날씨를 모르면 권하지 않는다.
+     *       마지막 세차가 `WASH_DUE_DAYS`일 이상 전일 때다. 마지막 세차일을 모르면 권하지 않는다. 날씨는 별도로 조회한다.
      * 반환: 마지막 세차 뒤 날 수. 권하지 않으면 null
      * 근거: 인용 — Tab 1 2장 모르는 사실로 판단하지 않는다. docs/SCREEN.md 6장 2단계
      */
@@ -190,7 +282,7 @@ class TripDialog(
         val last = memory.lastWashDate() ?: return null // 마지막 세차일
         val days = ChronoUnit.DAYS.between(last, today()) // 마지막 세차 뒤 날 수
         if (days < WASH_DUE_DAYS) return null
-        return if (info.rainWithin(RAIN_DAYS) == false) days else null
+        return days
     }
 
     /**
@@ -211,10 +303,15 @@ class TripDialog(
     suspend fun answer(reply: Reply): Boolean = lock.withLock {
         val q = asking.question.value?.takeIf { it.kind == QuestionKind.FUEL_STOP } // 기다리는 주유 질문
             ?: return@withLock false
+        if (reply == Reply.ALL && q.choices.none { it.reply == Reply.ALL }) {
+            speaker.say(TripLines.WASH_NOT_OFFERED)
+            return@withLock true
+        }
         if (!q.accepts(reply)) {
             asking.decline(QuestionKind.FUEL_STOP) // → 로직 이동: Asking.decline()
             offered = null
             speaker.say(TripLines.DECLINED)
+            stageValue.value = TripStage.COMPLETE
             return@withLock true
         }
         asking.answered(QuestionKind.FUEL_STOP) // → 로직 이동: Asking.answered()
@@ -247,9 +344,16 @@ class TripDialog(
             if (added == null) {
                 log(if (answered) "경유지 넣기 실패: ${pick.place.name}" else "경유지 넣기 20초 넘김: ${pick.place.name}")
                 asking.notice(TripLines.WAYPOINT_FAILED_NOTICE)
+                stageValue.value = TripStage.COMPLETE
+                return
+            }
+            if (wash && !added.arrivalTracked) {
+                asking.notice(TripLines.ARRIVAL_UNAVAILABLE)
+                stageValue.value = TripStage.COMPLETE
                 return
             }
             if (wash) booking.reserve()
+            stageValue.value = if (wash) TripStage.RESERVED else TripStage.COMPLETE
             asking.notice(if (wash) TripLines.WAYPOINT_WASH_NOTICE else TripLines.WAYPOINT_NOTICE)
         } finally {
             asking.work(false)
@@ -265,6 +369,10 @@ class TripDialog(
      * 반환: 고른 주유소. 목록이 비었으면 null
      * 근거: 인용 — Tab 1 4.3 시나리오 ① #2 "가격이 괜찮고 세차도 되는"
      */
-    private fun pickStation(stations: List<GasStation>): GasStation? =
-        stations.filter { it.carWash }.minByOrNull { it.priceWon } ?: stations.minByOrNull { it.priceWon }
+    private fun pickStation(stations: List<GasStation>): GasStation? = if (info.nearbyStations) {
+        stations.minByOrNull { it.distanceM ?: Int.MAX_VALUE }
+    } else {
+        stations.filter { (it.priceWon ?: 0) > 0 && it.carWash && it.facilityKnown }.minByOrNull { it.priceWon!! }
+            ?: stations.filter { (it.priceWon ?: 0) > 0 }.minByOrNull { it.priceWon!! }
+    }
 }

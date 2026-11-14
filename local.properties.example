@@ -1,0 +1,4 @@
+# Copy these entries into the Git-ignored local.properties using your API keys.
+sunstone.kakao.restKey=
+# Gasoline demo assumption: B027. Diesel: D047. This does not change the emulator vehicle.
+sunstone.fuel.code=B027

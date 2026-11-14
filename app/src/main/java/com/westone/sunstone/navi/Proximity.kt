@@ -79,6 +79,10 @@ class Proximity(context: Context) : AutoCloseable {
             suspendCancellableCoroutine { cont ->
                 val listener = object : ProximityAlertListener { // 등록 확인과 들어감·나감
                     override fun onRegistered(alertId: String) {
+                        if (!cont.isActive) {
+                            runCatching { fused.removeProximityAlert(alertId) }
+                            return
+                        }
                         synchronized(ids) { ids += alertId }
                         if (cont.isActive) cont.resume(alertId)
                     }

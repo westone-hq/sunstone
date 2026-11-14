@@ -18,7 +18,13 @@ data class GeoPoint(val lat: Double, val lng: Double)
  *       point — 좌표
  *       kind — 장소의 성격(집, 유치원 …). 모르면 `Place.NONE`
  */
-data class PlaceHit(val name: String, val point: GeoPoint, val kind: Place = Place.NONE)
+data class PlaceHit(
+    val name: String,
+    val point: GeoPoint,
+    val kind: Place = Place.NONE,
+    val address: String = "",
+    val source: String? = null,
+)
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
@@ -30,16 +36,24 @@ data class PlaceHit(val name: String, val point: GeoPoint, val kind: Place = Pla
  * 근거: 측정 — 통행료는 경로 시작·경유지 변경 이벤트에만 맞는 값이 온다
  *       (docs/api-spike.md 통행료 행)
  */
-data class RouteSummary(val distanceM: Int, val durationSec: Int, val tollWon: Int)
+data class RouteSummary(
+    val distanceM: Int, val durationSec: Int, val tollWon: Int, val arrivalTracked: Boolean = true,
+)
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
  * 클래스: GasStation
  * 목적: 주유소 하나.
  * 인자: place — 이름과 좌표
- *       priceWon — 휘발유 1리터 가격(원)
- *       carWash — 세차할 수 있으면 true
+ *       priceWon — 고정 시연 자료의 가격(원). 카카오 검색은 가격을 제공하지 않아 null이다
+ *       carWash — 세차 시설 존재가 확인되면 true. 자동세차·영업 여부는 의미하지 않는다
  * 근거: 측정 — 오피넷 상세정보 API에 세차 여부(`CAR_WASH_YN`)가 있다
  *       (Tab 1 7장 확인할 것 6번)
  */
-data class GasStation(val place: PlaceHit, val priceWon: Int, val carWash: Boolean)
+data class GasStation(
+    val place: PlaceHit,
+    val priceWon: Int?,
+    val carWash: Boolean,
+    val facilityKnown: Boolean = true,
+    val distanceM: Int? = null,
+)

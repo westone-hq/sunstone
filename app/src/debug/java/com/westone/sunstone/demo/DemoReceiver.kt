@@ -83,6 +83,19 @@ class DemoReceiver : BroadcastReceiver() {
         val g = context.graph // 앱 조립부
         Log.i("SunstoneDemo", "cmd=$cmd")
         when (word) {
+            "weather" -> {
+                when (arg) {
+                    "live" -> {
+                        g.useLiveWeather()
+                        g.speaker.say("실제 Open-Meteo 날씨 모드예요.")
+                    }
+                    "dry", "rain", "unknown" -> {
+                        g.tripInfo = DemoWeather(arg)
+                        g.speaker.say("테스트용 날씨 모드예요. 실제 예보가 아니에요. $arg")
+                    }
+                    else -> Log.w("SunstoneDemo", "weather live|dry|rain|unknown")
+                }
+            }
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
              * 수정: 2026-11-09 18:49:00 · 박건준

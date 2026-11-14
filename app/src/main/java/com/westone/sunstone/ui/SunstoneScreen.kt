@@ -85,6 +85,7 @@ fun SunstoneScreen(graph: AppGraph) {
     val fuel = graph.pleos?.fuel?.collectAsStateWithLifecycle()?.value // 연료 값, 가짜 차면 null
     val chat by graph.chat.collectAsStateWithLifecycle() // 대화 기록
     val overlay by graph.overlayShown.collectAsStateWithLifecycle() // 왼쪽 구역 창이 떠 있는지
+    val destinations by graph.trip.destinations.collectAsStateWithLifecycle() // 사용자 선택 대기 후보
 
     MaterialTheme(colorScheme = darkColorScheme()) {
         Box(Modifier.fillMaxSize()) {
@@ -98,9 +99,22 @@ fun SunstoneScreen(graph: AppGraph) {
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 StatusLine(car, fuel, graph.usingFakeCar || graph.pleos == null)
+                Text(graph.externalModeLabel, color = Color.LightGray, fontSize = 14.sp)
                 graph.scenes?.let { SceneBar(it) }
                 ChatLog(chat)
                 SayBox(graph)
+                if (!driving && destinations.isNotEmpty()) {
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text("목적지를 선택해 주세요")
+                            destinations.forEachIndexed { index, place ->
+                                OutlinedButton(onClick = { graph.chooseDestination(index) }) {
+                                    Text("${index + 1}. ${place.name}\n${place.address}")
+                                }
+                            }
+                        }
+                    }
+                }
 
                 ui.suggestion?.let { s ->
                     Card(Modifier.fillMaxWidth()) {
@@ -460,7 +474,7 @@ private fun SceneBar(scenes: SceneControls) {
             return@Row
         }
         // → 로직 이동: SceneControls.next()
-        Button(onClick = { scenes.next() }, enabled = !s.busy && !s.last) {
+        Button(onClick = { scenes.next() }, enabled = !s.busy && !s.last && s.canAdvance) {
             Text(stringResource(if (s.busy) R.string.scene_preparing else R.string.scene_next))
         }
         // → 로직 이동: SceneControls.restart()

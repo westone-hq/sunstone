@@ -117,6 +117,9 @@ object PhraseMatcher {
         // "세차도 할게"는 세차 모드 켜기가 아니라 주유 질문의 대답이라 루틴 낱말보다 먼저 본다
         if (ALL_WORDS.any { it in compact }) return VoiceAction.Answer(Reply.ALL)
         if (ONLY_WORDS.any { it in compact }) return VoiceAction.Answer(Reply.ONLY)
+        if (compact in setOf("응주유할게", "주유할게", "응주유할게요", "주유소경유")) {
+            return VoiceAction.Answer(Reply.ONLY)
+        }
 
         seatOf(text, compact)?.let { return it } // → 로직 이동: PhraseMatcher.seatOf()
 

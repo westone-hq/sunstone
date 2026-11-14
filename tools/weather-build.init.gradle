@@ -1,0 +1,5 @@
+// OneDrive가 기존 build 산출물을 잠글 때만 사용하는 별도 빌드 디렉터리.
+gradle.beforeProject { project ->
+    def root = new File(System.getenv('TEMP'), 'sunstone-weather-build')
+    project.layout.buildDirectory.set(new File(root, project.name))
+}
