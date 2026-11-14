@@ -88,8 +88,8 @@ dependencies {
     implementation(libs.fused.location)
     // Pleos 음성 합성(앱이 하는 말, ON_DEVICE).
     implementation(libs.pleos.tts)
-    // Pleos 음성 인식. 지금은 debug 실측(`speech`)만 쓴다.
-    debugImplementation(libs.pleos.stt)
+    // Pleos 음성 인식(운전자 말, ON_DEVICE).
+    implementation(libs.pleos.stt)
     implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.androidx.core.ktx)

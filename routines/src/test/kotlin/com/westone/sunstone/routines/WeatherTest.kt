@@ -79,7 +79,8 @@ class WeatherTest {
      * 함수: 비가 오는 가장 가까운 날을 준다
      * 목적: 9일치 시간별 예보에서 비가 1·3·4일 뒤 낮에 오면 그 날 수를, 8일 뒤나
      *       없으면 "7일 동안 비 없음"을, 오늘 남은 시간에 오면 0을 주는지 본다.
-     *       자료가 중간에 끊기면 모르는 것으로 본다(docs/SPEC.md 4장).
+     *       판단할 수 없는 날은 건너뛰어 뒤의 비를 찾고, 비를 못 찾았으면 모르는
+     *       것으로 본다(docs/SPEC.md 4장).
      */
     @Test fun `비가 오는 가장 가까운 날을 준다`() {
         val zone = java.time.ZoneId.of("Asia/Seoul") // 날짜를 가르는 시간대
@@ -94,5 +95,8 @@ class WeatherTest {
         assertNull(RainPolicy.outlook(now, 7, rainOn(8), zone)!!.day)
         assertNull(RainPolicy.outlook(now, 7, dry.take(100), zone))
         assertEquals(1, RainPolicy.outlook(now, 7, rainOn(1).take(100), zone)!!.day)
+        val cloudy = rainOn(3).also { it[12] = it[12].copy(probability = 70.0) } // 오늘 낮 형태 불명, 3일 뒤 비
+        assertEquals(3, RainPolicy.outlook(now, 7, cloudy, zone)!!.day)
+        assertNull(RainPolicy.outlook(now, 7, dry.toMutableList().also { it[12] = it[12].copy(probability = 70.0) }, zone))
     }
 }

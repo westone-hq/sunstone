@@ -211,7 +211,7 @@ docs/SCREEN.md 6장(2차 시안)대로 카드·판을 다시 짜고 대사집 S1
 
 ## Pleos 음성 SDK (2026-11-13, 박희정)
 
-공모전 FAQ의 사용 가능 SDK `ai.pleos.playground:TextToSpeech`·`SpeechToText` 3.3.1(debug 의존성)을 debug 실측 `SpeechProbe`(데모 `speech [tts|stt|mic] [모드]`, logcat `SunstoneVoice` `speech,` 줄)로 잰 것. 둘 다 에뮬레이터 음성 서비스 `ai.pleos.playground.caas`(4.2.10, SDK 요구 4.1.29 이상)에 붙는다.
+공모전 FAQ의 사용 가능 SDK `ai.pleos.playground:TextToSpeech`·`SpeechToText` 3.3.1을 debug 실측 `SpeechProbe`(데모 `speech [tts|stt|mic] [모드]`, logcat `SunstoneVoice` `speech,` 줄)로 잰 것. 둘 다 에뮬레이터 음성 서비스 `ai.pleos.playground.caas`(4.2.10, SDK 요구 4.1.29 이상)에 붙는다.
 
 | 무엇 | 결과 | 시연 표기 | 메모 |
 |---|---|---|---|
@@ -221,3 +221,20 @@ docs/SCREEN.md 6장(2차 시안)대로 카드·판을 다시 짜고 대사집 S1
 | STT ON_DEVICE | 됨. 16kHz로 녹음해 중간·최종 결과를 준다. "세차할게"를 "시작할게"로 들음(1회) | 실제 | 에뮬레이터를 `-allow-host-audio`로 켜야 한다. 없으면 마이크 입력이 모두 0(앱 `AudioRecord` 진폭 0)이고 `emu avd hostmicon`만으로는 열리지 않는다. 인식 어휘 보강용 `LMBoostConfig`(phrases, triggers)가 SDK 안에 있으나 공개 함수로 넣는 길은 아직 못 찾음 |
 | STT `stop()` | 앞 실측의 듣기 작업이 `stop()`·`release()` 뒤에도 20분 넘게 녹음을 계속함(`readCnt=13015`) | — | 붙일 때 듣기를 끝내는 방법을 다시 확인한다 |
 | 앱 말을 Pleos TTS로 | `VoicePlayer`가 ON_DEVICE TTS로 읽음. 시나리오 ① S1 두 문장이 순서대로 나오고, 첫 말의 끝 알림(`onDone`) 0.2초 뒤 다음 말 시작 | 실제 | 앱을 켜고 TTS 준비까지 약 4초. 8초 안에 준비되지 않으면 준비될 때까지 녹음본으로 낸다. 끝 알림이 오지 않으면 6초 + 글자당 0.25초 뒤 넘어간다. 운전자 대사는 그대로 녹음본 |
+| 운전자 말을 Pleos STT로 (2026-11-14, 박건준) | `PleosEar`가 듣는 중 줄이 떠 있고 앱이 말하지 않는 동안 ON_DEVICE로 듣는다. 부르는 카드를 열면 음성 서비스가 Sunstone 요청으로 인식을 시작하고(`recognize(com.westone.sunstone)`), 카드를 닫으면(`stop()`) 인식 로그가 멈춘다 | 실제(시연 밖) | 이 PC에서는 마이크로 말해 볼 수 없어 **알아들은 글자까지는 확인하지 못했다**. 시연 모드는 운전자 녹음본이 말을 넣고 STT는 켜지 않는다(같은 대사가 두 번 들어가지 않게). 마이크 권한(`RECORD_AUDIO`)은 첫 실행 때 묻는다 |
+| release 빌드의 음성 | TextToSpeech·SpeechToText를 `implementation`으로 넣어 release APK에도 들어간다. release APK로 시나리오 ①②③의 앱 말이 Pleos TTS로 나왔다 | 실제 | TTS가 8초 안에 준비되지 않으면 그 문장은 녹음본으로 낸다 |
+
+## 바깥 정보: 주유소·목적지·날씨 (2026-11-14, 박희정·박건준)
+
+시연 모드가 도는 동안은 준비 값(`FixedInfo`: 주유소 세 곳, 7일 동안 비 없음)을 쓰고, 그 밖에서는 아래 실제 값을 쓴다(`LiveInfo`). 키는 `local.properties` → `tools/configure-api.ps1` → 기기 안 `api.properties`로만 넣고 저장소·APK에는 넣지 않는다.
+
+| 무엇 | 결과 | 시연 표기 | 메모 |
+|---|---|---|---|
+| 목적지 후보 | 카카오 로컬 키워드 검색(`search/keyword.json`, 5곳). "강남역으로 안내해 줘" → 후보 5곳이 왼쪽 카드에 뜨고 "1번"이나 줄 누름으로 고르면 그 좌표로 내비 경로 시작 | 실제(시연 밖) | 후보가 하나면 바로 시작. 검색이 안 되면 시연 장소 목록에서 찾는다 |
+| 근처 주유소 가격 | 오피넷 `aroundAll.do`(반경 5000m, 가격순, 좌표는 KATEC). 양재 근처에서 최저가 "방배동주유소" 1,829원을 받음 | 실제(시연 밖) | WGS84↔KATEC은 카카오 `geo/transcoord.json`(KTM)으로 바꾼다. 싼 5곳만 상세를 받는다 |
+| 세차 시설 여부 | 오피넷 `detailById.do`의 `CAR_WASH_YN` | 실제(시연 밖) | 자동 세차기인지, 지금 영업하는지는 알 수 없다 |
+| 오피넷을 못 쓸 때 | 카카오 카테고리 검색(주유소 `OL7`, 반경 5km, 가까운 순). 가격·세차 여부가 없어 가장 가까운 곳으로 주유만 묻는다 | 실제(시연 밖) | 2026-11-14 오전에는 오피넷이 빈 목록을 줬고(키 문제로 보임) 새 키로는 값이 왔다 |
+| 비 예보 | Open-Meteo Forecast(`hourly` 강수확률·비·소나기·눈·날씨 코드, 9일, 키 없음). 세차할 주유소 좌표로 물어 "3일 뒤 비"를 받았고 카드에 "3일 뒤 비 예보"가 보였다 | 실제(시연 밖) | 한 시간 비 0.5mm 이상이거나 강수확률 60% 이상 + 비 코드면 비. 판단할 수 없는 날(눈, 형태 불명)은 건너뛰고, 비를 못 찾았는데 그런 날이 있으면 날씨 칸을 뺀다. 에뮬레이터에서 첫 요청이 시간 초과(4초)될 때가 있어 한 번 다시 시도하고, 그래도 안 되면 날씨 없이 세차일만으로 판단한다 |
+| 지금 위치 | FusedLocation 새 위치 한 번(4초 안) | 실제 | 에뮬레이터는 `adb emu geo fix`로 넣은 자리 |
+| 고른 주유소 도착 | 경유지로 넣을 때 그 좌표에 근접 알림(150m)을 건다 | 실제(시연 밖) | 등록이 안 되면 세차는 예약하지 않는다. 주유소 안 두 번째 정차를 세차 입구로 보는 것은 시연과 같다 |
+| release APK에서 실제 값 | 키를 넣을 길이 없다(`run-as`는 debug 앱만, 에뮬레이터 사용자 10의 바깥 저장소는 adb로 쓸 수 없음). 키가 없으면 목적지는 시연 장소 목록에서 찾고 주유는 묻지 않는다 | — | 심사용 APK는 시연 모드(준비 값)로 본다. 실제 값은 debug 빌드로 확인했다 |

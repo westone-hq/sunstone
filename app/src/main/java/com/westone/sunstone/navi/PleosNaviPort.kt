@@ -7,15 +7,22 @@ import com.westone.sunstone.routines.port.NaviPort
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
- * 수정: 2026-11-13 10:00:00 · 박희정
+ * 수정: 2026-11-14 13:41:10 · 박희정
+ * 수정: 2026-11-14 17:00:00 · 박건준
  * 클래스: PleosNaviPort
  * 목적: 기능 쪽 내비 창구(`NaviPort`)를 Pleos 내비(`PleosNavi`)로 채운다.
- *       값 모양만 바꿔 넘기고 판단은 하지 않는다.
+ *       값 모양만 바꿔 넘기고 판단은 하지 않는다. 목적지는 실제 검색(카카오)
+ *       후보를 주고, 시연 중이거나 검색이 안 되면 시연 장소 목록에서 찾는다.
  * 인자: navi — Pleos 내비
  *       places — 이름으로 찾을 수 있는 시연 장소(`PlaceWatcher.spots`). 장소의
  *       성격(집·유치원)도 함께 넘긴다
- * 목적: 실제 검색은 카카오 후보 목록으로 확장하며, 실패하면 출처를 밝힌 고정 목록으로 대체한다.
- * 미구현: 키·통신 또는 기기 내비 서비스가 없으면 실제 길안내 성공을 검증할 수 없다.
+ *       search — 실제 장소 검색. 없으면 시연 장소만 쓴다
+ *       selectedStation — 경유지로 넣은 주유소에 도착 알림을 거는 곳
+ *       searchEnabled — 지금 실제 검색을 쓰는지(시연 중이면 false)
+ *       clearStation — 새 경로를 시작할 때 앞 주유소 알림을 지우는 곳
+ * 미구현: 프로토타입이라 키·통신이 없으면 목적지를 시연 장소 고정 목록
+ *       (assets/places.json)에서만 찾는다. 목록에 없으면 `TripDialog`가 "찾지
+ *       못했어요"로 안내한다
  */
 class PleosNaviPort(
     private val navi: PleosNavi,

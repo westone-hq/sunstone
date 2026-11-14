@@ -35,6 +35,9 @@
     <uses-permission android:name="pleos.car.permission.FUSED_LOCATION" />
     <!-- Pleos 음성 합성(앱이 하는 말, VoicePlayer). protection normal -->
     <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <!-- Pleos 음성 인식(운전자 말, PleosEar). STT_SERVICE는 protection normal, 마이크는 MainActivity에서 요청 -->
+    <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- 길안내·루틴 중 앱을 깨어 있게 하는 포그라운드 서비스(Android 14: 종류를 밝힌다)와 그 알림(런타임 권한) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />

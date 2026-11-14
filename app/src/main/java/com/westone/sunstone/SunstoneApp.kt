@@ -8,6 +8,7 @@ import com.westone.sunstone.car.AaosSpeedSource
 import com.westone.sunstone.car.PleosCarPort
 import com.westone.sunstone.connect.AndroidSpeaker
 import com.westone.sunstone.connect.KeepAwakeService
+import com.westone.sunstone.connect.PleosEar
 import com.westone.sunstone.connect.PrefsMemory
 import com.westone.sunstone.connect.PrefsSeatProfiles
 import com.westone.sunstone.demo.ScenePlayer
@@ -67,6 +68,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -449,9 +452,19 @@ class AppGraph(val app: Context) {
         onFuelTypes = { types -> pleos?.onFuelTypes(types) }, // → 로직 이동: PleosCarPort.onFuelTypes()
     )
 
+    /** 운전자 말 듣기(Pleos 음성 인식). 들은 말은 `hear()`로 들어온다 */
+    private val ear = PleosEar(app) { text -> hear(text, Source.VOICE) }
+
     init {
         watchArrivals()
         scope.launch { trip.destinations.collect { placesShown?.value = it } }
+        // 듣는 중 줄이 떠 있고 앱이 말하지 않는 동안만 듣는다(앱 말을 스스로 듣지 않게). 시연 중에는
+        // 운전자 녹음본이 말을 넣으므로 듣지 않는다
+        scope.launch {
+            combine(panels.listening, voice.speaking, scenes.current) { on, speaking, scene ->
+                on && !speaking && scene == null
+            }.distinctUntilChanged().collect { ear.listen(it) } // → 로직 이동: PleosEar.listen()
+        }
     }
 
     /**
@@ -672,7 +685,7 @@ class AppGraph(val app: Context) {
      * 작성: 2026-11-13 20:00:00 · 박건준
      * 함수: switchRoutine
      * 목적: 부르는 카드의 루틴 줄을 눌렀을 때. 켜져 있으면 원래대로 돌리고,
-     *       아니면 켠다. 시트 맞추기는 말로 맞추는 대화("시트 좀 맞춰 줘")를
+     *       아니면 켠다. 시트 메모리는 말로 맞추는 대화("시트 좀 맞춰 줘")를
      *       시작한다.
      * 인자: id — 루틴
      *       on — 지금 켜져 있으면 true

@@ -81,8 +81,10 @@ object RainPolicy {
      * 작성: 2026-11-14 16:00:00 · 박건준
      * 함수: outlook
      * 목적: 오늘(지금부터 자정까지)부터 [days]일 뒤까지 날마다 `assess()`로 보고
-     *       비가 오는 가장 가까운 날을 준다. 그 전에 판단할 수 없는 날(자료
-     *       누락, 눈)이 있으면 날씨를 모르는 것으로 본다.
+     *       비가 오는 가장 가까운 날을 준다. 판단할 수 없는 날(자료 누락, 눈,
+     *       강수 형태 불명)은 건너뛰고 뒤의 날을 더 본다. 비를 찾지 못했는데
+     *       판단할 수 없는 날이 있었으면 날씨를 모르는 것으로 본다("비 없음"이라
+     *       말하지 않는다).
      * 인자: now — 지금
      *       days — 볼 기간(일). 7이면 오늘과 그 뒤 7일
      *       hours — 시간별 예보
@@ -93,16 +95,17 @@ object RainPolicy {
      */
     fun outlook(now: Instant, days: Int, hours: List<ForecastHour>, zone: ZoneId): RainOutlook? {
         val today = now.atZone(zone).toLocalDate() // 오늘 날짜
+        var unsure = false // 판단할 수 없는 날이 있었는지
         for (day in 0..days) {
             val start = if (day == 0) now else today.plusDays(day.toLong()).atStartOfDay(zone).toInstant() // 그날 시작
             val end = today.plusDays(day + 1L).atStartOfDay(zone).toInstant() // 그날 끝(다음 날 0시)
             when (assess(start, end, hours).status) {
                 RainStatus.RAIN_EXPECTED -> return RainOutlook(day)
-                RainStatus.UNKNOWN -> return null
+                RainStatus.UNKNOWN -> unsure = true
                 RainStatus.NO_RAIN_EXPECTED -> Unit
             }
         }
-        return RainOutlook(null)
+        return if (unsure) null else RainOutlook(null)
     }
 
     /** 함수: unknown

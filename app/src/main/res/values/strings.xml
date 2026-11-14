@@ -83,7 +83,7 @@
     </string-array>
     <string name="gleo_navigate">%1$s 길안내</string>
     <string name="gleo_ask">기능 설명</string>
-    <string name="gleo_seat">시트 맞추기</string>
+    <string name="gleo_seat">시트 메모리</string>
 
     <!-- 차 제어 단계가 안내로 바뀐 이유(실행 기록에 보인다) -->
     <string name="car_unsupported">이 차에서는 지원하지 않아요</string>

@@ -42,6 +42,8 @@ function Send-Lines([string]$arguments) {
     $process = [Diagnostics.Process]::Start($start)
     $outputTask = $process.StandardOutput.ReadToEndAsync()
     $errorTask = $process.StandardError.ReadToEndAsync()
+    # PowerShell 5.1은 표준 입력 맨 앞에 BOM을 붙인다. 첫 줄을 주석으로 써서 키 이름에 붙지 않게 한다
+    $process.StandardInput.Write("# Sunstone API keys`n")
     foreach ($line in $lines) { $process.StandardInput.Write("$line`n") }
     $process.StandardInput.Close()
     if (-not $process.WaitForExit(10000)) { $process.Kill(); return $false }

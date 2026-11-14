@@ -195,7 +195,7 @@ class PanelPresenter(
         /**
          * 작성: 2026-11-13 20:00:00 · 박건준
          * 변수: CALL_ROWS
-         * 목적: 부르는 카드 루틴 세 줄. 세차 모드, 차일드락, 시트 맞추기(시트는
+         * 목적: 부르는 카드 루틴 세 줄. 세차 모드, 차일드락, 시트 메모리(시트는
          *       저장한 자세 루틴이 켜짐을 정한다).
          * 근거: 인용 — 앱 화면 시안 sunstone-app.html `ROUT`
          */
@@ -280,6 +280,10 @@ class PanelPresenter(
     /** 왼쪽 구역에 그릴 것 전부(값이 바뀌면 알려주는 상태) */
     val ui: StateFlow<ScreenUi> = combine(card, listen, toast) { c, l, t -> ScreenUi(c, l, t) }
         .stateIn(scope, SharingStarted.Eagerly, ScreenUi(null, ListenUi(ListenState.OFF), null))
+
+    /** 듣는 중 줄("듣고 있어요")이 떠 있으면 true(값이 바뀌면 알려주는 상태). 음성 인식을 켜고 끄는 데 쓴다 */
+    val listening: StateFlow<Boolean> = listen.map { it.state == ListenState.LISTENING }
+        .stateIn(scope, SharingStarted.Eagerly, false)
 
     init {
         scope.launch { asking.question.collect { onQuestion(it) } }
@@ -375,9 +379,9 @@ class PanelPresenter(
      *       불렀을 때. 질문 카드가 떠 있으면 대답을 듣고, 아니면 부르는 카드를
      *       띄우고 카드가 떠 있는 동안 듣는다. 시연 모드에서 운전자 대사
      *       녹음본을 낼 때도 부른다.
-     * 미구현: 프로토타입이라 마이크 칸은 듣는 중 줄만 띄우고 음성 인식은 하지
-     *       않는다. 에뮬레이터에 마이크 입력이 없어 말은 시연 녹음본·adb `say`로
-     *       넣는다(docs/api-spike.md 음성 인식 행)
+     * 미구현: 프로토타입이라 시연 모드에서는 음성 인식 대신 운전자 녹음본이 말을
+     *       넣는다. 시연 밖에서는 듣는 중 줄이 떠 있는 동안 Pleos 음성 인식이
+     *       듣는다(`PleosEar`, docs/api-spike.md Pleos 음성 SDK 표)
      */
     fun tapMic() {
         if (shown.value != null) return startListening()
