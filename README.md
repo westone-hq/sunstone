@@ -11,7 +11,7 @@ Pleos Connect 앱 · Android (Kotlin, Jetpack Compose) · 2026 현대자동차�
 | 항목 | 내용 |
 |---|---|
 | 앱 이름 | Sunstone (`com.westone.sunstone`) |
-| APK | [`apk/westone_Sunstone_release.apk`](apk/westone_Sunstone_release.apk) |
+| APK | [`apk/westone_Sunstone_release.apk`](apk/westone_Sunstone_release.apk)](https://github.com/westone-hq/sunstone/releases/tag/v1.0.0) |
 | 에뮬레이터 | **Pleos Connect v2.1.0** (시스템 이미지 Pleos Connect v2.1.0 APIs, API 34) |
 | 화면 규격 | **2560×1440, 160dpi** (왼쪽 주행 화면 구역 853×1300, 상태줄 90, 하단 막대 140) |
 | Android | minSdk 28, target/compileSdk 35 |
