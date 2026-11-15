@@ -30,7 +30,7 @@ class PlaceWatcher(
          * 작성: 2026-11-11 12:04:00 · 박건준
          * 변수: TAG
          * 목적: 위치 관련 logcat 태그.
-         * 근거: 표준 — 주석·코드 규칙 10-2 로그 태그 넷
+         * 근거: 표준 — 로그 태그는 Sunstone·SunstoneCar·SunstoneVoice·SunstoneDemo 넷
          */
         const val TAG = "SunstoneCar"
 

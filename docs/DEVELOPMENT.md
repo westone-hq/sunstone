@@ -1,22 +1,26 @@
-# Sunstone 구조
+# Sunstone 개발 내용
 
-현대차에 이미 있지만 안 쓰이는 기능을, 상황을 알아채거나 말 한마디로 한 번에 실행하고 끝나면
-원래대로 돌리는 Pleos Connect 앱이다.
-
-> 상태: 지금 들어 있는 루틴·문장·판단 숫자는 전부 **초안(미승인)** 이다.
-> 기능은 박건준 승인을 받으며 하나씩 다시 만든다(`CONTRIBUTING.md`). 승인 전에는 늘리거나 다듬지 않는다.
+차에 이미 있지만 잘 쓰이지 않는 기능을, 필요한 순간에 운전자에게 먼저 권하고 말 한마디로 켜고 끄는 차량 루틴 앱이다.
+무엇을 만드는지와 세부 규칙은 [SPEC.md](SPEC.md), 써 보는 방법은 [GUIDE.md](GUIDE.md)에 있다. 이 문서는 어떻게 만들었는지를 적는다.
 
 ---
 
-## 1. 두 영역과 담당
+## 1. 두 모듈
 
-| 영역 | 모듈 | 담당 | 한 줄 |
-|---|---|---|---|
-| ① 기능 구현 | `routines/` | 박희정 | 무엇을, 언제 할지 정한다. 순수 Kotlin, 차 없이 테스트한다 |
-| ② 앱 연결 | `app/` | 박건준 | 어떻게 할지 맡는다. Pleos SDK·내비·바깥 API·음성·화면 |
-| 시연·결정 | — | 박건준 | 시연 빌드, 시연 영상, 루틴·문장·숫자 최종 결정 |
+| 모듈 | 하는 일 |
+|---|---|
+| `routines/` | 무엇을, 언제 할지 정한다(루틴, 권하는 규칙, 대화, 말 알아듣기). 순수 Kotlin이라 안드로이드·Pleos 없이 테스트로 끝까지 돈다 |
+| `app/` | 어떻게 할지 맡는다. Pleos SDK(차·내비·위치·음성), 바깥 API, 왼쪽 구역 카드, 시연 모드 |
 
-두 영역이 만나는 곳은 **창구(포트)** 몇 개뿐이다(3장). 창구를 바꿀 때만 두 사람이 합의한다.
+두 모듈이 만나는 곳은 **창구(포트)** 몇 개뿐이다(3장). `routines/`는 창구만 알고, `app/`이 실제 SDK·API로 창구를 채운다.
+
+지킨 원칙
+
+- 차를 바꾸는 일은 "원래 값 저장 → 실행 → 다시 읽어 확인" 순서로 하고, 실패한 단계만 음성 안내로 바꾼 뒤 루틴은 계속 간다.
+- 되돌리기는 저장한 원래 값으로 한다. 창문은 다시 열지 않고 문 잠금은 풀지 않는다.
+- 차를 바꾸는 일은 정차 중에만, 시트는 P단에서만 한다.
+- 실행 결정은 규칙으로 한다. 판단에 쓰는 숫자는 이름 붙인 상수로 두고 근거를 주석에 적었다.
+- 프로토타입이라 조작하거나 우회한 곳은 주석 `미구현: 프로토타입이라 …`에 이유를 적었다.
 
 ---
 
@@ -25,12 +29,12 @@
 ```
 sunstone/
 ├─ README.md
-├─ CONTRIBUTING.md         담당, 기능 승인, 브랜치·PR
 ├─ docs/
-│  ├─ STRUCTURE.md         이 문서
-│  ├─ COMMENT_RULES.md     주석·코드·커밋 규칙 (작업 전마다 읽는다)
-│  ├─ api-spike.md         Pleos API 실측 기록
-│  └─ SCREEN.md            화면 1차 규격, 시나리오 ① 장면별 상세
+│  ├─ SPEC.md              기능 명세(무엇을 만드는가, 세부 규칙)
+│  ├─ GUIDE.md             사용 방법(설치, 시나리오 따라 하기, 안 될 때)
+│  ├─ DEVELOPMENT.md       이 문서
+│  ├─ SCREEN.md            화면 규격, 시나리오 장면별 상세(설계 기록)
+│  └─ api-spike.md         Pleos API·바깥 API 실측 기록
 ├─ apk/                    심사용 release APK(westone_Sunstone_release.apk). assembleRelease가 복사한다
 ├─ tools/scene-move.ps1    시연 이동: geo fix 1초마다 + 콘솔 속도·기어 (시나리오 ①·②)
 ├─ tools/talk.ps1          터미널에서 말·장면(/ready1 /move1 /leave1)을 넣고 앱 대답 보기
@@ -38,7 +42,7 @@ sunstone/
 ├─ tools/make-voice.ps1    대사집 문장 → 녹음본(app assets/voice, Windows 한국어 음성),
 │                          운전자 대사 → 다른 목소리 녹음본(app assets/driver)
 │
-├─ routines/               ① 기능 구현 ─ 박희정
+├─ routines/               기능 구현(순수 Kotlin)
 │  └─ src/main/kotlin/com/westone/sunstone/routines/
 │     ├─ model/            차 상태와 기본 값(기어·창문·문·좌석·장소)
 │     ├─ port/             창구: CarPort, Speaker, SeatProfiles, NaviPort, InfoPort, MemoryPort
@@ -54,7 +58,7 @@ sunstone/
 │     ├─ script/           대사집(ScriptBook: 시나리오 ① S1~S9, ② S10~S18, ③ S19~S25). 자동 테스트·scene·[다음 장면]이 함께 쓴다
 │     └─ fake/             가짜 차·내비·바깥 정보 (테스트·시연)
 │
-└─ app/                    ② 앱 연결 ─ 박건준
+└─ app/                    앱 연결(Pleos SDK, 바깥 API, 화면, 시연 모드)
    └─ src/
       ├─ main/java/com/westone/sunstone/
       │  ├─ car/           PleosCarPort(차량 SDK·제어), Callbacks(SDK 콜백 기다리기),
@@ -89,7 +93,7 @@ sunstone/
       ├─ main/assets/      schema.json(Gleo), places.json(시연 장소 고정 목록), licenses/(글꼴 라이선스),
       │                    voice/(대사집 녹음본 <문장 MD5>.wav, tools/make-voice.ps1이 만든다),
       │                    driver/(운전자 대사 녹음본 <문장 MD5>.wav, 앱과 다른 목소리. 시연 `DriverVoice`가 낸다)
-      ├─ debug/            출시 빌드에는 없음(adb 데모 명령과 실측)
+      ├─ debug/            release 빌드에는 없음(adb 데모 명령과 실측)
       │  ├─ DemoReceiver   adb 장면 주입·실측 명령 입구(scene, washed 포함)
       │  ├─ CarProbe       probe: 제어 대상별 바꾸기·되돌리기 실측
       │  ├─ CarAreas       areas: 차가 받는 area 목록
@@ -102,16 +106,13 @@ sunstone/
       │  ├─ BeltProbe      beltprobe: 좌석별 벨트·미착용 경고·벨트 경고등
       │  ├─ ChildLockProbe childlock: 뒷문 차일드락(AAOS 속성) 읽기·쓰기
       │  └─ OverlayProbe   overlay: 왼쪽 구역 오버레이 창·키 수신 실측
-      (예정) sim/, pleos/  빌드 2종: 시연 빌드(가짜 차·고정 응답) / Pleos 빌드(실제 SDK)
 ```
-
-예정 폴더는 그 기능이 승인될 때 만든다. 빈 폴더를 미리 두지 않는다.
 
 ---
 
-## 3. 창구 (두 영역의 약속)
+## 3. 창구 (두 모듈의 약속)
 
-| 창구 | 방향 | 지금 | 예정 |
+| 창구 | 방향 | 지금 | 더할 것 |
 |---|---|---|---|
 | `CarPort` | 기능 → 차 | 상태 읽기(연료 % 포함), 값 읽기, 바꾸기 | 주행 가능 거리 |
 | `Speaker` | 기능 → 사람 | 말하기 | |
@@ -119,10 +120,9 @@ sunstone/
 | `NaviPort` | 기능 → 내비 | 목적지 찾기(시연 장소 목록), 경로 시작, 경유지 1개, 통행료 | 남은 거리, 도착 알림 |
 | `InfoPort` | 기능 → 바깥 | 주변 주유소(가격·세차), 비가 오는 가장 가까운 날. 시연 중에는 준비 값, 아니면 오피넷·카카오·Open-Meteo | 미세먼지 |
 | `MemoryPort` | 기능 → 저장소 | 마지막 세차일, 마지막 차일드락 날 | 방문 기록 |
-| `Asking` | 기능 → 화면 | 대답을 기다리는 질문(`Question`: 종류·제목·설명·굵은 낱말·근거 칸 `Fact`·할 일 칸 `QuestionRow`·고를 것 `Choice`), 토스트 문장. 고를 것은 버튼 글자와 대답 값(`Reply`: YES·ALL·ONLY·NO)이고, 첫 번째가 채운 버튼이다. `Choice.waitMs`가 있으면 그 시간 뒤 루틴 실행기가 고른 것으로 본다(세차 입구 5초). 말로 해도 버튼으로 해도 같은 `Reply`가 되고 `Question.pick()`이 버튼을 찾는다. 닫기는 늘 거절. 대답을 받아 처리하는 중(경유지 넣기)이면 `working`이 켜진다. 길안내 대화와 루틴 권하기가 함께 올리고 대답이 오면 내린다. 거절한 종류는 새 길안내 전까지 다시 묻지 않는다 | 시나리오 ②③ 질문 종류 |
+| `Asking` | 기능 → 화면 | 대답을 기다리는 질문(`Question`: 종류·제목·설명·굵은 낱말·근거 칸 `Fact`·할 일 칸 `QuestionRow`·고를 것 `Choice`), 토스트 문장. 고를 것은 버튼 글자와 대답 값(`Reply`: YES·ALL·ONLY·NO)이고, 첫 번째가 채운 버튼이다. `Choice.waitMs`가 있으면 그 시간 뒤 루틴 실행기가 고른 것으로 본다(세차 입구 5초). 말로 해도 버튼으로 해도 같은 `Reply`가 되고 `Question.pick()`이 버튼을 찾는다. 닫기는 늘 거절. 대답을 받아 처리하는 중(경유지 넣기)이면 `working`이 켜진다. 길안내 대화와 루틴 권하기가 함께 올리고 대답이 오면 내린다. 거절한 종류는 새 길안내 전까지 다시 묻지 않는다 | |
 
 - 창구는 `routines/.../port/`에 두고, 구현은 `app/`이 한다.
-- 창구 함수를 더하거나 바꾸려면 GitHub 이슈로 제안 → 상대 확인 → 박건준 결정.
 - 기능 쪽 테스트는 창구의 가짜 구현으로 돈다. 앱 쪽은 실제 SDK·API로 같은 창구를 채운다.
 
 ---
@@ -144,14 +144,39 @@ sunstone/
 
 ## 5. 빌드와 테스트
 
-| 무엇 | 명령 | 누가 |
-|---|---|---|
-| 기능 테스트 | `.\gradlew :routines:test` | 박희정 |
-| 앱 설치 | `.\gradlew :app:installDebug` | 박건준 |
-| 대사집 자동 테스트 | `.\gradlew :routines:test` 안의 `ScriptTest`(시나리오 ① S1~S9, ② S10~S18, ③ S19~S25) | 박희정 |
-| 실제 경로 확인 | 에뮬레이터 + Virtual Console | 박건준 |
+JDK 17~21이 필요하다(`JAVA_HOME`). `local.properties`에 넣을 값은 [README](../README.md)의 "테스트 환경과 필요 설정"에 있다.
 
-(예정) 빌드 2종: **시연 빌드**(가짜 차·고정 응답, 아무 에뮬레이터·폰에서 동작) / **Pleos 빌드**(실제 SDK).
+| 무엇 | 명령 |
+|---|---|
+| 기능 테스트(차 없이 규칙·대사집 전체) | `./gradlew :routines:test` |
+| 앱 단위 테스트(바깥 API 응답 흉내) | `./gradlew :app:testDebugUnitTest` |
+| debug 설치(adb 데모 명령 포함) | `./gradlew :app:installDebug` |
+| 제출 APK | `./gradlew :app:assembleRelease` → `apk/westone_Sunstone_release.apk` |
+
+- `ScriptTest`가 대사집 시나리오 ① S1~S9, ② S10~S18, ③ S19~S25를 장면마다 준비 → 대사 → 앱이 한 말·질문까지 견준다.
+- `TripScenarioTest`가 [SPEC.md](SPEC.md) 4장의 갈래(최근 세차, 비 예보 1·3·4·8일 뒤, 날씨 없음, 먼저 세차 + 비, 거절한 날)를 본다.
+- 실제 차 값이 필요한 확인은 Pleos 에뮬레이터와 Virtual Console로 했고 결과는 [api-spike.md](api-spike.md)에 적었다.
+
+### debug 빌드의 데모 명령
+
+에뮬레이터가 만들지 못하는 상황을 adb로 넣는다. release 빌드에는 없다.
+
+```
+adb shell "am broadcast -a com.westone.sunstone.DEMO -p com.westone.sunstone --es cmd 'say 세차할게'"
+```
+
+| 명령 | 하는 일 |
+|---|---|
+| `say <말>` | 운전자 말 한마디를 넣는다 |
+| `scene S3`, `scene restart` | 시연 장면으로 건너뛰기, 처음으로 |
+| `fuel 18`, `washed 36` | 연료 %, 마지막 세차를 며칠 전으로 |
+| `weather live\|dry\|rain\|rain4\|unknown` | 시연 밖 날씨를 실제 값이나 넣은 값으로 |
+| `place carwash`, `speed 30`, `belt …` | 장소, 속도, 벨트 |
+
+### 바깥 API 키
+
+실제 검색(시연 밖)에만 쓴다. `local.properties`에 `sunstone.kakao.restKey`, `sunstone.opinet.key`를 넣고 debug 앱을 한 번 실행한 뒤
+`tools/configure-api.ps1`을 돌리면 기기 안 설정 파일로 들어간다. 키는 저장소와 APK에 넣지 않는다. 날씨(Open-Meteo)는 키가 없다.
 
 ---
 
@@ -167,6 +192,6 @@ sunstone/
 | 안내 | 앱이 할 수 없어 말로 알리는 것 | `Step.Guide`, `fallback` |
 | 되돌리기 | 저장해 둔 원래 값으로 돌리는 것 | `undo` |
 | 권하기 | 상황을 보고 앱이 먼저 묻는 것 | `Suggestion` |
-| 창구 | 두 영역이 만나는 인터페이스 | `*Port` |
+| 창구 | 두 모듈이 만나는 인터페이스 | `*Port` |
 | 대사집 | 시연·테스트용 장면별 대사 | `ScriptBook`, `Scene` |
 | 시연 준비 값 | 시연 모드가 도는 동안 바깥 API 대신 쓰는 값 | `FixedInfo`(앱), `FakeInfo`(테스트) |

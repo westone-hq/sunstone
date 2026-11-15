@@ -20,67 +20,48 @@ Pleos Connect 앱 · Android (Kotlin, Jetpack Compose) · 2026 현대자동차�
 
 ## 실행 방법
 
-1. Pleos Connect v2.1.0 에뮬레이터를 켜고 APK를 설치합니다.
+APK 하나로 시나리오 세 개를 따라 해 볼 수 있습니다. 키도 네트워크도 필요 없습니다. 자세한 순서와 안 될 때는 **[docs/GUIDE.md](docs/GUIDE.md)**.
+
+1. Pleos Connect v2.1.0 에뮬레이터를 켜고 두 줄을 실행합니다.
    ```
    adb install apk/westone_Sunstone_release.apk
-   ```
-2. 왼쪽 구역에 카드를 띄울 수 있게 허가합니다.
-   ```
    adb shell appops set com.westone.sunstone SYSTEM_ALERT_WINDOW allow
    ```
-   허가가 없으면 같은 카드가 왼쪽 구역이 아니라 앱 화면 안에 보입니다.
-3. 하단 막대의 앱 목록에서 **Sunstone**을 누릅니다. 처음에는 권한(위치, 속도, 에너지, 알림, 마이크)을 묻습니다. 모두 허용합니다.
-   Sunstone은 왼쪽 구역만 씁니다. 오른쪽은 앞에 있던 화면(내비)이 그대로 남고, 왼쪽에 **부르는 카드**(루틴 세 줄)가 뜹니다.
-   그다음부터는 왼쪽 위 **마이크 칸**이나 하단 막대의 Sunstone 아이콘으로 부릅니다.
-4. 시나리오 돌려 보기: 부르는 카드 아래 **시연**을 누르고 시나리오를 고릅니다.
-   - ① 출장 가는 길(S1~S9) · ② 아이 등원길(S10~S18) · ③ 시트 맞추기(S19~S25)
-   - 고르면 첫 장면이 시작됩니다. 운전자 대사는 녹음본(앱과 다른 목소리)으로 나오고, 앱이 Pleos TTS로 답합니다.
-   - **다음 장면**: 왼쪽 위 마이크 칸을 0.8초 **길게 누릅니다**. 카드가 떠 있어 마이크 칸이 안 보이면 카드의 Sunstone 아이콘을 길게 누릅니다.
-     또는 마이크 칸(카드가 떠 있으면 카드의 Sunstone 아이콘)을 짧게 눌러 부르는 카드를 열고 **[다음 장면]**을 누릅니다.
-   - 장면을 준비하는 몇 초 동안은 넘어가지 않습니다([다음 장면]이 "준비 중"으로 보입니다).
-   - 다른 시나리오로 가려면 부르는 카드의 **[처음]** → **시연**.
-   - 대사 대신 카드의 버튼을 직접 눌러도 됩니다.
+   둘째 줄은 운전석 쪽(왼쪽) 구역에 카드를 띄우는 허가입니다. **빼먹으면 시나리오가 첫 장면에서 멈춥니다.**
+2. 하단 막대 앱 목록에서 **Sunstone**을 누르고, 권한 다섯 개(위치, 속도, 에너지, 알림, 마이크)를 모두 허용합니다.
+   왼쪽에 부르는 카드가 뜹니다. 오른쪽 내비 화면은 그대로입니다.
+3. 카드의 **시연** → 시나리오를 고릅니다. 운전자 대사가 녹음본으로 나오고 앱이 답합니다.
+   - **다음 장면:** 카드 왼쪽 위 Sunstone 아이콘(카드가 없으면 왼쪽 위 마이크 칸)을 **0.8초 길게** 누릅니다
+   - **다른 시나리오:** 아이콘을 짧게 눌러 카드를 열고 **[처음]** → **시연**
 
-시연 모드는 에뮬레이터의 Virtual Console(에뮬레이터 안 127.0.0.1:8088)로 기어·속도·문·탑승을 넣습니다. 프로토타입이라 차 상황을 스스로 만들 수 없어 제출 APK에도 넣었습니다.
+| 시나리오 | 루틴 | 장면 |
+|---|---|---|
+| ① 출장 가는 길 | 주유와 세차 권하기, 세차 모드 | S1~S9, 약 4분 |
+| ② 아이 등원길 | 차일드락 | S10~S18, 약 4분 |
+| ③ 시트 맞추기 | 시트 메모리 | S19~S25, 약 3분 |
+
+시연 모드는 차 상황(기어·속도·문·탑승·연료·세차일·날씨)을 장면마다 넣어 줍니다. 프로토타입이라 차 상황을 스스로 만들 수 없어 제출 APK에도 넣었습니다.
 
 ## 테스트 환경과 필요 설정
 
-소스에서 빌드할 때만 필요합니다.
+APK로 써 볼 때는 위 두 줄 말고 설정이 없습니다. 아래는 소스에서 빌드할 때만 필요합니다.
 
 - JDK 17~21 (`JAVA_HOME`). Android Studio 기본 JDK가 25면 Gradle 8.10.2가 시작하지 못합니다.
-- `local.properties`(저장소에 올리지 않음)에 넣을 값
+- `local.properties`(저장소에 올리지 않음). 예시는 [local.properties.example](local.properties.example)
 
   | 키 | 값 | 필요한 때 |
   |---|---|---|
   | `sdk.dir` | Android SDK 경로 | 항상 (Android Studio가 넣어 줍니다) |
-  | `release.storeFile` | release keystore 파일 경로 | `assembleRelease` |
-  | `release.storePassword` | keystore 비밀번호 | `assembleRelease` |
-  | `release.keyAlias` | 키 이름 | `assembleRelease` |
-  | `release.keyPassword` | 키 비밀번호 | `assembleRelease` |
-
-  | `sunstone.kakao.restKey` | 카카오 로컬 REST 키 | 시연 밖 실제 검색(목적지, 근처 주유소) |
-  | `sunstone.opinet.key` | 오피넷 무료 API 키 | 시연 밖 실제 주유소 가격·세차 시설 여부 |
-  | `sunstone.fuel.code` | 유종(휘발유 `B027`, 경유 `D047`) | 오피넷 가격. 없으면 휘발유 |
-
-  release 값이 없으면 `assembleRelease`가 무엇이 없는지 말하고 멈춥니다. debug 빌드에는 필요 없습니다.
-  바깥 API 키는 APK에 넣지 않습니다. debug 앱을 한 번 실행한 뒤 `tools/configure-api.ps1`이 기기 안 설정 파일로 보냅니다
-  ([local.properties.example](local.properties.example)). **시연 모드는 키와 네트워크 없이 준비 값으로 돕니다.** 날씨(Open-Meteo)는 키가 없습니다.
+  | `release.storeFile` · `storePassword` · `keyAlias` · `keyPassword` | release 서명 | `assembleRelease`. 없으면 무엇이 없는지 말하고 멈춥니다 |
+  | `sunstone.kakao.restKey` · `sunstone.opinet.key` | 카카오 로컬, 오피넷 키 | 시연 밖 실제 검색(debug 빌드). 없으면 시연만 됩니다 |
 
 ```
-./gradlew :routines:test         # 기능 테스트 (차 없이 대사집 전체)
+./gradlew :routines:test         # 기능 테스트 (차 없이 규칙·대사집 전체)
 ./gradlew :app:installDebug      # debug 설치 (adb 데모 명령 포함)
 ./gradlew :app:assembleRelease   # 서명한 APK → apk/westone_Sunstone_release.apk
 ```
 
-debug 빌드에는 adb 데모 명령이 더 있습니다.
-```
-adb shell am broadcast -a com.westone.sunstone.DEMO -p com.westone.sunstone --es cmd "scene S3"
-adb shell am broadcast -a com.westone.sunstone.DEMO -p com.westone.sunstone --es cmd "say 세차할게"
-```
-터미널에서 말과 장면을 넣고 대답을 보려면 `tools/talk.ps1`, 에뮬레이터 GPS·속도·기어를 움직이려면 `tools/scene-move.ps1 -Scenario 1`.
-`weather rain`(내일 비)·`rain4`·`dry`·`unknown`·`live`로 시연 밖 날씨를 바꿔 [docs/SPEC.md](docs/SPEC.md) 4장의 갈래를 볼 수 있습니다.
-앱이 하는 말은 Pleos TTS(ON_DEVICE)로 읽습니다. TTS 준비가 늦거나 실패하면 대사집 녹음본으로 대신합니다(대사를 고치면 `tools/make-voice.ps1`을 다시 돌립니다).
-운전자 말은 듣는 중 줄이 떠 있는 동안 Pleos STT(ON_DEVICE)로 듣습니다. 에뮬레이터는 `-allow-host-audio`로 켜야 마이크 소리가 들어옵니다.
+모듈 구조, 데모 명령, 키를 기기에 넣는 방법은 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)에 있습니다.
 
 ## 왜 만들었나
 
@@ -137,14 +118,15 @@ Sunstone은 그 기능들을 필요한 순간에 한 번에 세팅하고, 끝나
 
 API별 실측 결과와 시연에서 실제 값·조작 값을 어떻게 쓰는지는 [docs/api-spike.md](docs/api-spike.md)에 있습니다.
 
-## 구조
+## 문서
 
-```
-routines/   순수 Kotlin. 루틴, 실행 엔진, 말 알아듣기, 가짜 차. 차 없이 테스트로 끝까지 돈다
-app/        Pleos SDK 연결, 음성, 왼쪽 구역 카드, 시연 모드
-```
-자세한 내용은 [docs/STRUCTURE.md](docs/STRUCTURE.md).
-화면 규격과 시나리오 장면별 상세는 [docs/SCREEN.md](docs/SCREEN.md)에 있습니다.
+| 문서 | 내용 |
+|---|---|
+| [docs/GUIDE.md](docs/GUIDE.md) | 사용 방법: 설치, 시나리오 따라 하기, 안 될 때 |
+| [docs/SPEC.md](docs/SPEC.md) | 기능 명세: 무엇을 만드는가, 루틴별 세부 규칙 |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | 개발 내용: 모듈과 창구, 폴더, 빌드와 테스트 |
+| [docs/SCREEN.md](docs/SCREEN.md) | 화면 설계: 왼쪽 구역 카드, 시나리오 장면별 화면 |
+| [docs/api-spike.md](docs/api-spike.md) | Pleos SDK·바깥 API 실측 기록과 시연 표기 |
 
 ## 팀
 
