@@ -32,7 +32,7 @@ class Proximity(context: Context) : AutoCloseable {
          * 작성: 2026-11-11 12:00:00 · 박건준
          * 변수: TAG
          * 목적: 위치 관련 logcat 태그.
-         * 근거: 표준 — 주석·코드 규칙 10-2 로그 태그 넷
+         * 근거: 표준 — 로그 태그는 Sunstone·SunstoneCar·SunstoneVoice·SunstoneDemo 넷
          */
         const val TAG = "SunstoneCar"
 
@@ -79,6 +79,10 @@ class Proximity(context: Context) : AutoCloseable {
             suspendCancellableCoroutine { cont ->
                 val listener = object : ProximityAlertListener { // 등록 확인과 들어감·나감
                     override fun onRegistered(alertId: String) {
+                        if (!cont.isActive) {
+                            runCatching { fused.removeProximityAlert(alertId) }
+                            return
+                        }
                         synchronized(ids) { ids += alertId }
                         if (cont.isActive) cont.resume(alertId)
                     }

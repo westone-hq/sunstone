@@ -147,6 +147,16 @@ object WashLines {
     const val RESTORED_NOTICE = "세차 모드를 끝내고 원래대로 돌려놨어요"
 
     /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 변수: ASK_DONE, DONE_YES, DONE_NO
+     * 목적: 세차 모드가 오래 켜져 있을 때 묻는 말(카드 제목과 같다)과 두 버튼.
+     * 근거: 인용 — docs/SPEC.md 5장 "세차 끝났나요?" [끝내기] [아직이에요]
+     */
+    const val ASK_DONE = "세차 끝났나요?"
+    const val DONE_YES = "끝내기"
+    const val DONE_NO = "아직이에요"
+
+    /**
      * 작성: 2026-11-12 18:18:00 · 박건준
      * 변수: MODE_SET
      * 목적: 세차 모드를 맞춘 뒤 앞에 하는 말. 바꾼 것은 나열하지 않는다.

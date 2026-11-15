@@ -8,10 +8,22 @@ import com.westone.sunstone.car.AaosSpeedSource
 import com.westone.sunstone.car.PleosCarPort
 import com.westone.sunstone.connect.AndroidSpeaker
 import com.westone.sunstone.connect.KeepAwakeService
+import com.westone.sunstone.connect.PleosEar
 import com.westone.sunstone.connect.PrefsMemory
 import com.westone.sunstone.connect.PrefsSeatProfiles
 import com.westone.sunstone.demo.ScenePlayer
+import com.westone.sunstone.info.ApiKeys
 import com.westone.sunstone.info.FixedInfo
+import com.westone.sunstone.info.KakaoPlaces
+import com.westone.sunstone.info.LiveInfo
+import com.westone.sunstone.info.OpenMeteo
+import com.westone.sunstone.info.OpinetStations
+import com.westone.sunstone.info.WeatherConversation
+import com.westone.sunstone.info.WeatherLocation
+import com.westone.sunstone.navi.SelectedStation
+import com.westone.sunstone.routines.model.GasStation
+import com.westone.sunstone.routines.model.RainOutlook
+import com.westone.sunstone.routines.port.InfoPort
 import com.westone.sunstone.navi.PlaceWatcher
 import com.westone.sunstone.navi.PleosNavi
 import com.westone.sunstone.navi.PleosNaviPort
@@ -56,6 +68,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -132,7 +146,7 @@ class AppGraph(val app: Context) {
          * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: TAG
          * 목적: 앱 전체 logcat 태그.
-         * 근거: 표준 — 주석·코드 규칙 10-2 로그 태그 넷
+         * 근거: 표준 — 로그 태그는 Sunstone·SunstoneCar·SunstoneVoice·SunstoneDemo 넷
          */
         const val TAG = "Sunstone"
 
@@ -171,6 +185,34 @@ class AppGraph(val app: Context) {
          * 목적: 시연 장소 고정 목록 파일(assets). 가짜 내비가 목적지를 여기서 찾는다.
          */
         const val PLACES_FILE = "places.json"
+
+        /**
+         * 작성: 2026-11-14 17:00:00 · 박건준
+         * 변수: KEYS_FILE, FUEL_GASOLINE
+         * 목적: 바깥 API 키 설정 파일 이름과, 유종을 정하지 않았을 때 쓰는
+         *       오피넷 유종 코드(휘발유).
+         * 근거: 표준 — 오피넷 제품 코드 B027 휘발유, D047 경유
+         * 미구현: 프로토타입이라 차의 유종을 읽지 않고(에뮬레이터 차는 전기차)
+         *       설정 값이나 휘발유로 본다
+         */
+        const val KEYS_FILE = "api.properties"
+        const val FUEL_GASOLINE = "B027"
+
+        /**
+         * 작성: 2026-11-14 13:41:10 · 박희정
+         * 변수: STATION_RADIUS_M
+         * 목적: 실제로 고른 주유소에 거는 근접 알림 반경(m).
+         * 근거: 측정 — 시연 장소 근접 알림과 같은 반경에서 들어감·나감이 왔다
+         *       (docs/api-spike.md 근접 알림 행)
+         */
+        const val STATION_RADIUS_M = 150f
+
+        /**
+         * 작성: 2026-11-14 17:00:00 · 박건준
+         * 변수: PLACE_NUMBER
+         * 목적: 목적지 후보를 고르는 말("2", "2번", "2번으로")에서 번호를 뽑는다.
+         */
+        val PLACE_NUMBER = Regex("""\s*(\d)\s*(?:번(?:으로)?)?\s*""")
     }
 
     /** 앱이 살아 있는 동안 도는 작업 범위. 화면 스레드에서 돈다 */
@@ -223,8 +265,11 @@ class AppGraph(val app: Context) {
     /** 세차 예약. 길안내 대화가 주유소에 예약하고 세차 모드가 본다. 둘이 같은 것을 쓴다 */
     private val booking = WashBooking()
 
-    /** 지금 묻는 질문과 토스트. 길안내 대화·세차 모드·루틴 실행기가 함께 쓰고 패널이 그린다 */
-    val asking = Asking()
+    /**
+     * 지금 묻는 질문과 토스트. 길안내 대화·세차 모드·루틴 실행기가 함께 쓰고 패널이 그린다. 거절한 권유는
+     * 그날 다시 묻지 않게 기억에 남긴다
+     */
+    val asking = Asking(memory) { LocalDate.now() }
 
     /** 지금 길안내 목적지. 길안내 대화가 넣고 차일드락이 하원길·도착을 본다. 둘이 같은 것을 쓴다 */
     private val route = CurrentRoute()
@@ -254,6 +299,9 @@ class AppGraph(val app: Context) {
      */
     val scenes: SceneControls = ScenePlayer(this, ScriptBook.all)
 
+    /** 고르기 카드에 보일 목적지 후보를 넣는 곳. 길안내 대화가 뒤에 만들어져 `init`에서 이어 준다 */
+    private var placesShown: MutableStateFlow<List<PlaceHit>>? = null
+
     /**
      * 왼쪽 구역 카드·듣는 중 줄 값. 버튼은 대답(`answer()`)과 루틴 끝내기로, 부르는 카드 루틴 줄은
      * `switchRoutine()`으로 가고, 마이크 칸 길게 누르기는 시연 모드 다음 장면으로 간다
@@ -270,6 +318,12 @@ class AppGraph(val app: Context) {
         onFinish = { id -> runner.undo(id) }, // → 로직 이동: RoutineRunner.undo()
         onRoutine = ::switchRoutine,
         onHold = { scenes.next() }, // → 로직 이동: SceneControls.next()
+        places = MutableStateFlow<List<PlaceHit>>(emptyList()).also { shown ->
+            // 길안내 대화는 아래에서 만들어지므로 후보는 만든 뒤에 이어 준다(`init`)
+            placesShown = shown
+        },
+        onPlace = ::choosePlace,
+        onExpire = ::expire,
     )
 
     /** 왼쪽 구역 창. 화면이 뜰 때 `showPanels()`가 띄운다 */
@@ -290,24 +344,104 @@ class AppGraph(val app: Context) {
     /** 내비 창구. Pleos 차일 때만 만든다. 처음 쓸 때 내비 서비스에 연결한다 */
     val navi: PleosNavi? = proximity?.let { PleosNavi(app, it) }
 
-    /** 시연 장소 근접 알림. 들어가고 나가면 Pleos 차 장소를 바꾼다. 위치 권한을 받은 뒤 시작한다 */
-    val places: PlaceWatcher? = proximity?.let { p -> PlaceWatcher(app, p) { place -> setPlace(place) } }
+    /**
+     * 실제 검색으로 고른 주유소의 근접 알림(반경 `STATION_RADIUS_M`). 경유지로 넣으면 걸고, 들어가고 나가면
+     * 차 장소를 주유소로 바꾼다. 시연 장소 목록에 없는 주유소에서도 세차 입구를 알아채려고 둔다
+     */
+    private val selectedStation: SelectedStation? = proximity?.let { p ->
+        SelectedStation(
+            add = { place, enter, exit ->
+                // → 로직 이동: Proximity.add()
+                p.add(com.westone.sunstone.navi.GeoPoint(place.point.lat, place.point.lng), STATION_RADIUS_M, enter, exit)
+            },
+            remove = p::remove,
+            onPlace = { setPlace(it) },
+        )
+    }
+
+    /**
+     * 시연 장소 근접 알림. 들어가고 나가면 Pleos 차 장소를 바꾼다. 위치 권한을 받은 뒤 시작한다. 실제로 고른
+     * 주유소 안에 있는 동안은 시연 장소의 나감 알림이 장소를 지우지 못하게 한다
+     */
+    val places: PlaceWatcher? = proximity?.let { p ->
+        PlaceWatcher(app, p) { place -> if (selectedStation?.isInside != true) setPlace(place) }
+    }
+
+    /** 날씨 예보(Open-Meteo, 키 없음) */
+    private val weather = OpenMeteo()
+
+    /** 지금 위치(FusedLocation). 실제 주유소·날씨를 찾을 때 쓴다 */
+    private val weatherLocation = WeatherLocation(app)
+
+    /**
+     * 바깥 API 키. 앱 비공개 폴더나 앱 바깥 저장소 폴더의 `api.properties`에서 읽는다
+     * (`tools/configure-api.ps1`이 넣는다). 제출 APK에는 키가 없다
+     */
+    private val apiKeys = ApiKeys(
+        java.io.File(app.filesDir, KEYS_FILE),
+        app.getExternalFilesDir(null)?.let { java.io.File(it, KEYS_FILE) },
+    )
+
+    /** 카카오 로컬(목적지 후보, 근처 주유소, 좌표 변환) */
+    private val kakao = KakaoPlaces({ apiKeys.read("sunstone.kakao.restKey") })
+
+    /** 오피넷(근처 주유소 가격과 세차 시설 여부). 좌표 변환은 카카오에 맡긴다 */
+    private val opinet = OpinetStations(
+        key = { apiKeys.read("sunstone.opinet.key") },
+        fuelCode = { apiKeys.read("sunstone.fuel.code") ?: FUEL_GASOLINE },
+        convert = kakao::convert,
+    )
+
+    /** "오늘 비 와?" 같은 날씨 질문에 답하는 대화. 처음 쓸 때 만든다 */
+    private val weatherConversation by lazy { WeatherConversation(weather, weatherLocation, speaker, scope) }
+
+    /** 실제 바깥 정보. 주유소는 오피넷(가격·세차 여부), 안 되면 카카오(장소만). 날씨는 Open-Meteo */
+    private val liveInfo: InfoPort = LiveInfo(weather, location = { weatherLocation.current() }) { liveStations() }
+
+    /** 시연 준비 값(주유소 세 곳, 7일 동안 비 없음). 시연 모드가 도는 동안 쓴다 */
+    private val demoInfo: InfoPort = FixedInfo()
+
+    /** 시연 밖에서 실제 값 대신 쓸 정보. 데모 `weather`(debug)가 넣는다. null이면 실제 값 */
+    @Volatile
+    var tripInfo: InfoPort? = null
+
+    /**
+     * 길안내 대화가 쓰는 바깥 정보. 부를 때마다 고른다: 시연 중이면 준비 값, 데모 `weather`가 넣은 값이
+     * 있으면 그 값, 아니면 실제 값
+     */
+    private val info = object : InfoPort {
+        private val now: InfoPort get() = if (scenes.current.value != null) demoInfo else tripInfo ?: liveInfo
+        override val nearbyStations: Boolean get() = now.nearbyStations
+        override suspend fun gasStations(): List<GasStation> = now.gasStations()
+        override suspend fun rain(point: GeoPoint?, days: Int): RainOutlook? = now.rain(point, days)
+    }
 
     /**
      * 길안내 대화(시나리오 ① #1~#2). Pleos 차면 Pleos 내비, 가짜 차면 장소가 없는 가짜 내비를 쓴다.
-     * 주유소·날씨는 고정 응답이다(`FixedInfo`)
+     * 목적지는 실제 값을 쓸 때 카카오에서 찾고(시연 중이거나 못 찾으면 시연 장소 목록), 고른 주유소에는
+     * 근접 알림을 건다
      */
     val trip = TripDialog(
         car = car,
-        navi = navi?.let { n -> PleosNaviPort(n) { places?.spots.orEmpty() } }
-            ?: FakeNavi(fixedPlaces()),
-        info = FixedInfo(),
+        navi = navi?.let { n ->
+            PleosNaviPort(
+                n,
+                places = { places?.spots.orEmpty() },
+                search = { query -> kakao.search(query) }, // → 로직 이동: KakaoPlaces.search()
+                searchEnabled = { info.nearbyStations },
+                selectedStation = { place -> selectedStation?.watch(place) }, // → 로직 이동: SelectedStation.watch()
+                clearStation = { selectedStation?.clear() },
+            )
+        } ?: FakeNavi(fixedPlaces()),
+        info = info,
         memory = memory,
         booking = booking,
         asking = asking,
         speaker = speaker,
         today = { LocalDate.now() },
         currentRoute = route,
+        // → 로직 이동: RoutineRunner.request()
+        runWash = { runner.request(RunRequest(RoutineId.WASH, source = Source.VOICE)) },
         log = { Log.w(TAG, it) },
     )
 
@@ -318,8 +452,37 @@ class AppGraph(val app: Context) {
         onFuelTypes = { types -> pleos?.onFuelTypes(types) }, // → 로직 이동: PleosCarPort.onFuelTypes()
     )
 
+    /** 운전자 말 듣기(Pleos 음성 인식). 들은 말은 `hear()`로 들어온다 */
+    private val ear = PleosEar(app) { text -> hear(text, Source.VOICE) }
+
     init {
         watchArrivals()
+        scope.launch { trip.destinations.collect { placesShown?.value = it } }
+        // 듣는 중 줄이 떠 있고 앱이 말하지 않는 동안만 듣는다(앱 말을 스스로 듣지 않게). 시연 중에는
+        // 운전자 녹음본이 말을 넣으므로 듣지 않는다
+        scope.launch {
+            combine(panels.listening, voice.speaking, scenes.current) { on, speaking, scene ->
+                on && !speaking && scene == null
+            }.distinctUntilChanged().collect { ear.listen(it) } // → 로직 이동: PleosEar.listen()
+        }
+    }
+
+    /**
+     * 작성: 2026-11-14 17:00:00 · 박건준
+     * 함수: liveStations
+     * 목적: 지금 위치 근처 주유소를 실제로 찾는다. 오피넷(가격·세차 시설 여부)을
+     *       먼저 쓰고, 키가 없거나 실패하거나 비었으면 카카오 주유소 검색(장소만,
+     *       가까운 순)으로 넘어간다.
+     * 반환: 주유소들. 위치를 모르면 예외(`LiveInfo`가 빈 목록으로 바꾼다)
+     * 근거: 인용 — docs/SPEC.md 4장 주유소 고르기 "가장 싼 곳"
+     */
+    private suspend fun liveStations(): List<GasStation> {
+        val here = weatherLocation.current() ?: error("지금 위치를 모름") // → 로직 이동: WeatherLocation.current()
+        val priced = runCatching { opinet.nearby(here) } // → 로직 이동: OpinetStations.nearby()
+            .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+            .onFailure { Log.w(TAG, "오피넷 주유소 실패, 카카오로 찾음: ${it.message}") }
+            .getOrDefault(emptyList()) // 가격이 붙은 주유소
+        return priced.ifEmpty { kakao.nearbyStations(here) } // → 로직 이동: KakaoPlaces.nearbyStations()
     }
 
     /**
@@ -355,7 +518,8 @@ class AppGraph(val app: Context) {
      * 함수: handle
      * 목적: 말·Gleo·화면·데모 입력을 처리한다.
      *       - `Run` — 루틴 실행을 요청한다. 이름이 있는 시트 메모리("엄마
-     *         자세로")는 시트 대화로 넘긴다(없는 이름이면 같이 맞출지 묻는다)
+     *         자세로")는 시트 대화로 넘긴다(없는 이름이면 같이 맞출지 묻는다).
+     *         세차 모드는 길안내 대화가 먼저 본다(주유 카드의 대답, 비 소식)
      *       - `Undo` — 시트 맞추는 중이면 그것을 되돌리고, 아니면 이름이 없으면
      *         가장 최근에 켜진 루틴을 되돌린다
      *       - `SaveSeat` — 지금 시트 자세를 이름으로 저장한다
@@ -372,8 +536,13 @@ class AppGraph(val app: Context) {
             is VoiceAction.Run -> {
                 val r = action.request // 실행 요청
                 val name = r.profile.takeIf { r.id == RoutineId.SEAT_MEMORY } // 시트 자세 이름, 아니면 null
-                // → 로직 이동: SeatDialog.recall(), RoutineRunner.request()
-                if (name != null) scope.launch { seat.recall(name, r.seat) } else runner.request(r)
+                // → 로직 이동: SeatDialog.recall(), TripDialog.wantWash(), RoutineRunner.request()
+                when {
+                    name != null -> scope.launch { seat.recall(name, r.seat) }
+                    // 먼저 세차하겠다고 하면 주유 카드의 대답인지, 곧 비가 오는지부터 본다(docs/SPEC.md 4장)
+                    r.id == RoutineId.WASH -> scope.launch { if (!trip.wantWash()) runner.request(r) }
+                    else -> runner.request(r)
+                }
             }
             is VoiceAction.Undo -> {
                 if (seat.active) {
@@ -415,12 +584,14 @@ class AppGraph(val app: Context) {
 
     /**
      * 작성: 2026-11-11 16:02:00 · 박희정
-     * 수정: 2026-11-13 15:00:00 · 박희정
+     * 수정: 2026-11-14 17:00:00 · 박건준
      * 함수: hear
      * 목적: 운전자가 한 말 한마디를 받는다. 대화 기록과 듣는 중 줄(HEARD)에
      *       남기고(아래 줄에 앱이 이어서 할 일), 알아들으면 `handle()`로, 못
      *       알아들으면 그렇다고 말한다.
      *       시트 자세를 기억할 이름을 기다리는 중이면 들은 말을 이름으로 넘긴다.
+     *       목적지 후보를 고르는 중이면 번호("2번")와 그만두는 말을 먼저 보고,
+     *       날씨를 묻는 말("오늘 비 와?")은 날씨 대화가 답한다.
      *       시연 운전자 대사와 데모 `say`(talk.ps1)가 함께 쓴다.
      * 인자: text — 운전자가 한 말
      *       source — 어디서 들어온 말인지(화면, 데모)
@@ -429,6 +600,22 @@ class AppGraph(val app: Context) {
         val said = text.trim() // 앞뒤 빈칸을 뺀 말
         if (said.isEmpty()) return
         addChat(ChatLine(fromDriver = true, text = said))
+        if (!seat.awaitingName && trip.destinations.value.isNotEmpty()) {
+            // 목적지 후보를 고르는 중이면 "2번"·"취소"를 먼저 본다
+            val index = PLACE_NUMBER.matchEntire(said)?.groupValues?.get(1)?.toIntOrNull()?.minus(1) // 고른 번호
+            val cancel = PhraseMatcher.match(said, source) == VoiceAction.Answer(Reply.NO) // 그만두는 말인지
+            if (index != null && index in trip.destinations.value.indices || cancel) {
+                panels.heard(said, null) // → 로직 이동: PanelPresenter.heard()
+                choosePlace(if (cancel) -1 else index!!) // → 로직 이동: AppGraph.choosePlace()
+                return
+            }
+        }
+        // 시연 중에는 대사가 날씨 질문으로 새지 않게 날씨 대화를 쓰지 않는다
+        if (scenes.current.value == null && !seat.awaitingName && weatherConversation.hear(said)) {
+            panels.heard(said, app.getString(R.string.next_weather))
+            return
+        }
+        weatherConversation.cancel() // → 로직 이동: WeatherConversation.cancel()
         val action = PhraseMatcher.match(said, source) // 알아들은 요청, 못 알아들으면 null
         if (seat.awaitingName && action !is VoiceAction.Answer) {
             // 시트 자세를 기억할 이름을 기다리는 중이면 들은 말을 이름으로 본다(대답 "괜찮아"는 제외)
@@ -461,10 +648,44 @@ class AppGraph(val app: Context) {
     }
 
     /**
+     * 작성: 2026-11-14 13:41:10 · 박희정
+     * 수정: 2026-11-14 17:00:00 · 박건준
+     * 함수: choosePlace
+     * 목적: 목적지 후보 중 하나를 골랐을 때(카드 줄, "2번"). 그 목적지로
+     *       길안내를 시작하고 루틴 권하기를 다시 본다. -1이면 고르기를 그만둔다.
+     * 인자: index — 후보 번호(0부터). 그만두면 -1
+     */
+    fun choosePlace(index: Int) {
+        if (index < 0) {
+            trip.invalidate() // → 로직 이동: TripDialog.invalidate()
+            return
+        }
+        scope.launch {
+            trip.selectDestination(index) // → 로직 이동: TripDialog.selectDestination()
+            runner.recheck() // → 로직 이동: RoutineRunner.recheck()
+        }
+    }
+
+    /**
+     * 작성: 2026-11-14 17:00:00 · 박건준
+     * 함수: expire
+     * 목적: 대답 없이 시간이 지난 질문을 닫는다. 거절로 남기지 않고, 권하기와
+     *       주유 제안만 버린다.
+     * 인자: kind — 닫을 질문 종류
+     * 근거: 인용 — docs/SPEC.md 3장 대답이 없을 때
+     */
+    private fun expire(kind: QuestionKind) {
+        Log.i(TAG, "대답 없어 닫음: $kind")
+        runner.expire() // → 로직 이동: RoutineRunner.expire()
+        trip.expire() // → 로직 이동: TripDialog.expire()
+        asking.expire(kind) // → 로직 이동: Asking.expire()
+    }
+
+    /**
      * 작성: 2026-11-13 20:00:00 · 박건준
      * 함수: switchRoutine
      * 목적: 부르는 카드의 루틴 줄을 눌렀을 때. 켜져 있으면 원래대로 돌리고,
-     *       아니면 켠다. 시트 맞추기는 말로 맞추는 대화("시트 좀 맞춰 줘")를
+     *       아니면 켠다. 시트 메모리는 말로 맞추는 대화("시트 좀 맞춰 줘")를
      *       시작한다.
      * 인자: id — 루틴
      *       on — 지금 켜져 있으면 true
@@ -543,10 +764,11 @@ class AppGraph(val app: Context) {
 
     /**
      * 작성: 2026-11-11 16:42:25 · 박희정
-     * 수정: 2026-11-13 15:00:00 · 박희정
+     * 수정: 2026-11-14 17:00:00 · 박건준
      * 함수: restartTrip
      * 목적: 시연을 처음부터 다시 할 수 있게 지운다.
-     *       1. 나오던 말을 끊고, 기다리던 말과 떠 있는 질문·거절 기록을 버린다
+     *       1. 나오던 말을 끊고, 기다리던 말과 떠 있는 질문·거절 기록(오늘 거절한
+     *          권유 포함)·목적지 후보·고른 주유소 알림·날씨 대화를 버린다
      *       2. 켜진 루틴을 되돌린다(차 값을 원래대로)
      *       3. 길안내 중이면 취소한다. 안내가 없을 때 취소를 보내면 지도 앱이
      *          앞으로 나와 앱 화면을 가린다
@@ -555,8 +777,12 @@ class AppGraph(val app: Context) {
      *       되돌리는 동안 나오는 말("원래대로 돌렸어요")은 그대로 들린다
      */
     suspend fun restartTrip() {
+        selectedStation?.clear() // → 로직 이동: SelectedStation.clear()
+        weatherConversation.cancel() // → 로직 이동: WeatherConversation.cancel()
+        trip.invalidate() // → 로직 이동: TripDialog.invalidate()
         voice.stop() // → 로직 이동: AndroidSpeaker.stop()
         asking.newTrip() // → 로직 이동: Asking.newTrip()
+        asking.forgetDay() // → 로직 이동: Asking.forgetDay()
         runner.activeIds().forEach { runner.undo(it).join() } // → 로직 이동: RoutineRunner.undo()
         if (navi?.routing?.value == true) navi.cancelRoute() // → 로직 이동: PleosNavi.cancelRoute()
         runner.forgetSuggestions() // → 로직 이동: RoutineRunner.forgetSuggestions()

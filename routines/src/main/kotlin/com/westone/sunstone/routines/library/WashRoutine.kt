@@ -86,6 +86,15 @@ class WashRoutine(
          * 근거: 인용 — docs/SCREEN.md 6장 6단계: [지금 켜기]에 5초가 차오른다
          */
         const val START_WAIT_MS = 5_000L
+
+        /**
+         * 작성: 2026-11-14 16:00:00 · 박건준
+         * 변수: LONG_ON_MS
+         * 목적: 세차 모드가 이 시간(밀리초) 넘게 켜져 있으면 "세차 끝났나요?"를 한
+         *       번 묻는다.
+         * 근거: 인용 — docs/SPEC.md 5장 "20분이 지나면 한 번 묻는다"
+         */
+        const val LONG_ON_MS = 20 * 60_000L
     }
 
     override val id = RoutineId.WASH
@@ -94,6 +103,22 @@ class WashRoutine(
     override val reportsAtEnd = true
     override val afterUndo = listOf(WashLines.FINISHED)
     override val undoNotice = WashLines.RESTORED_NOTICE
+    override val checkAfterMs = LONG_ON_MS
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: stillOnQuestion
+     * 목적: 세차 모드가 오래 켜져 있을 때 물을 카드. [끝내기]면 원래대로
+     *       돌리고, [아직이에요]면 그대로 둔다.
+     * 반환: "세차 끝났나요?" 질문
+     * 근거: 인용 — docs/SPEC.md 5장 [끝내기] [아직이에요]
+     */
+    override fun stillOnQuestion() = Question(
+        kind = QuestionKind.WASH_DONE,
+        title = WashLines.ASK_DONE,
+        detail = "",
+        choices = listOf(Choice(WashLines.DONE_YES, Reply.YES), Choice(WashLines.DONE_NO, Reply.NO)),
+    )
 
     /**
      * 작성: 2026-11-08 18:03:56 · 박건준

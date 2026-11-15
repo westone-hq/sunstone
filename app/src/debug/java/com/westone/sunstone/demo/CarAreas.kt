@@ -133,7 +133,7 @@ internal class CarAreas(private val vehicle: Vehicle) {
          * 작성: 2026-11-09 18:34:38 · 박건준
          * 변수: TAG
          * 목적: 결과 줄의 logcat 태그. 차 관련 로그와 같은 태그를 쓴다.
-         * 근거: 표준 — 주석·코드 규칙 10-2 로그 태그 넷
+         * 근거: 표준 — 로그 태그는 Sunstone·SunstoneCar·SunstoneVoice·SunstoneDemo 넷
          */
         const val TAG = "SunstoneCar"
     }

@@ -64,6 +64,15 @@ class MainActivity : ComponentActivity() {
          * 근거: 표준 — Android 13부터 `POST_NOTIFICATIONS`는 런타임 권한
          */
         const val NOTIFY = "android.permission.POST_NOTIFICATIONS"
+
+        /**
+         * 작성: 2026-11-14 19:30:00 · 박건준
+         * 변수: MIC
+         * 목적: 마이크 권한 이름. 운전자 말을 듣는 데 쓴다(`PleosEar`). 없으면 듣지
+         *       않고 카드 버튼으로만 대답한다.
+         * 근거: 표준 — `RECORD_AUDIO`는 런타임 권한
+         */
+        const val MIC = "android.permission.RECORD_AUDIO"
     }
 
     /** 차 권한 요청 창(속도·에너지·위치·알림 함께). 허락된 것만 구독을 시작하고, 앱 화면이 없으면 닫는다 */
@@ -155,7 +164,7 @@ class MainActivity : ComponentActivity() {
      *       물을 수 없으면 그 값 없이 진행한다.
      */
     private fun requestCarPermissions() {
-        val missing = listOf(SPEED, ENERGY, LOCATION, NOTIFY).filter { permission -> // 아직 허가받지 못한 권한
+        val missing = listOf(SPEED, ENERGY, LOCATION, NOTIFY, MIC).filter { permission -> // 아직 허가받지 못한 권한
             val granted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
             if (granted) startFor(permission)
             !granted

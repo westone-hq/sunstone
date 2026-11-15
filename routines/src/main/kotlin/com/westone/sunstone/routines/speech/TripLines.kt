@@ -10,6 +10,33 @@ package com.westone.sunstone.routines.speech
  * 근거: 인용 — docs/SCREEN.md 6장 시나리오 ① 다시 짠 흐름 1~3
  */
 object TripLines {
+    /**
+     * 작성: 2026-11-14 13:41:10 · 박희정
+     * 수정: 2026-11-14 16:00:00 · 박건준
+     * 변수: CHOOSE_DESTINATION, CHOOSE_TITLE, ARRIVAL_UNAVAILABLE,
+     *       STATIONS_UNAVAILABLE, NO_WASH_STATION
+     * 목적: 실제 검색을 쓸 때의 말과 글자.
+     *       - 목적지 후보가 여럿일 때 하는 말과 고르는 카드 제목
+     *       - 경유지는 넣었지만 도착을 알아챌 수 없어 세차를 예약하지 못했을 때
+     *         토스트
+     *       - 근처 주유소를 찾지 못했을 때 하는 말
+     *       - 세차 되는 주유소가 근처에 없는데 세차도 하겠다고 했을 때 하는 말
+     * 근거: 미정 — 대사집에 없는 경우라 짧게 정했다
+     */
+    const val CHOOSE_DESTINATION = "어디로 갈까요? 카드에서 골라 주세요."
+    const val CHOOSE_TITLE = "어디로 갈까요?"
+    const val ARRIVAL_UNAVAILABLE = "경유지에 넣었어요. 세차 입구는 알아챌 수 없어요"
+    const val STATIONS_UNAVAILABLE = "근처 주유소를 찾지 못했어요."
+    const val NO_WASH_STATION = "근처에 세차 되는 주유소가 없어요. 주유소만 넣을까요?"
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 변수: RAIN_WASH_YES, RAIN_WASH_NO
+     * 목적: 비 소식이 있는데 그래도 세차할지 묻는 카드의 두 버튼.
+     * 근거: 인용 — docs/SPEC.md 4장 [세차하기] [다음에]
+     */
+    const val RAIN_WASH_YES = "세차하기"
+    const val RAIN_WASH_NO = "다음에"
 
     /**
      * 작성: 2026-11-13 03:25:00 · 박건준
@@ -92,15 +119,20 @@ object TripLines {
 
     /**
      * 작성: 2026-11-13 03:25:00 · 박건준
+     * 수정: 2026-11-14 16:00:00 · 박건준
      * 함수: fuelDetail
      * 목적: 주유 카드 설명. 세차되는 곳이면 그 문장을 붙인다.
      * 인자: station — 주유소 이름(카드에서 굵게 보인다)
      *       carWash — 세차도 되는 곳이면 true
+     *       nearby — 지금 위치 근처를 실제로 찾은 곳이면 true("근처에")
      * 반환: "가는 길에 말죽거리주유소가 있어요. 세차도 되는 곳이에요."
      * 근거: 인용 — 시안 template2.html `card()` fuel 설명
+     * 미구현: 프로토타입이라 실제 검색은 경로가 아니라 지금 위치 반경에서
+     *       찾는다. 그래서 "가는 길에" 대신 "근처에"라고 한다
      */
-    fun fuelDetail(station: String, carWash: Boolean) =
-        "가는 길에 ${withSubject(station)} 있어요." + if (carWash) " $CAR_WASH_OK" else ""
+    fun fuelDetail(station: String, carWash: Boolean, nearby: Boolean = false) =
+        "${if (nearby) "근처에" else "가는 길에"} ${withSubject(station)} 있어요." +
+            if (carWash) " $CAR_WASH_OK" else ""
 
     /**
      * 작성: 2026-11-13 03:25:00 · 박건준
@@ -111,6 +143,15 @@ object TripLines {
      * 근거: 인용 — docs/SCREEN.md 6장 2단계 근거 칸
      */
     fun fuelFact(percent: Int) = "연료 $percent%"
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: rangeFact
+     * 목적: 연료는 모르고 주행 가능 거리가 목적지보다 짧을 때의 근거 칸 글자.
+     * 인자: km — 주행 가능 거리(km)
+     * 반환: "주행 가능 320km"
+     */
+    fun rangeFact(km: Int) = "주행 가능 ${km}km"
 
     /**
      * 작성: 2026-11-13 03:25:00 · 박건준
@@ -133,22 +174,85 @@ object TripLines {
     fun noRainFact(days: Int) = "${days}일 동안 비 없음"
 
     /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: rainDay
+     * 목적: 비가 오는 날을 부르는 말.
+     * 인자: day — 오늘 0, 내일 1 …
+     * 반환: "오늘", "내일", "모레", 그 뒤는 "3일 뒤"
+     * 근거: 인용 — docs/SPEC.md 4장 날씨 칸 글자
+     */
+    fun rainDay(day: Int) = when (day) {
+        0 -> "오늘"
+        1 -> "내일"
+        2 -> "모레"
+        else -> "${day}일 뒤"
+    }
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: weatherFact
+     * 목적: 세차를 함께 권할 때 날씨 근거 칸 글자.
+     * 인자: day — 비가 오는 가장 가까운 날. 본 기간 안에 없으면 null
+     *       days — 본 기간(일)
+     * 반환: "7일 동안 비 없음", "4일 뒤 비"
+     * 근거: 인용 — docs/SPEC.md 4장 날씨 칸 글자
+     */
+    fun weatherFact(day: Int?, days: Int) = if (day == null) noRainFact(days) else "${rainDay(day)} 비"
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: rainSoonFact
+     * 목적: 비 때문에 세차를 권하지 않을 때 근거 칸 글자.
+     * 인자: day — 비가 오는 가장 가까운 날
+     * 반환: "내일 비 예보"
+     * 근거: 인용 — docs/SPEC.md 4장 질문과 근거 칸
+     */
+    fun rainSoonFact(day: Int) = "${rainDay(day)} 비 예보"
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: rainWashAsk
+     * 목적: 운전자가 먼저 세차하겠다고 했는데 곧 비가 올 때 묻는 말(카드 제목과
+     *       같다).
+     * 인자: day — 비가 오는 가장 가까운 날
+     * 반환: "내일 비 소식이 있어요. 그래도 세차할까요?"
+     * 근거: 인용 — docs/SPEC.md 4장 운전자가 먼저 세차하겠다고 할 때
+     */
+    fun rainWashAsk(day: Int) = "${rainDay(day)} 비 소식이 있어요. 그래도 세차할까요?"
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: lowFuel
+     * 목적: 주유를 권하는 까닭을 말하는 첫 문장.
+     * 인자: percent — 연료(%). 모르면 null
+     * 반환: "연료가 18%예요." 연료를 모르면 "남은 연료로는 목적지까지 못 가요."
+     */
+    fun lowFuel(percent: Int?) = if (percent != null) "연료가 $percent%예요." else "남은 연료로는 목적지까지 못 가요."
+
+    /**
      * 작성: 2026-11-13 03:25:00 · 박건준
+     * 수정: 2026-11-14 16:00:00 · 박건준
      * 함수: fuelOffer
      * 목적: 주유(조건이 맞으면 세차도) 권하는 말. 연료, 주유소, 세차 이유를 한
-     *       번에 말한다.
-     * 인자: percent — 연료(%)
+     *       번에 말한다. 일주일 안에 비가 없다는 것을 알 때만 그 말을 넣는다.
+     * 인자: percent — 연료(%). 모르면 null
      *       station — 주유소 이름
      *       daysSinceWash — 마지막 세차 뒤 날 수. 세차를 권하지 않으면 null
+     *       dry — 일주일 안에 비 소식이 없으면 true. 비가 있거나 날씨를 모르면
+     *       false
+     *       nearby — 지금 위치 근처를 실제로 찾은 곳이면 true
      * 반환: "연료가 18%예요. 가는 길에 말죽거리주유소가 있어요. 세차 안 하신 지
      *       36일 됐고 일주일간 비 소식이 없어서 세차도 추천드려요."
      * 근거: 인용 — docs/SCREEN.md 6장 2단계 말(사용자가 정한 세차 추천 문장이
      *       이 질문 안에 들어간다)
      */
-    fun fuelOffer(percent: Int, station: String, daysSinceWash: Long?): String {
-        val fuel = "연료가 $percent%예요. 가는 길에 ${withSubject(station)} 있어요." // 주유 권하는 앞 두 문장
+    fun fuelOffer(
+        percent: Int?, station: String, daysSinceWash: Long?, dry: Boolean = true, nearby: Boolean = false,
+    ): String {
+        val fuel = "${lowFuel(percent)} ${fuelDetail(station, false, nearby)}" // 주유 권하는 앞 두 문장
         if (daysSinceWash == null) return fuel
-        return "$fuel 세차 안 하신 지 ${daysSinceWash}일 됐고 일주일간 비 소식이 없어서 세차도 추천드려요."
+        return if (dry) "$fuel 세차 안 하신 지 ${daysSinceWash}일 됐고 일주일간 비 소식이 없어서 세차도 추천드려요."
+        else "$fuel 세차 안 하신 지 ${daysSinceWash}일 돼서 세차도 추천드려요."
     }
 
     /**

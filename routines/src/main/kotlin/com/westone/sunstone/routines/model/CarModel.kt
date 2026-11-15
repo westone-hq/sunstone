@@ -72,6 +72,8 @@ data class CarState(
     val place: Place = Place.NONE,
     /** 연료(0~100%). 모르면 null. 에뮬레이터 차는 전기차라 데모 `fuel`로 넣는다 */
     val fuelPercent: Int? = null,
+    /** 주행 가능 거리(km). 모르면 null. 목적지까지 남은 거리와 견준다(docs/SPEC.md 4장) */
+    val rangeKm: Int? = null,
 ) {
     val stopped: Boolean get() = speedKmh < 1f
     fun isOpen(door: Door): Boolean = doorOpen[door] == true

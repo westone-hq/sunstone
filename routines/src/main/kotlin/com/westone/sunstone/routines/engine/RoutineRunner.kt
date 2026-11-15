@@ -95,6 +95,16 @@ class RoutineRunner(
          * 근거: 미정 — 대사집에 거절 문장이 없어 짧게 정했다
          */
         const val DECLINED = "알겠어요."
+
+        /**
+         * 작성: 2026-11-14 16:00:00 · 박건준
+         * 변수: CHECK_RETRY_MS
+         * 목적: 오래 켜져 있는지 물으려는데 다른 질문이 떠 있을 때 다시 보기까지
+         *       기다리는 시간(밀리초).
+         * 근거: 인용 — docs/SPEC.md 3장 질문은 한 번에 하나.
+         *       미정 — 질문 하나가 닫히는 시간(20초)보다 조금 길게 30초
+         */
+        const val CHECK_RETRY_MS = 30_000L
     }
 
     private val routines = routines.associateBy { it.id }
@@ -104,6 +114,9 @@ class RoutineRunner(
 
     /** 기다렸다 저절로 받아들이는 권하기의 타이머(`Choice.waitMs`). 없으면 null */
     private var waitJob: Job? = null
+
+    /** 오래 켜져 있어 물은 질문(`Routine.stillOnQuestion()`)과 그 루틴. 묻지 않았으면 null */
+    private var check: Pair<RoutineId, Question>? = null
 
     private val _ui = MutableStateFlow(RunnerUi())
     val ui: StateFlow<RunnerUi> = _ui.asStateFlow()
@@ -154,6 +167,19 @@ class RoutineRunner(
     }
 
     /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: expire
+     * 목적: 대답 없이 닫힌 질문의 권하기·오래 켜짐 확인을 지운다. 거절로 남기지
+     *       않는다(질문은 부른 쪽이 `Asking.expire()`로 내린다).
+     * 근거: 인용 — docs/SPEC.md 3장 대답이 없을 때
+     */
+    fun expire() {
+        waitJob?.cancel()
+        check = null
+        _ui.update { it.copy(suggestion = null) }
+    }
+
+    /**
      * 작성: 2026-11-11 16:42:25 · 박희정
      * 수정: 2026-11-13 03:25:00 · 박건준
      * 함수: forgetSuggestions
@@ -196,6 +222,12 @@ class RoutineRunner(
      *       아무것도 하지 않고 false(부르는 쪽이 "못 알아들었어요"로 처리)
      */
     fun answer(reply: Reply): Boolean {
+        check?.takeIf { asking?.question?.value === it.second }?.let { (id, question) ->
+            check = null
+            asking?.answered(question.kind) // → 로직 이동: Asking.answered()
+            if (question.accepts(reply)) undo(id) else say(DECLINED)
+            return true
+        }
         val s = _ui.value.suggestion ?: return false // 떠 있는 권하기
         val yes = s.question?.accepts(reply) ?: (reply != Reply.NO) // 받아들였는지
         if (yes) {
@@ -257,6 +289,34 @@ class RoutineRunner(
         run.phase = Phase.ACTIVE
         publish(run)
         if (atEnd) routine.report(outcomes).forEach(::say) // → 로직 이동: Routine.report()
+        routine.checkAfterMs?.let { checkLater(run, it) } // → 로직 이동: RoutineRunner.checkLater()
+    }
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: checkLater
+     * 목적: 루틴이 켜진 뒤 [afterMs]가 지나도 그대로 켜져 있으면
+     *       `Routine.stillOnQuestion()`을 한 번 묻고 말한다. 다른 질문이나
+     *       권하기가 떠 있으면 `CHECK_RETRY_MS` 뒤에 다시 본다. 그 사이 끝났으면
+     *       묻지 않는다.
+     * 인자: run — 켜진 실행
+     *       afterMs — 기다릴 시간(밀리초)
+     * 근거: 인용 — docs/SPEC.md 5장 "20분이 지나면 한 번 묻는다"
+     */
+    private fun checkLater(run: ActiveRun, afterMs: Long) {
+        scope.launch {
+            delay(afterMs)
+            while (active[run.routine.id] === run && run.phase == Phase.ACTIVE) {
+                val question = run.routine.stillOnQuestion() ?: return@launch // 물을 질문
+                if (asking?.question?.value == null && _ui.value.suggestion == null) {
+                    if (asking?.ask(question) != true) return@launch // → 로직 이동: Asking.ask()
+                    check = run.routine.id to question
+                    say(question.title)
+                    return@launch
+                }
+                delay(CHECK_RETRY_MS)
+            }
+        }
     }
 
     /**
@@ -315,6 +375,11 @@ class RoutineRunner(
     private suspend fun undoLocked(id: RoutineId, auto: Boolean) {
         val run = active[id] ?: return
         if (run.phase != Phase.ACTIVE) return
+        check?.takeIf { it.first == id }?.let { (_, question) ->
+            // 오래 켜져 있는지 묻는 중에 다른 길로 끝냈으면("세차 끝났어", D단) 그 질문을 내린다
+            check = null
+            asking?.answered(question.kind)
+        }
         run.phase = Phase.UNDOING
         publish(run)
         for (command in run.saved.asReversed()) {

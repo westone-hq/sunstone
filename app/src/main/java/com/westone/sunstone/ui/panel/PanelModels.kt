@@ -117,6 +117,21 @@ sealed interface PanelPress {
      * 목적: 부르는 카드(시나리오 고르기 포함)를 닫는다.
      */
     data object Close : PanelPress
+
+    /**
+     * 작성: 2026-11-14 17:00:00 · 박건준
+     * 클래스: Place
+     * 목적: 목적지 후보 줄. 그 후보로 길안내를 시작한다.
+     * 인자: index — 후보 번호(0부터)
+     */
+    data class Place(val index: Int) : PanelPress
+
+    /**
+     * 작성: 2026-11-14 17:00:00 · 박건준
+     * 클래스: PlaceCancel
+     * 목적: 목적지 고르기 카드의 닫기. 고르기를 그만둔다.
+     */
+    data object PlaceCancel : PanelPress
 }
 
 /**

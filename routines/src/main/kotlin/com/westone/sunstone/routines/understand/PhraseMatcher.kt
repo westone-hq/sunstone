@@ -117,6 +117,8 @@ object PhraseMatcher {
         // "세차도 할게"는 세차 모드 켜기가 아니라 주유 질문의 대답이라 루틴 낱말보다 먼저 본다
         if (ALL_WORDS.any { it in compact }) return VoiceAction.Answer(Reply.ALL)
         if (ONLY_WORDS.any { it in compact }) return VoiceAction.Answer(Reply.ONLY)
+        // "주유할게"는 세차 없이 주유만 하겠다는 대답이다
+        if (compact in FUEL_ONLY_SAYINGS) return VoiceAction.Answer(Reply.ONLY)
 
         seatOf(text, compact)?.let { return it } // → 로직 이동: PhraseMatcher.seatOf()
 
@@ -268,7 +270,7 @@ object PhraseMatcher {
      * 근거: 인용 — 다른 팀 사례(옆자리 팀): 부정어 먼저, "괜찮아요"는 거절.
      *       docs/SCREEN.md 6장 6단계 "취소"라고 말해도 된다
      */
-    private val NO_WORDS = listOf("아니", "괜찮", "안해", "안할", "싫어", "하지마", "나중에", "필요없", "취소")
+    private val NO_WORDS = listOf("아니", "괜찮", "안해", "안할", "싫어", "하지마", "나중에", "필요없", "취소", "아직", "다음에")
 
     /**
      * 작성: 2026-11-13 03:25:00 · 박건준
@@ -279,6 +281,14 @@ object PhraseMatcher {
      */
     private val ALL_WORDS = listOf("세차도", "세차까지", "둘다")
     private val ONLY_WORDS = listOf("주유만", "기름만", "경유지만")
+
+    /**
+     * 작성: 2026-11-14 13:41:10 · 박희정
+     * 변수: FUEL_ONLY_SAYINGS
+     * 목적: 주유만 하겠다는 대답으로 보는 말(띄어쓰기를 뺀 전체가 같을 때만).
+     * 근거: 미정 — 주유 카드에 자주 할 만한 짧은 대답을 골랐다
+     */
+    private val FUEL_ONLY_SAYINGS = setOf("응주유할게", "주유할게", "응주유할게요", "경유지로넣어줘")
 
     /**
      * 작성: 2026-11-11 14:28:46 · 박희정

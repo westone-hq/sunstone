@@ -58,7 +58,7 @@ Virtual Console은 브라우저 세션이 열려 있을 때만 차량 쪽과 연
 | 길안내 | 장소 검색(이름·분류) | 없음 | 실패 | 쓰지 않음 | 2026-11-10 확인. NaviHelper 3.0.5 공개 함수(javap)에 이름·분류 검색이 없다(경로·경유지·즐겨찾기·최근 목적지·현재 위치·TBT·충전 사업자·화면·Trip뿐). 지도 앱이 Gleo용 `ai.umos.maps.android.navigation.app.SEARCH_PLACE` 액션을 받지만 Gleo 전용 통로라 시험하지 않았다. 장소 검색은 바깥 API(카카오 로컬)로 한다 |
 | 주유 | AAOS INFO_FUEL_TYPE (차 종류) | 직접 | 반영 | 실제 | 2026-11-09 측정. `[10]`(ELECTRIC) → 상태 줄 "전기차". `CAR_INFO`(설치 때 허가). SDK `CarInfo`에는 VIN·CRN·지원 목록만 있고 연료 종류가 없다 |
 
-## 지원 area (2026-11-09, 데모 `areas`)
+## 지원 area (2026-11-09)
 
 SDK `check…Capabilities`가 돌려준 값. 괄호 안 번호는 Pleos 서비스 로그의 `areaIds`와 같다(좌석·문·창문마다 번호 체계가 다르다).
 
@@ -77,7 +77,7 @@ SDK `check…Capabilities`가 돌려준 값. 괄호 안 번호는 Pleos 서비�
 | MoveSeatForeAft | READ_WRITE | ROW_1/2 LEFT/RIGHT | |
 | SeatMemory | WRITE | 운전석(1), 1~2번 | 읽기 없음 |
 
-## 시트 축 이동 시간 (2026-11-09, 데모 `seattime`)
+## 시트 축 이동 시간 (2026-11-09)
 
 시트 위치를 앱이 읽을 수 없어서(SDK는 늘 0, AAOS 속성은 권한 없음) 움직인 시간으로 위치를 맞출 수 있는지 잰다.
 운전석, SDK `moveSeat…`로 FORWARD/BACKWARD를 보내고 콘솔 `seat.positions.<축>.driver`가 100(또는 0)에 닿을 때까지 0.1초마다 읽었다. 축·방향마다 5번. 원본: `20261109-1855-시트이동시간.csv`.
@@ -94,7 +94,7 @@ SDK `check…Capabilities`가 돌려준 값. 괄호 안 번호는 Pleos 서비�
 - 에뮬레이터 값이라 실제 차 속도와 다를 수 있다(미확인). 0→100 평균을 `PleosCarPort.SEAT_FULL_MS`에 좌석·축별로 넣었다.
 - 조수석은 2026-11-11 데모 `seattime passenger`로 쟀다. 같은 날 운전석을 다시 재니 2.05~2.09초로 이전과 같았다(`20261111-1151-운전석시트재확인-logcat.txt`).
 
-## 시트 시간 맞추기 (2026-11-09, car/seat-timing, 데모 `seatfit`)
+## 시트 시간 맞추기 (2026-11-09)
 
 `PleosCarPort.moveSeatTo()`: BACKWARD 2.5초 → STOP(추정 0) → FORWARD (목표 × 축별 0→100 시간 / 100) → STOP. 추정 위치를 앱이 기억하고 시트 위치 읽기는 이 값을 돌려준다. 결과는 Sent.
 운전석, 목표 30·70을 축마다 3번씩, 움직인 뒤 콘솔 `seat.positions.<축>.driver`와 비교. 원본: `20261109-2006-시트시간맞추기.csv`.
@@ -111,7 +111,7 @@ SDK `check…Capabilities`가 돌려준 값. 괄호 안 번호는 Pleos 서비�
 - 한계: 사람이 시트를 손으로(또는 콘솔로) 움직이거나 앱을 다시 켜면 추정 위치가 실제와 달라진다. 다음 이동은 늘 맨 뒤로 기준점을 다시 잡아서 이동 자체는 맞지만, 되돌리기용 "원래 값"은 틀릴 수 있다.
 - 실차 속도는 미확인. 실차에서 축별 0→100 시간을 다시 재야 한다.
 
-## 내비 실측 (2026-11-10, 데모 `navi`)
+## 내비 실측 (2026-11-10)
 
 NaviHelper 3.0.5(`ai.pleos.playground:NaviHelper:3.0.5`, navi-data 3.0.4 함께 받음). 에뮬레이터 내비 서비스 `ai.pleos.playground.service.navi`(서비스 3.0.4), 지도 앱 `ai.umos.maps.android.navigation.app` 3.3.2.
 단계마다 10초 기다리며 화면을 캡처했다. 원본: `20261110-1428-내비실측.csv`, 캡처 `20261110-1428-navi-*.png`.
@@ -132,15 +132,15 @@ NaviHelper 3.0.5(`ai.pleos.playground:NaviHelper:3.0.5`, navi-data 3.0.4 함께 
 - **경로 재생(GPX/KML):** `adb emu geo`에는 `nmea`·`fix`·`gnss`뿐이고 경로 재생 명령이 없다(에뮬레이터 확장 창 GUI에만 있다). `geo fix`를 차례로 보내는 스크립트로 대신할 수 있지만, 내비 위치는 위 이유로 따라가지 않는다. FusedLocation은 따라간다.
 - **지도 앱 설정:** 내비게이션 설정(충전소·경로·안내음·과속 경고·버전·데이터 삭제)에 모의 주행이 없고, 버전 정보를 10번 눌러도 숨은 메뉴가 없었다.
 
-## 벨트 실측 (2026-11-10, 데모 `belt`)
+## 벨트 실측 (2026-11-10)
 
 콘솔 카탈로그에서 벨트 관련은 `safety.telltales`의 `SeatBelt` 경고등 하나뿐이다(좌석 구분 없음). 경고등을 On → Off → (뒷좌석 왼쪽 탑승) → Blink → Off로 바꾸며 SDK 값을 봤다. 원본 `20261110-1442-벨트실측.csv`.
 - 좌석별 착용(`getCurrentSeatBeltBuckledState`·리스너): 늘 false.
 - 미착용 경고(`hasSeatBeltNotBuckledWarning`): 속성 없음.
 - 경고등(`getTelltalesInfo`·`registerTelltales`): 콘솔을 그대로 따라온다. 단 `PRIVATE_CAR_SAFETY` 권한이 필요하다.
-- 차일드락의 "주행 중 뒷좌석 벨트 풀림" 시연 수단은 정해야 한다. ① 콘솔 벨트 경고등을 "뒷좌석 벨트 풀림"으로 읽기(실제 SDK 값이지만 좌석을 모르고 PRIVATE 권한) ② Pleos 차에도 데모 `belt` 입력을 만들기(조작) 중 하나.
+- 차일드락의 "주행 중 뒷좌석 벨트 풀림"은 시연 모드가 데모 입력으로 넣는다(조작). 검토한 것: ① 콘솔 벨트 경고등을 "뒷좌석 벨트 풀림"으로 읽기(실제 SDK 값이지만 좌석을 모르고 PRIVATE 권한) ② Pleos 차에도 데모 `belt` 입력을 만들기(조작) 중 하나.
 
-## 앱 얼림 대응과 시연 이동 (2026-11-11, navi/live)
+## 앱 얼림 대응과 시연 이동 (2026-11-11)
 
 - **깨어 있기 서비스:** (2026-11-12 바꿈: 아래 시나리오 ① 실측 "앱 얼림" 행. 지금은 Pleos 차에서 앱 화면이 뜰 때 켜고 끄지 않는다) 처음에는 길안내 중이거나 루틴이 진행 중이면 `KeepAwakeService`(포그라운드 서비스, 종류 `specialUse`, 알림 하나)를 켰다. 에뮬레이터 `cached_apps_freezer`를 기본값으로 되돌리고 재부팅한 뒤 시험했다.
   - 서비스 켜짐: 내비 화면이 앞에 있어도 앱이 얼지 않고(`isFrozen=false`, `isForeground=true`), 경로 시작·경유지 이벤트와 근접 알림이 바로 왔다. 주유소로 geo fix를 옮기고 약 2초 안에 장소 도착·경유지 도착
@@ -151,7 +151,7 @@ NaviHelper 3.0.5(`ai.pleos.playground:NaviHelper:3.0.5`, navi-data 3.0.4 함께 
 - **권하기 대기:** 같은 루틴은 10분에 한 번만 권한다(routines `suggestCooldownMs`). 리허설을 이어서 하면 두 번째는 권하지 않으니 앱을 다시 켠다.
 - 원본: `20261111-1217-시나리오1-logcat.txt`, 캡처 `20261111-1217-시나리오1-세차권하기.png`, `20261111-1208-주유소도착-세차권하기.png`
 
-## 시나리오 ① 세차 실측 (2026-11-11, routine/wash)
+## 시나리오 ① 세차 실측 (2026-11-11)
 
 시나리오 ① 출장 가는 길(대사집 S1~S5)을 Pleos 에뮬레이터에서 처음부터 끝까지 돌리며 잰 것. 실제 경로(Pleos 차)와 안전 경로(가짜 차, 데모 `fake on`) 모두 S1~S5가 대사집 문장 그대로 나왔다(시연 모드 [다음 장면], adb `scene S5`, `tools/talk.ps1`).
 
@@ -166,7 +166,7 @@ NaviHelper 3.0.5(`ai.pleos.playground:NaviHelper:3.0.5`, navi-data 3.0.4 함께 
 | 뒷좌석 탑승(콘솔) | `PUT /vehicle/seat?kind=occupied&area=rear_left&value=true|false`로 콘솔 `seat.occupied.rear_left`가 바뀌고, 앱은 뒤집어 읽어(탑승 행) 뒷좌석 탑승으로 본다(2026-11-12) | 실제(콘솔로 장면 준비) | 시나리오 ② S8·S11·S13·S15 장면 준비(`ScenePlayer.prepare`). 차일드락은 뒷문이 닫히는 순간 뒷좌석에 사람이 있으면 권하고, 뒷좌석이 비고 문이 닫히면 되돌린다 |
 | 화면 읽기(uiautomator) | 화면 전환 중에는 `null root node`로 실패 | — | 자동 버튼 누르기는 실패하면 1초 뒤 다시 읽는다. 그래픽 오류(`Failed to find ColorBuffer`) 뒤 화면이 검게 멈추면 에뮬레이터를 다시 켠다 |
 
-## 화면 1차와 시나리오 ① 다듬기 (2026-11-12, screen/scenario1)
+## 화면 1차와 시나리오 ① 다듬기 (2026-11-12)
 
 docs/SCREEN.md 1장 화면을 앱에 옮기고 3장 ①-2~①-11(대사집 S1~S10)을 Pleos 에뮬레이터에서 돌리며 잰 것. 캡처는 `screen/`.
 
@@ -180,7 +180,7 @@ docs/SCREEN.md 1장 화면을 앱에 옮기고 3장 ①-2~①-11(대사집 S1~S1
 | 질문 녹음본 | 새 문장 8개(S1~S10)를 `tools/make-voice.ps1`로 다시 녹음 | 조작(녹음본) | 3회 연속 실행에서 `소리 없이 건너뜀` 0건 |
 | 3회 연속 | S1~S10을 `scene next`·`say`로 3번 이어 돌림. 회마다 앱 말 8개가 같은 순서로 나오고 끊김 없음(토스트는 2회차 캡처로만 확인) | — | 회마다 처음에 `scene restart`(말 끊기, 질문·거절 기록 지우기, 켜진 루틴 되돌리기, 길안내 취소) |
 
-## 화면 2차와 시나리오 ① 다시 짜기 (2026-11-13, screen/scenario1)
+## 화면 2차와 시나리오 ① 다시 짜기 (2026-11-13)
 
 docs/SCREEN.md 6장(2차 시안)대로 카드·판을 다시 짜고 대사집 S1~S9를 Pleos 에뮬레이터에서 돌리며 잰 것. 캡처는 `v2-*`.
 
@@ -196,7 +196,7 @@ docs/SCREEN.md 6장(2차 시안)대로 카드·판을 다시 짜고 대사집 S1
 | 녹음본 | 앱 13개(새 문장: 주유·세차 묻기, "곧 세차 모드 켤게요.", "사이드미러 펴졌는지 확인해 주세요."), 운전자 2개 | 조작(녹음본) | 3회 연속 실행에서 `소리 없이 건너뜀` 0건 |
 | 3회 연속 | 길게 누르기만으로 S1~S9를 3번 이어 돌림. 회마다 장면 9·앱 말 5·운전자 대사 2·토스트 3이 같은 순서, 실패 0 | — | 회마다 처음에 adb `scene restart`. v2-loop1~3-log.txt |
 
-## 부르면 나오는 카드와 제출 빌드 (2026-11-14, app/scenarios)
+## 부르면 나오는 카드와 제출 빌드 (2026-11-14)
 
 앱 화면을 없애고 왼쪽 구역 카드만 쓰게 바꾼 뒤 Pleos 에뮬레이터 v2.1.0에서 잰 것.
 
@@ -208,3 +208,33 @@ docs/SCREEN.md 6장(2차 시안)대로 카드·판을 다시 짜고 대사집 S1
 | 듣는 중 줄 | 카드 맨 아래 높이 88. 카드 없이 결과만 알릴 때는 카드 자리(위 176)에 줄만 뜬다 | 실제 | 켜짐 표시가 있으면 그 아래에 붙는다 |
 | 켜짐 표시 중 부르기 | 켜짐 표시가 마이크 칸 자리를 가려 마이크 칸이 숨는다. 카드 앱 아이콘을 누르면 부르는 카드가 뜬다 | 실제 | 하단 막대 아이콘으로도 된다 |
 | release APK 시연 | debug를 지우고 `apk/westone_Sunstone_release.apk`만 설치해 카드의 "시연"으로 ① S1~S9, ② S10~S18, ③ S19~S25를 끝까지 돌림 | 조작(시연 모드) | 왼쪽 구역 창 허가는 adb `appops` |
+
+## Pleos 음성 SDK (2026-11-13)
+
+공모전 FAQ의 사용 가능 SDK `ai.pleos.playground:TextToSpeech`·`SpeechToText` 3.3.1을 debug 실측 `SpeechProbe`(데모 `speech [tts|stt|mic] [모드]`, logcat `SunstoneVoice` `speech,` 줄)로 잰 것. 둘 다 에뮬레이터 음성 서비스 `ai.pleos.playground.caas`(4.2.10, SDK 요구 4.1.29 이상)에 붙는다.
+
+| 무엇 | 결과 | 시연 표기 | 메모 |
+|---|---|---|---|
+| 권한 | `pleos.car.permission.TTS_SERVICE`·`STT_SERVICE`가 없으면 `SecurityException` | — | 둘 다 protection normal이라 매니페스트에 적기만 하면 된다. STT는 `RECORD_AUDIO`도(`pm grant --user 10`) |
+| TTS ON_DEVICE | 됨. 화자 `seoyoon`, 22050Hz로 문장 하나(약 3.6초)를 만들어 재생(`TotalWrittenBytes=159744`) | 실제 | `setLocale(Locale.KOREA)` 필수. `Locale.KOREAN`(`ko`)은 `unsupported locale: ko-`로 `ON_DEVICE_ENGINE_ERROR`. 리스너는 `initialize()` 뒤에 붙인다(앞이면 `lateinit property tts` 예외). 에뮬레이터 부하가 크면 엔진 준비가 25초 넘게 걸릴 때가 있음 |
+| TTS SERVER·HYBRID | SERVER는 `Client credentials missing` → `UNKNOWN` 오류. HYBRID는 서버 실패 뒤 ON_DEVICE로 넘어감 | — | 서버 인증(`registerApp`)용 자격 정보가 없다 |
+| STT ON_DEVICE | 됨. 16kHz로 녹음해 중간·최종 결과를 준다. "세차할게"를 "시작할게"로 들음(1회) | 실제 | 에뮬레이터를 `-allow-host-audio`로 켜야 한다. 없으면 마이크 입력이 모두 0(앱 `AudioRecord` 진폭 0)이고 `emu avd hostmicon`만으로는 열리지 않는다. 인식 어휘 보강용 `LMBoostConfig`(phrases, triggers)가 SDK 안에 있으나 공개 함수로 넣는 길은 아직 못 찾음 |
+| STT `stop()` | 앞 실측의 듣기 작업이 `stop()`·`release()` 뒤에도 20분 넘게 녹음을 계속함(`readCnt=13015`) | — | 붙일 때 듣기를 끝내는 방법을 다시 확인한다 |
+| 앱 말을 Pleos TTS로 | `VoicePlayer`가 ON_DEVICE TTS로 읽음. 시나리오 ① S1 두 문장이 순서대로 나오고, 첫 말의 끝 알림(`onDone`) 0.2초 뒤 다음 말 시작 | 실제 | 앱을 켜고 TTS 준비까지 약 4초. 8초 안에 준비되지 않으면 준비될 때까지 녹음본으로 낸다. 끝 알림이 오지 않으면 6초 + 글자당 0.25초 뒤 넘어간다. 운전자 대사는 그대로 녹음본 |
+| 운전자 말을 Pleos STT로 (2026-11-14) | `PleosEar`가 듣는 중 줄이 떠 있고 앱이 말하지 않는 동안 ON_DEVICE로 듣는다. 부르는 카드를 열면 음성 서비스가 Sunstone 요청으로 인식을 시작하고(`recognize(com.westone.sunstone)`), 카드를 닫으면(`stop()`) 인식 로그가 멈춘다 | 실제(시연 밖) | 이 PC에서는 마이크로 말해 볼 수 없어 **알아들은 글자까지는 확인하지 못했다**. 시연 모드는 운전자 녹음본이 말을 넣고 STT는 켜지 않는다(같은 대사가 두 번 들어가지 않게). 마이크 권한(`RECORD_AUDIO`)은 첫 실행 때 묻는다 |
+| release 빌드의 음성 | TextToSpeech·SpeechToText를 `implementation`으로 넣어 release APK에도 들어간다. release APK로 시나리오 ①②③의 앱 말이 Pleos TTS로 나왔다 | 실제 | TTS가 8초 안에 준비되지 않으면 그 문장은 녹음본으로 낸다 |
+
+## 바깥 정보: 주유소·목적지·날씨 (2026-11-14)
+
+시연 모드가 도는 동안은 준비 값(`FixedInfo`: 주유소 세 곳, 7일 동안 비 없음)을 쓰고, 그 밖에서는 아래 실제 값을 쓴다(`LiveInfo`). 키는 `local.properties` → `tools/configure-api.ps1` → 기기 안 `api.properties`로만 넣고 저장소·APK에는 넣지 않는다.
+
+| 무엇 | 결과 | 시연 표기 | 메모 |
+|---|---|---|---|
+| 목적지 후보 | 카카오 로컬 키워드 검색(`search/keyword.json`, 5곳). "강남역으로 안내해 줘" → 후보 5곳이 왼쪽 카드에 뜨고 "1번"이나 줄 누름으로 고르면 그 좌표로 내비 경로 시작 | 실제(시연 밖) | 후보가 하나면 바로 시작. 검색이 안 되면 시연 장소 목록에서 찾는다 |
+| 근처 주유소 가격 | 오피넷 `aroundAll.do`(반경 5000m, 가격순, 좌표는 KATEC). 양재 근처에서 최저가 "방배동주유소" 1,829원을 받음 | 실제(시연 밖) | WGS84↔KATEC은 카카오 `geo/transcoord.json`(KTM)으로 바꾼다. 싼 5곳만 상세를 받는다 |
+| 세차 시설 여부 | 오피넷 `detailById.do`의 `CAR_WASH_YN` | 실제(시연 밖) | 자동 세차기인지, 지금 영업하는지는 알 수 없다 |
+| 오피넷을 못 쓸 때 | 카카오 카테고리 검색(주유소 `OL7`, 반경 5km, 가까운 순). 가격·세차 여부가 없어 가장 가까운 곳으로 주유만 묻는다 | 실제(시연 밖) | 2026-11-14 오전에는 오피넷이 빈 목록을 줬고(키 문제로 보임) 새 키로는 값이 왔다 |
+| 비 예보 | Open-Meteo Forecast(`hourly` 강수확률·비·소나기·눈·날씨 코드, 9일, 키 없음). 세차할 주유소 좌표로 물어 "3일 뒤 비"를 받았고 카드에 "3일 뒤 비 예보"가 보였다 | 실제(시연 밖) | 한 시간 비 0.5mm 이상이거나 강수확률 60% 이상 + 비 코드면 비. 판단할 수 없는 날(눈, 형태 불명)은 건너뛰고, 비를 못 찾았는데 그런 날이 있으면 날씨 칸을 뺀다. 에뮬레이터에서 첫 요청이 시간 초과(4초)될 때가 있어 한 번 다시 시도하고, 그래도 안 되면 날씨 없이 세차일만으로 판단한다 |
+| 지금 위치 | FusedLocation 새 위치 한 번(4초 안) | 실제 | 에뮬레이터는 `adb emu geo fix`로 넣은 자리 |
+| 고른 주유소 도착 | 경유지로 넣을 때 그 좌표에 근접 알림(150m)을 건다 | 실제(시연 밖) | 등록이 안 되면 세차는 예약하지 않는다. 주유소 안 두 번째 정차를 세차 입구로 보는 것은 시연과 같다 |
+| release APK에서 실제 값 | 키를 넣을 길이 없다(`run-as`는 debug 앱만, 에뮬레이터 사용자 10의 바깥 저장소는 adb로 쓸 수 없음). 키가 없으면 목적지는 시연 장소 목록에서 찾고 주유는 묻지 않는다 | — | 심사용 APK는 시연 모드(준비 값)로 본다. 실제 값은 debug 빌드로 확인했다 |

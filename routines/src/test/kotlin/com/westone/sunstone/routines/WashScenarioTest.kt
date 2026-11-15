@@ -3,7 +3,9 @@ package com.westone.sunstone.routines
 import com.westone.sunstone.routines.dialog.Asking
 import com.westone.sunstone.routines.dialog.CurrentRoute
 import com.westone.sunstone.routines.dialog.QuestionKind
+import com.westone.sunstone.routines.dialog.Reply
 import com.westone.sunstone.routines.dialog.WashBooking
+import com.westone.sunstone.routines.engine.Phase
 import com.westone.sunstone.routines.engine.RoutineId
 import com.westone.sunstone.routines.engine.RoutineRunner
 import com.westone.sunstone.routines.engine.RunRequest
@@ -349,5 +351,86 @@ class WashScenarioTest {
 
         assertEquals(1, said.size)
         assertTrue(said.single().endsWith("시동을 끈 뒤 3분 안에는 운전석 문을 열지 마세요."))
+    }
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: 세차 모드가 20분 넘게 켜져 있으면 한 번 묻는다
+     * 목적: 세차 모드를 켜고 20분이 지나면 "세차 끝났나요?" [끝내기] [아직이에요]를
+     *       한 번 묻고, "아직"이면 그대로 두고 다시 묻지 않으며, 그 뒤 다시 켜서
+     *       [끝내기]면 원래대로 돌리는지 본다(docs/SPEC.md 5장).
+     */
+    @Test
+    fun `세차 모드가 20분 넘게 켜져 있으면 한 번 묻는다`() = runTest {
+        val car = FakeCar(CarState(gear = Gear.PARK)).apply { unsupported = roofs }
+        val runner = runner(car)
+        runner.request(RunRequest(RoutineId.WASH)); runCurrent()
+        said.clear()
+
+        advanceTimeBy(20 * 60_000L - 1); runCurrent()
+        assertNull(asking.question.value)
+        advanceTimeBy(2); runCurrent()
+
+        val q = asking.question.value!! // 올린 질문
+        assertEquals(QuestionKind.WASH_DONE, q.kind)
+        assertEquals("세차 끝났나요?", q.title)
+        assertEquals(listOf("끝내기", "아직이에요"), q.choices.map { it.label })
+        assertEquals(listOf("세차 끝났나요?"), said)
+
+        assertTrue(answer(runner, "아직이에요")); runCurrent()
+        assertNull(asking.question.value)
+        assertEquals(Phase.ACTIVE, runner.ui.value.runs.getValue(RoutineId.WASH).phase)
+        advanceTimeBy(60 * 60_000L); runCurrent()
+        assertNull(asking.question.value)
+
+        runner.undo(RoutineId.WASH); runCurrent()
+        runner.request(RunRequest(RoutineId.WASH)); runCurrent()
+        advanceTimeBy(20 * 60_000L + 1); runCurrent()
+        assertTrue(runner.answer(Reply.YES)); runCurrent()
+        assertEquals(Phase.FINISHED, runner.ui.value.runs.getValue(RoutineId.WASH).phase)
+    }
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: 20분 안에 끝내면 묻지 않는다
+     * 목적: 세차 모드를 20분 안에 끝냈으면 그 뒤 "세차 끝났나요?"를 묻지 않는지
+     *       본다.
+     */
+    @Test
+    fun `20분 안에 끝내면 묻지 않는다`() = runTest {
+        val car = FakeCar(CarState(gear = Gear.PARK)).apply { unsupported = roofs }
+        val runner = runner(car)
+        runner.request(RunRequest(RoutineId.WASH)); runCurrent()
+
+        car.update { it.copy(gear = Gear.DRIVE) }; runCurrent()
+        advanceTimeBy(30 * 60_000L); runCurrent()
+
+        assertNull(asking.question.value)
+    }
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: 자동 시작 5초 동안 말로 취소하면 켜지 않는다
+     * 목적: 예약한 세차 입구에서 "곧 세차 모드 켤게요." 뒤 5초 안에 "아니"나
+     *       "취소"라고 말하면 세차 모드를 켜지 않는지 본다(docs/SPEC.md 3장).
+     */
+    @Test
+    fun `자동 시작 5초 동안 말로 취소하면 켜지 않는다`() = runTest {
+        for (word in listOf("아니", "취소")) {
+            booking.reserve()
+            val car = FakeCar(CarState(gear = Gear.DRIVE, speedKmh = 20f)).apply { unsupported = roofs }
+            val runner = runner(car)
+            runCurrent()
+            arriveAndMove(car)
+            assertEquals("곧 세차 모드를 켤게요", asking.question.value?.title)
+
+            advanceTimeBy(3_000)
+            assertTrue(answer(runner, word)); runCurrent()
+            advanceTimeBy(10_000); runCurrent()
+
+            assertTrue(car.applied.isEmpty())
+            assertNull(runner.ui.value.runs[RoutineId.WASH])
+            asking.newTrip()
+        }
     }
 }

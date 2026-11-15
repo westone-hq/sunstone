@@ -18,7 +18,7 @@ import java.time.LocalDate
 
 /**
  * 작성: 2026-11-08 18:03:56 · 박건준
- * 수정: 2026-11-11 12:30:00 · 박건준
+ * 수정: 2026-11-13 19:50:00 · 박희정
  * 클래스: DemoReceiver
  * 목적: 시연용 장면 넣기. 에뮬레이터가 못 만드는 상황(장소, 속도, 마이크
  *       입력)을 adb 한 줄로 넣는다. debug 빌드에만 있다.
@@ -46,6 +46,9 @@ import java.time.LocalDate
  *       - `beltprobe` — 벨트 실측(좌석별 착용·미착용 경고·경고등, logcat
  *         `belt,` 줄)
  *       - `childlock` — 뒷문 차일드락 실측(AAOS 속성, logcat `childlock,` 줄)
+ *       - `speech [tts|stt]` — Pleos 음성 합성·인식 실측(logcat `speech,` 줄)
+ *       - `weather live|dry|rain|rain4|unknown` — 시연 밖 날씨를 실제 값이나
+ *         넣은 값으로 바꾼다
  * 미구현: 프로토타입이라 에뮬레이터가 못 만드는 상황(연료, 콘솔이 없을 때 속도,
  *       마이크 입력, 좌석별 벨트, 예비 장소)을 이 명령으로 넣는다. debug
  *       빌드에만 있어 실제 차 빌드에는 들어가지 않는다
@@ -82,6 +85,18 @@ class DemoReceiver : BroadcastReceiver() {
         val g = context.graph // 앱 조립부
         Log.i("SunstoneDemo", "cmd=$cmd")
         when (word) {
+            /**
+             * 작성: 2026-11-14 13:41:10 · 박희정
+             * 수정: 2026-11-14 17:00:00 · 박건준
+             * 함수: weather
+             * 목적: 시연 밖에서 쓰는 날씨·주유소를 바꾼다. `live`면 실제
+             *       API(오피넷·카카오·Open-Meteo), `dry`·`rain`·`rain4`·`unknown`
+             *       이면 넣은 날씨와 시연 준비 주유소(`DemoWeather`).
+             */
+            "weather" -> {
+                g.tripInfo = if (arg == "live") null else DemoWeather(arg)
+                Log.i("SunstoneDemo", "weather=$arg")
+            }
             /**
              * 작성: 2026-11-08 18:03:56 · 박건준
              * 수정: 2026-11-09 18:49:00 · 박건준
@@ -378,6 +393,13 @@ class DemoReceiver : BroadcastReceiver() {
              * 목적: 뒷문 차일드락을 AAOS 속성으로 읽고 써 본다(`ChildLockProbe`).
              */
             "childlock" -> ChildLockProbe(context).run() // → 로직 이동: ChildLockProbe.run()
+            /**
+             * 작성: 2026-11-13 19:50:00 · 박희정
+             * 함수: speech
+             * 목적: Pleos 음성 SDK 실측(`SpeechProbe`)을 앱 범위에서 돌린다.
+             *       인자가 `tts`나 `stt`면 그것만, 없으면 둘 다.
+             */
+            "speech" -> g.scope.launch { SpeechProbe(context.applicationContext).run(arg) } // → 로직 이동: SpeechProbe.run()
             /**
              * 작성: 2026-11-12 18:05:00 · 박건준
              * 함수: overlay

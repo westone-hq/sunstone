@@ -4,15 +4,21 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import com.westone.sunstone.routines.port.MemoryPort
+import java.time.LocalDate
 
 /**
  * 작성: 2026-11-12 18:10:00 · 박건준
  * 수정: 2026-11-13 15:00:00 · 박희정
+ * 수정: 2026-11-14 16:00:00 · 박건준
  * 클래스: QuestionKind
  * 목적: 앱이 먼저 묻는 질문의 종류. 같은 길안내 안에서 거절한 질문을 다시
  *       묻지 않을 때 이 값으로 가린다.
  *       - `FUEL_STOP` — 주유(조건이 맞으면 세차도 같이) 할까요(길안내 대화)
  *       - `WASH_MODE` — 세차 모드를 켤게요/켤까요(세차 모드 권하기)
+ *       - `WASH_RAIN` — 비 소식이 있는데 그래도 세차할까요(운전자가 먼저
+ *         세차하겠다고 할 때)
+ *       - `WASH_DONE` — 세차 끝났나요(세차 모드가 오래 켜져 있을 때)
  *       - `CHILD_LOCK` — 뒷자리에 누가 탔을 때 뒷창문 잠글까요
  *       - `CHILD_LOCK_AGAIN` — 하원길에 아침처럼 다시 잠글까요
  *       - `SEAT_ADJUST` — 시트를 말로 맞추는 중([다 됐어요] [원래대로])
@@ -22,9 +28,30 @@ import kotlinx.coroutines.flow.StateFlow
  *       한 번으로 줄이고 세차 추천은 주유 질문 안에 넣는다.
  *       docs/SCREEN.md 4장 창구에 더해지는 것: CHILD_LOCK, CHILD_LOCK_AGAIN,
  *       SEAT_NAME, SEAT_NEW_PERSON. 맞추는 중 패널도 같은 카드로 보여
- *       SEAT_ADJUST를 더했다(2026-11-13 박희정)
+ *       SEAT_ADJUST를 더했다(2026-11-13 박희정). docs/SPEC.md 4·5장:
+ *       WASH_RAIN, WASH_DONE
  */
-enum class QuestionKind { FUEL_STOP, WASH_MODE, CHILD_LOCK, CHILD_LOCK_AGAIN, SEAT_ADJUST, SEAT_NAME, SEAT_NEW_PERSON }
+enum class QuestionKind {
+    FUEL_STOP, WASH_MODE, WASH_RAIN, WASH_DONE, CHILD_LOCK, CHILD_LOCK_AGAIN, SEAT_ADJUST, SEAT_NAME, SEAT_NEW_PERSON;
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 변수: offer
+     * 목적: 앱이 먼저 권한 질문이면 true. 거절하면 그날은 다시 권하지 않고,
+     *       대답이 없으면 닫는다. 운전자가 시작한 일(시트 맞추기)과 확인 질문은
+     *       아니다.
+     * 근거: 인용 — docs/SPEC.md 3장 "같은 권유", "대답이 없을 때"
+     */
+    val offer: Boolean get() = this == FUEL_STOP || this == WASH_MODE || this == CHILD_LOCK || this == CHILD_LOCK_AGAIN
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 변수: closesUnanswered
+     * 목적: 대답이 없으면 닫는 질문이면 true. 권한 질문과 확인 질문이다. 시트를
+     *       맞추는 중인 카드는 닫지 않는다.
+     */
+    val closesUnanswered: Boolean get() = offer || this == WASH_RAIN || this == WASH_DONE
+}
 
 /**
  * 작성: 2026-11-13 03:25:00 · 박건준
@@ -135,6 +162,14 @@ data class Question(
      * 반환: 고른 버튼이 있고 거절이 아니면 true
      */
     fun accepts(reply: Reply): Boolean = pick(reply)?.reply.let { it != null && it != Reply.NO }
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 변수: expires
+     * 목적: 대답 없이 `Asking.NO_REPLY_MS`가 지나면 닫을 질문이면 true. 스스로
+     *       시작하는 버튼(5초)이 있는 질문은 그 버튼이 끝낸다.
+     */
+    val expires: Boolean get() = kind.closesUnanswered && choices.none { it.waitMs > 0 }
 }
 
 /**
@@ -148,11 +183,30 @@ data class Question(
  *       - `alerts` — 경고 토스트로 잠깐 보일 문장(주행 중 벨트 풀림)
  *       - `working` — 대답을 받아 처리하는 중(내비가 경유지를 넣는 중). 화면은
  *         그동안 들은 말 판을 내리지 않고 진행 중을 보인다
- *       - "괜찮아요"·닫기로 끝난 종류는 `newTrip()` 전까지 다시 묻지 않는다
+ *       - "괜찮아요"·닫기로 끝난 종류는 `newTrip()` 전까지 다시 묻지 않는다.
+ *         권한 질문이면 그날은 다시 묻지 않는다
+ *       - 대답 없이 닫힌 종류(`expire()`)는 이번 길에서만 다시 묻지 않는다
+ * 인자: memory — 거절한 날을 남길 곳. 없으면 날은 기억하지 않는다
+ *       today — 오늘 날짜. 테스트에서 고정한다
  * 근거: 인용 — docs/SCREEN.md 3장 대화 규칙: "괜찮아요"나 닫기를 누른 제안은
- *       이번 길에서 다시 하지 않는다
+ *       이번 길에서 다시 하지 않는다. docs/SPEC.md 3장 "같은 권유 하루에 한 번",
+ *       "대답이 없을 때 20초 뒤 닫는다. 거절로 치지 않는다"
  */
-class Asking {
+class Asking(
+    private val memory: MemoryPort? = null,
+    private val today: () -> LocalDate = { LocalDate.now() },
+) {
+
+    companion object {
+        /**
+         * 작성: 2026-11-14 16:00:00 · 박건준
+         * 변수: NO_REPLY_MS
+         * 목적: 질문 카드를 띄운 뒤 대답을 기다리는 시간(밀리초). 지나면 화면이
+         *       `expire()`로 닫는다.
+         * 근거: 인용 — docs/SPEC.md 3장 "대답이 없을 때 20초 뒤 카드를 닫는다"
+         */
+        const val NO_REPLY_MS = 20_000L
+    }
 
     /** 지금 질문을 바꾸는 곳. 길안내 대화와 루틴 실행기가 쓴다 */
     private val current = MutableStateFlow<Question?>(null)
@@ -190,10 +244,19 @@ class Asking {
      */
     @Synchronized
     fun ask(q: Question): Boolean {
-        if (q.kind in declined) return false
+        if (q.kind in declined || declinedToday(q.kind)) return false
         current.value = q
         return true
     }
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: declinedToday
+     * 목적: 이 종류의 권유를 오늘 거절했는지 본다.
+     * 인자: kind — 질문 종류
+     * 반환: 오늘 거절했으면 true. 기억이 없으면 false
+     */
+    fun declinedToday(kind: QuestionKind): Boolean = memory?.declinedOn(kind.name) == today()
 
     /**
      * 작성: 2026-11-12 18:10:00 · 박건준
@@ -217,14 +280,42 @@ class Asking {
 
     /**
      * 작성: 2026-11-12 18:10:00 · 박건준
+     * 수정: 2026-11-14 16:00:00 · 박건준
      * 함수: decline
-     * 목적: 거절한 질문을 내리고, 이번 길에서는 다시 묻지 않게 남긴다.
+     * 목적: 거절한 질문을 내리고, 이번 길에서는 다시 묻지 않게 남긴다. 앱이
+     *       먼저 권한 질문이면 거절한 날도 남겨 그날은 다시 권하지 않는다.
      * 인자: kind — 질문 종류
      */
     @Synchronized
     fun decline(kind: QuestionKind) {
         declined += kind
+        if (kind.offer) memory?.recordDeclined(kind.name, today())
         answered(kind)
+    }
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: expire
+     * 목적: 대답 없이 시간이 지난 질문을 내린다. 거절로 치지 않아 날은 남기지
+     *       않고, 이번 길에서만 다시 묻지 않는다.
+     * 인자: kind — 질문 종류
+     * 근거: 인용 — docs/SPEC.md 3장 "대답이 없을 때"
+     */
+    @Synchronized
+    fun expire(kind: QuestionKind) {
+        declined += kind
+        answered(kind)
+    }
+
+    /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: forgetDay
+     * 목적: 오늘 거절한 권유 기록을 지운다. 시연을 처음으로 돌릴 때 부른다.
+     * 미구현: 프로토타입이라 시연을 하루에 여러 번 돌리려고 지운다. 실제
+     *       사용에서는 날이 바뀔 때만 다시 권한다
+     */
+    fun forgetDay() {
+        memory?.clearDeclined()
     }
 
     /**

@@ -5,15 +5,17 @@ import java.security.MessageDigest
 
 /**
  * 작성: 2026-11-12 14:52:00 · 박건준
+ * 수정: 2026-11-13 21:00:00 · 박희정
  * 클래스: VoiceLibrary
  * 목적: 문장에 맞는 녹음본을 찾는다. 녹음본은 assets/voice/<문장 MD5>.wav로
- *       있고, 앱이 켜질 때 목록을 한 번 읽는다.
+ *       있고, 앱이 켜질 때 목록을 한 번 읽는다. 말은 Pleos TTS로 읽고,
+ *       녹음본은 TTS를 쓸 수 없을 때 대신 낸다(`VoicePlayer`).
  * 인자: context — 앱 Context. assets를 읽는다
  * 근거: 표준 — tools/make-voice.ps1의 `Get-Md5`와 같은 방식(문장 UTF-8의
  *       MD5, 소문자 16진수)이어야 파일을 찾는다
  * 미구현: 프로토타입이라 대사집 문장만 Windows 한국어 음성으로 미리 녹음해
- *       둔다. 에뮬레이터 TTS가 초기화에 실패해서다(docs/api-spike.md 시나리오 ①
- *       TTS 행). 대사를 고치면 tools/make-voice.ps1을 다시 돌려야 한다
+ *       둔다. TTS 준비가 늦거나 실패할 때 시연이 끊기지 않게 하려는 예비다.
+ *       대사를 고치면 tools/make-voice.ps1을 다시 돌려야 한다
  */
 class VoiceLibrary(context: Context) {
 

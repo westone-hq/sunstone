@@ -71,7 +71,7 @@ class PleosCarPort(context: Context, scope: CoroutineScope) : CarPort, AutoClose
          * 수정: 2026-11-09 18:49:00 · 박건준
          * 변수: TAG
          * 목적: 차 관련 logcat 태그.
-         * 근거: 표준 — 주석·코드 규칙 10-2 로그 태그 넷
+         * 근거: 표준 — 로그 태그는 Sunstone·SunstoneCar·SunstoneVoice·SunstoneDemo 넷
          */
         const val TAG = "SunstoneCar"
 

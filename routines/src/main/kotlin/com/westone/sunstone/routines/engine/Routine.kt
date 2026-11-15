@@ -141,6 +141,18 @@ interface Routine {
     val undoNotice: String? get() = null
 
     /**
+     * 작성: 2026-11-14 16:00:00 · 박건준
+     * 함수: checkAfterMs, stillOnQuestion
+     * 목적: 켜진 뒤 `checkAfterMs`(밀리초)가 지나도 켜져 있으면
+     *       `stillOnQuestion()`을 한 번 묻는다. 받아들이면 되돌린다. 오래 켜 둘
+     *       일이 없는 루틴(세차 모드)이 쓴다. 기본은 묻지 않는다.
+     * 반환: 기다릴 시간과 물을 질문. 묻지 않으면 null
+     * 근거: 인용 — docs/SPEC.md 5장 오래 켜져 있을 때
+     */
+    val checkAfterMs: Long? get() = null
+    fun stillOnQuestion(): Question? = null
+
+    /**
      * 실행 뒤에도 켜진 상태로 남는가(세차·차일드락처럼 "끝"이 있는 루틴).
      * false면 한 번 맞추고 끝나는 루틴이라 다시 부르면 새로 실행한다(되돌리기는 마지막 실행 기준).
      */

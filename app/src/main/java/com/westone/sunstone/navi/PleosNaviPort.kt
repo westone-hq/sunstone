@@ -7,21 +7,58 @@ import com.westone.sunstone.routines.port.NaviPort
 
 /**
  * 작성: 2026-11-11 15:14:38 · 박희정
- * 수정: 2026-11-13 10:00:00 · 박희정
+ * 수정: 2026-11-14 13:41:10 · 박희정
+ * 수정: 2026-11-14 17:00:00 · 박건준
  * 클래스: PleosNaviPort
  * 목적: 기능 쪽 내비 창구(`NaviPort`)를 Pleos 내비(`PleosNavi`)로 채운다.
- *       값 모양만 바꿔 넘기고 판단은 하지 않는다.
+ *       값 모양만 바꿔 넘기고 판단은 하지 않는다. 목적지는 실제 검색(카카오)
+ *       후보를 주고, 시연 중이거나 검색이 안 되면 시연 장소 목록에서 찾는다.
  * 인자: navi — Pleos 내비
  *       places — 이름으로 찾을 수 있는 시연 장소(`PlaceWatcher.spots`). 장소의
  *       성격(집·유치원)도 함께 넘긴다
- * 미구현: 프로토타입이라 장소 찾기는 바깥 API(카카오 로컬) 대신 시연 장소 고정
- *       목록(assets/places.json)에서 이름으로 찾는다. 목록에 없는 목적지는
- *       `TripDialog`가 "찾지 못했어요"로 안내한다
+ *       search — 실제 장소 검색. 없으면 시연 장소만 쓴다
+ *       selectedStation — 경유지로 넣은 주유소에 도착 알림을 거는 곳
+ *       searchEnabled — 지금 실제 검색을 쓰는지(시연 중이면 false)
+ *       clearStation — 새 경로를 시작할 때 앞 주유소 알림을 지우는 곳
+ * 미구현: 프로토타입이라 키·통신이 없으면 목적지를 시연 장소 고정 목록
+ *       (assets/places.json)에서만 찾는다. 목록에 없으면 `TripDialog`가 "찾지
+ *       못했어요"로 안내한다
  */
 class PleosNaviPort(
     private val navi: PleosNavi,
     private val places: () -> List<PlaceWatcher.Spot>,
+    private val search: (suspend (String) -> List<RoutinePlaceHit>)? = null,
+    private val selectedStation: suspend (RoutinePlaceHit) -> Unit = {},
+    private val searchEnabled: () -> Boolean = { true },
+    private val clearStation: () -> Unit = {},
 ) : NaviPort {
+
+    /** 함수: findPlaces
+     * 목적: 실제 검색 실패 시에만 출처를 밝힌 고정 장소로 대체한다.
+     */
+    override suspend fun findPlaces(query: String): List<RoutinePlaceHit> {
+        if (!searchEnabled()) return listOfNotNull(findPlace(query))
+        if (search != null) {
+            try {
+                val found = search.invoke(query)
+                if (found.isNotEmpty()) return found.map { result ->
+                    val known = places().firstOrNull {
+                        it.hit.name == result.name &&
+                            kotlin.math.abs(it.hit.point.lat - result.point.lat) < 0.001 &&
+                            kotlin.math.abs(it.hit.point.lng - result.point.lng) < 0.001
+                    } // 이름과 좌표가 모두 같은 기존 등록 장소의 의미만 보존한다
+                    if (known == null) result else result.copy(kind = known.place)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                if (e !is kotlinx.coroutines.TimeoutCancellationException) throw e
+            } catch (_: Exception) {
+                android.util.Log.w("Sunstone", "실제 장소 검색 실패: 키·통신 상태 확인 필요")
+            }
+        }
+        return listOfNotNull(findPlace(query)?.let {
+            if (search == null) it else it.copy(source = "고정 목적지 대체")
+        })
+    }
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
@@ -54,8 +91,11 @@ class PleosNaviPort(
      *       처음부터 다시 해 더 늦어졌다. 그래서 `PleosNavi`가 길게(45초)
      *       기다리게 하고 한 번만 요청한다
      */
-    override suspend fun startRoute(destination: RoutinePlaceHit): RoutineRouteSummary? =
-        navi.startRoute(destination.toNavi())?.toRoutine() // → 로직 이동: PleosNavi.startRoute()
+    override suspend fun startRoute(destination: RoutinePlaceHit): RoutineRouteSummary? {
+        val result = navi.startRoute(destination.toNavi())?.toRoutine()
+        if (result != null) clearStation()
+        return result
+    }
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
@@ -64,15 +104,25 @@ class PleosNaviPort(
      * 인자: place — 경유지
      * 반환: 경로 요약. 실패하면 null
      */
-    override suspend fun addWaypoint(place: RoutinePlaceHit): RoutineRouteSummary? =
-        navi.addWaypoint(place.toNavi(), 1)?.toRoutine() // → 로직 이동: PleosNavi.addWaypoint()
+    override suspend fun addWaypoint(place: RoutinePlaceHit): RoutineRouteSummary? {
+        val result = navi.addWaypoint(place.toNavi(), 1)?.toRoutine() ?: return null
+        return try {
+            selectedStation(place)
+            result
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            android.util.Log.w("Sunstone", "경유지 추가 성공, 도착 감지 등록 실패")
+            result.copy(arrivalTracked = false)
+        }
+    }
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
      * 함수: toNavi
      * 목적: 기능 쪽 장소를 Pleos 내비 장소로 바꾼다.
      */
-    private fun RoutinePlaceHit.toNavi() = PlaceHit(name, GeoPoint(point.lat, point.lng))
+    private fun RoutinePlaceHit.toNavi() = PlaceHit(name, GeoPoint(point.lat, point.lng), address)
 
     /**
      * 작성: 2026-11-11 15:14:38 · 박희정
